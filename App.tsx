@@ -24,7 +24,10 @@ import {
   Briefcase,
   Edit2,
   ChevronRight,
-  FilterX
+  FilterX,
+  ChevronLeft,
+  List,
+  Calendar as CalendarIcon
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -404,6 +407,9 @@ const AppContent: React.FC = () => {
   };
 
   const AgendaView = () => {
+    const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
     let visibleEvents = getVisibleEvents();
     
     // Aplicar Filtro de Banda (se houver)
@@ -411,34 +417,82 @@ const AppContent: React.FC = () => {
       visibleEvents = visibleEvents.filter(e => e.bandId === selectedBandFilter);
     }
 
-    const filteredEvents = visibleEvents
-      .filter(e => e.name.toLowerCase().includes(filterText.toLowerCase()) || e.city.toLowerCase().includes(filterText.toLowerCase()))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Filtragem por texto (aplicada em ambos os modos)
+    const filteredEvents = visibleEvents.filter(e => 
+      e.name.toLowerCase().includes(filterText.toLowerCase()) || 
+      e.city.toLowerCase().includes(filterText.toLowerCase())
+    );
     
     const selectedBandName = bands.find(b => b.id === selectedBandFilter)?.name;
+
+    // --- Calendar Helpers ---
+    const getDaysInMonth = (date: Date) => {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const days = new Date(year, month + 1, 0).getDate();
+      const firstDay = new Date(year, month, 1).getDay(); // 0 = Domingo
+      return { days, firstDay, year, month };
+    };
+
+    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    
+    const { days, firstDay, year, month } = getDaysInMonth(currentMonth);
+
+    const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
+    const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
 
     return (
       <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0">
         
-        {/* Cabeçalho / Filtros */}
+        {/* Header da Agenda */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar evento, cidade..." 
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
-              />
+            
+            {/* Controles de Visualização e Mês */}
+            <div className="flex items-center gap-4 w-full md:w-auto">
+               <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
+                  <button 
+                    onClick={() => setViewMode('calendar')}
+                    className={`p-2 rounded transition-all ${viewMode === 'calendar' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <CalendarIcon size={18} />
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('list')}
+                    className={`p-2 rounded transition-all ${viewMode === 'list' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <List size={18} />
+                  </button>
+               </div>
+
+               {viewMode === 'calendar' && (
+                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
+                   <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
+                   <span className="font-semibold text-white min-w-[120px] text-center">{monthNames[month]} {year}</span>
+                   <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
+                 </div>
+               )}
             </div>
-            <button 
-              onClick={() => { setEditingEvent(null); setIsFormOpen(true); }}
-              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20"
-            >
-              <Plus size={18} /> Novo Evento
-            </button>
+
+            <div className="flex gap-2 w-full md:w-auto">
+               <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar..." 
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
+                />
+              </div>
+              <button 
+                onClick={() => { setEditingEvent(null); setIsFormOpen(true); }}
+                className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
+              >
+                <Plus size={18} /> <span className="hidden md:inline">Novo Evento</span>
+              </button>
+            </div>
           </div>
 
           {/* Banner de Filtro Ativo */}
@@ -458,70 +512,144 @@ const AppContent: React.FC = () => {
           )}
         </div>
 
-        <div className="flex-1 overflow-auto rounded-xl border border-slate-800 bg-slate-950">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-900 sticky top-0 z-10">
-              <tr>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Data</th>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Evento</th>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Banda</th>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Local</th>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Horário</th>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {filteredEvents.map(event => {
-                const band = bands.find(b => b.id === event.bandId);
+        {/* --- VIEW: CALENDAR --- */}
+        {viewMode === 'calendar' && (
+          <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+            {/* Days Header */}
+            <div className="grid grid-cols-7 bg-slate-900 border-b border-slate-800">
+              {weekDays.map(day => (
+                <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            {/* Days Grid */}
+            <div className="grid grid-cols-7 auto-rows-fr flex-1 bg-slate-950">
+              {/* Padding days (empty slots before 1st of month) */}
+              {Array.from({ length: firstDay }).map((_, i) => (
+                <div key={`empty-${i}`} className="border-b border-r border-slate-800/50 bg-slate-900/30 min-h-[100px]" />
+              ))}
+
+              {/* Actual days */}
+              {Array.from({ length: days }).map((_, i) => {
+                const dayNum = i + 1;
+                // Create date string YYYY-MM-DD to match event.date format (approx)
+                // Note: event.date is ISO, so we need careful comparison
+                const currentDayDateStr = new Date(year, month, dayNum).toISOString().split('T')[0];
                 
+                const dayEvents = filteredEvents.filter(e => {
+                  const eventDate = new Date(e.date).toISOString().split('T')[0];
+                  return eventDate === currentDayDateStr;
+                });
+
+                const isToday = new Date().toDateString() === new Date(year, month, dayNum).toDateString();
+
                 return (
-                  <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
-                    <td className="p-4">
-                      <div className="flex flex-col">
-                        <span className="text-white font-medium">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
-                        <span className="text-xs text-slate-500 flex items-center gap-1 md:hidden"><Clock size={10}/> {event.time}</span>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span className="text-slate-200 font-medium block">{event.name}</span>
-                      <span className="text-xs text-slate-500 md:hidden">{event.city}</span>
-                    </td>
-                    <td className="p-4 hidden md:table-cell">
-                      <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-300">{band?.name}</span>
-                    </td>
-                    <td className="p-4 hidden md:table-cell">
-                      <span className="text-sm text-slate-400">{event.venue}, {event.city}</span>
-                    </td>
-                    <td className="p-4 hidden md:table-cell">
-                      <span className="text-sm text-slate-400 flex items-center gap-1"><Clock size={14} /> {event.time}</span>
-                    </td>
-                    <td className="p-4">
-                      <StatusBadge status={event.status} />
-                    </td>
-                    <td className="p-4 text-right">
-                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={() => openEditEvent(event)} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg">
-                           <MoreVertical size={16} />
-                         </button>
-                         <button onClick={() => handleDeleteEvent(event.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-slate-700 rounded-lg">
-                           <Trash2 size={16} />
-                         </button>
-                       </div>
-                    </td>
-                  </tr>
+                  <div key={dayNum} className={`border-b border-r border-slate-800/50 p-2 min-h-[100px] flex flex-col relative transition-colors hover:bg-slate-900/40 ${isToday ? 'bg-primary-900/10' : ''}`}>
+                    <span className={`text-sm font-medium mb-1 ${isToday ? 'text-primary-400 bg-primary-900/30 px-2 py-0.5 rounded-full w-fit' : 'text-slate-400'}`}>
+                      {dayNum}
+                    </span>
+                    
+                    <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px] custom-scrollbar">
+                      {dayEvents.map(event => {
+                         // Colors based on status
+                         const statusColor = {
+                            [EventStatus.CONFIRMED]: 'bg-green-500/20 text-green-300 border-green-500/30',
+                            [EventStatus.RESERVED]: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+                            [EventStatus.CANCELED]: 'bg-red-500/20 text-red-300 border-red-500/30',
+                            [EventStatus.COMPLETED]: 'bg-slate-700 text-slate-300 border-slate-600',
+                         }[event.status] || 'bg-slate-700 text-slate-300';
+
+                         return (
+                           <button 
+                             key={event.id}
+                             onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
+                             className={`text-[10px] text-left px-1.5 py-1 rounded border truncate transition-all hover:opacity-80 ${statusColor}`}
+                             title={`${event.name} - ${event.time}`}
+                           >
+                             <span className="font-bold mr-1">{event.time}</span>
+                             {event.name}
+                           </button>
+                         )
+                      })}
+                    </div>
+                  </div>
                 );
               })}
-              {filteredEvents.length === 0 && (
+            </div>
+          </div>
+        )}
+
+        {/* --- VIEW: LIST (Legacy) --- */}
+        {viewMode === 'list' && (
+          <div className="flex-1 overflow-auto rounded-xl border border-slate-800 bg-slate-950">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-900 sticky top-0 z-10">
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500">
-                    Nenhum evento encontrado {selectedBandFilter ? 'para esta banda' : ''}.
-                  </td>
+                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Data</th>
+                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Evento</th>
+                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Banda</th>
+                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Local</th>
+                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Horário</th>
+                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Ações</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {filteredEvents
+                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                  .map(event => {
+                  const band = bands.find(b => b.id === event.bandId);
+                  
+                  return (
+                    <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
+                      <td className="p-4">
+                        <div className="flex flex-col">
+                          <span className="text-white font-medium">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-xs text-slate-500 flex items-center gap-1 md:hidden"><Clock size={10}/> {event.time}</span>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-slate-200 font-medium block">{event.name}</span>
+                        <span className="text-xs text-slate-500 md:hidden">{event.city}</span>
+                      </td>
+                      <td className="p-4 hidden md:table-cell">
+                        <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-300">{band?.name}</span>
+                      </td>
+                      <td className="p-4 hidden md:table-cell">
+                        <span className="text-sm text-slate-400">{event.venue}, {event.city}</span>
+                      </td>
+                      <td className="p-4 hidden md:table-cell">
+                        <span className="text-sm text-slate-400 flex items-center gap-1"><Clock size={14} /> {event.time}</span>
+                      </td>
+                      <td className="p-4">
+                        <StatusBadge status={event.status} />
+                      </td>
+                      <td className="p-4 text-right">
+                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                           <button onClick={() => openEditEvent(event)} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg">
+                             <MoreVertical size={16} />
+                           </button>
+                           <button onClick={() => handleDeleteEvent(event.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-slate-700 rounded-lg">
+                             <Trash2 size={16} />
+                           </button>
+                         </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredEvents.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500">
+                      Nenhum evento encontrado {selectedBandFilter ? 'para esta banda' : ''}.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     );
   };
@@ -655,7 +783,7 @@ const AppContent: React.FC = () => {
                  onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }}
                  className="flex items-center gap-2 text-sm bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition-colors border border-slate-700"
                >
-                 <Plus size={16} /> Novo Usuário
+                 <Plus size={16} /> Nova Usuário
                </button>
              </div>
              
