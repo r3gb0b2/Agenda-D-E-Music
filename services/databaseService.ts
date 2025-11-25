@@ -65,7 +65,7 @@ const sanitizeUser = (data: any, id: string): User => {
   return {
     id: id,
     name: data?.name || 'Usuário',
-    email: data?.email || 'sem-email@dne.music',
+    email: (data?.email || 'sem-email@dne.music').toLowerCase(),
     password: data?.password || '',
     role: data?.role || UserRole.MEMBER,
     bandIds: data?.bandIds || []
@@ -177,15 +177,18 @@ export const db = {
   },
 
   login: async (loginInput: string, passwordInput: string): Promise<User | null> => {
+    // Normalização para minúsculo (Case Insensitive)
+    const normalizedLogin = loginInput.trim().toLowerCase();
+
     // 1. Check Special Super Admin Hardcoded
-    if (loginInput === 'admin' && passwordInput === 'admin') {
+    if (normalizedLogin === 'admin' && passwordInput === 'admin') {
       return SUPER_ADMIN;
     }
 
     // 2. Try Local Mock Data (Simulated Backend)
     const localUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
     const localMatch = localUsers.find((u: User) => 
-      (u.email === loginInput || (u.email === 'admin' && loginInput === 'admin')) && 
+      (u.email.toLowerCase() === normalizedLogin || (normalizedLogin === 'admin' && u.email.toLowerCase() === 'admin')) && 
       u.password === passwordInput
     );
     
@@ -194,11 +197,13 @@ export const db = {
     }
 
     // 3. Try Firebase Auth (Only if it looks like an email)
-    if (USE_FIREBASE && auth && loginInput.includes('@')) {
+    if (USE_FIREBASE && auth && normalizedLogin.includes('@')) {
       try {
-        const userCredential = await signInWithEmailAndPassword(auth, loginInput, passwordInput);
-        // Find user details in Firestore by email
-        const snapshot = await getDocs(query(collection(dbFirestore!, FB_COLLECTIONS.USERS), where("email", "==", loginInput)));
+        // Firebase Auth handles email case insensitivity usually, but we pass normalized just in case
+        const userCredential = await signInWithEmailAndPassword(auth, normalizedLogin, passwordInput);
+        
+        // Find user details in Firestore by email (querying lowercase)
+        const snapshot = await getDocs(query(collection(dbFirestore!, FB_COLLECTIONS.USERS), where("email", "==", normalizedLogin)));
         if (!snapshot.empty) {
           const doc = snapshot.docs[0];
           return sanitizeUser(doc.data(), doc.id);
@@ -207,7 +212,7 @@ export const db = {
            return {
              id: userCredential.user.uid,
              name: userCredential.user.displayName || 'Usuário Firebase',
-             email: userCredential.user.email || loginInput,
+             email: userCredential.user.email ? userCredential.user.email.toLowerCase() : normalizedLogin,
              role: UserRole.MEMBER,
              bandIds: []
            };
@@ -260,19 +265,24 @@ export const db = {
   // --- USERS ---
   
   saveUser: async (user: User): Promise<void> => {
+    // Ensure email is always lowercase when saving
+    const normalizedUser = {
+      ...user,
+      email: user.email.trim().toLowerCase()
+    };
+
     // Local save
     const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-    const index = users.findIndex((u: User) => u.id === user.id);
-    if (index >= 0) users[index] = user;
-    else users.push(user);
+    const index = users.findIndex((u: User) => u.id === normalizedUser.id);
+    if (index >= 0) users[index] = normalizedUser;
+    else users.push(normalizedUser);
     localStorage.setItem(KEYS.USERS, JSON.stringify(users));
 
     if (USE_FIREBASE && dbFirestore) {
       try {
-        const userId = user.id || crypto.randomUUID();
+        const userId = normalizedUser.id || crypto.randomUUID();
         // Remove password before saving to Firestore for security best practice (even in demo)
-        // In a real app, you'd use Firebase Auth for password management
-        const { password, ...userSafe } = user; 
+        const { password, ...userSafe } = normalizedUser; 
         await setDoc(doc(dbFirestore, FB_COLLECTIONS.USERS, userId), { ...userSafe, id: userId }, { merge: true });
       } catch (e) {
         console.error("Firebase User Save Error", e);
