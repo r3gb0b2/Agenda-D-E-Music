@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode, Component, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -58,7 +58,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -68,7 +68,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
   }
 
@@ -435,7 +435,7 @@ const AppContent: React.FC = () => {
       visibleEvents = visibleEvents.filter(e => e.bandId === selectedBandFilter);
     }
 
-    // Filtragem por texto (aplicada em ambos os modos)
+    // Filtragem por texto
     const filteredEvents = visibleEvents.filter(e => 
       e.name.toLowerCase().includes(filterText.toLowerCase()) || 
       e.city.toLowerCase().includes(filterText.toLowerCase())
@@ -460,9 +460,8 @@ const AppContent: React.FC = () => {
     const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
     const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
 
-    // Handle clicking a day to add event
+    // Improved Date Click
     const handleDayClick = (dayNum: number) => {
-      // Create string YYYY-MM-DD manually to avoid timezone shift
       const d = String(dayNum).padStart(2, '0');
       const m = String(month + 1).padStart(2, '0');
       const dateStr = `${year}-${m}-${d}`;
@@ -470,6 +469,12 @@ const AppContent: React.FC = () => {
       setNewEventDate(dateStr);
       setEditingEvent(null);
       setIsFormOpen(true);
+    };
+
+    // Helper to Normalize Date for Comparison (YYYY-MM-DD)
+    const normalizeDate = (d: string) => {
+      if (!d) return '';
+      return d.includes('T') ? d.split('T')[0] : d;
     };
 
     return (
@@ -517,7 +522,7 @@ const AppContent: React.FC = () => {
                 />
               </div>
               <button 
-                onClick={() => { setEditingEvent(null); setNewEventDate(''); setIsFormOpen(true); }}
+                onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
                 className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
               >
                 <Plus size={18} /> <span className="hidden md:inline">Novo Evento</span>
@@ -527,514 +532,4 @@ const AppContent: React.FC = () => {
 
           {/* Banner de Filtro Ativo */}
           {selectedBandFilter && (
-            <div className="flex items-center justify-between bg-primary-900/20 border border-primary-500/30 text-primary-300 px-4 py-3 rounded-lg animate-fade-in">
-              <span className="flex items-center gap-2">
-                <Music size={16} /> 
-                Mostrando apenas shows de: <strong className="text-white">{selectedBandName}</strong>
-              </span>
-              <button 
-                onClick={() => setSelectedBandFilter(null)}
-                className="flex items-center gap-1 text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1 rounded border border-slate-700 transition-colors"
-              >
-                <FilterX size={14} /> Limpar Filtro
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* --- VIEW: CALENDAR --- */}
-        {viewMode === 'calendar' && (
-          <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col h-full min-h-[600px]">
-            {/* Days Header */}
-            <div className="grid grid-cols-7 bg-slate-900 border-b border-slate-800">
-              {weekDays.map(day => (
-                <div key={day} className="py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  {day.slice(0, 3)} <span className="hidden md:inline">{day.slice(3)}</span>
-                </div>
-              ))}
-            </div>
-            
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 auto-rows-fr flex-1 bg-slate-950">
-              {/* Padding days (empty slots before 1st of month) */}
-              {Array.from({ length: firstDay }).map((_, i) => (
-                <div key={`empty-${i}`} className="border-b border-r border-slate-800/50 bg-slate-900/20" />
-              ))}
-
-              {/* Actual days */}
-              {Array.from({ length: days }).map((_, i) => {
-                const dayNum = i + 1;
-                
-                // Construct Date String safely for comparison (YYYY-MM-DD)
-                const d = String(dayNum).padStart(2, '0');
-                const m = String(month + 1).padStart(2, '0');
-                const currentDayIso = `${year}-${m}-${d}`;
-                
-                const dayEvents = filteredEvents.filter(e => {
-                  if (!e.date) return false;
-                  // Handle both '2023-10-10' and '2023-10-10T00:00:00.000Z' formats
-                  const eventDateOnly = e.date.includes('T') ? e.date.split('T')[0] : e.date;
-                  return eventDateOnly === currentDayIso;
-                });
-
-                const isToday = new Date().toISOString().split('T')[0] === currentDayIso;
-
-                return (
-                  <div 
-                    key={dayNum} 
-                    onClick={() => handleDayClick(dayNum)}
-                    className={`
-                      border-b border-r border-slate-800/50 p-2 
-                      min-h-[130px]  /* ADJUSTED HEIGHT */
-                      flex flex-col relative transition-colors cursor-pointer
-                      hover:bg-slate-900/60
-                      ${isToday ? 'bg-slate-900/80 ring-inset ring-1 ring-primary-500/30' : ''}
-                    `}
-                  >
-                    <span className={`text-lg font-bold mb-2 ml-1 ${isToday ? 'text-primary-400 bg-primary-900/30 px-2 rounded-full w-fit' : 'text-slate-600'}`}>
-                      {dayNum}
-                    </span>
-                    
-                    <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar flex-1 w-full">
-                      {dayEvents.map(event => {
-                         // Colors based on status
-                         const statusStyle = {
-                            [EventStatus.CONFIRMED]: 'bg-green-600 text-white border-green-500',
-                            [EventStatus.RESERVED]: 'bg-yellow-600 text-white border-yellow-500',
-                            [EventStatus.CANCELED]: 'bg-red-900/80 text-red-200 border-red-800',
-                            [EventStatus.COMPLETED]: 'bg-blue-900/80 text-blue-200 border-blue-800',
-                         }[event.status] || 'bg-slate-800 text-slate-300 border-slate-700';
-
-                         const bandName = bands.find(b => b.id === event.bandId)?.name;
-
-                         return (
-                           <div 
-                             key={event.id}
-                             onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                             className={`text-left p-2 rounded border shadow-sm transition-all hover:brightness-110 w-full ${statusStyle}`}
-                           >
-                             <div className="flex items-center justify-between mb-0.5">
-                                <span className="font-bold text-xs bg-black/30 px-1 rounded">{event.time}</span>
-                                {!selectedBandFilter && (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-black/30 px-1 rounded truncate max-w-[60px]">
-                                    {bandName}
-                                  </span>
-                                )}
-                             </div>
-                             
-                             <div className="font-bold text-sm leading-tight truncate mb-0.5">
-                               {event.name}
-                             </div>
-
-                             <div className="flex items-center gap-1 text-[11px] leading-tight opacity-90 truncate">
-                               <MapPin size={10} className="shrink-0" /> 
-                               <span>{event.city}</span>
-                             </div>
-                             {event.venue && (
-                               <div className="text-[10px] opacity-80 truncate">
-                                 {event.venue}
-                                </div>
-                             )}
-                           </div>
-                         )
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* --- VIEW: LIST (Legacy) --- */}
-        {viewMode === 'list' && (
-          <div className="flex-1 overflow-auto rounded-xl border border-slate-800 bg-slate-950">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-slate-900 sticky top-0 z-10">
-                <tr>
-                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Data</th>
-                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Evento</th>
-                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Banda</th>
-                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Local</th>
-                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Horário</th>
-                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                  <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {filteredEvents
-                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                  .map(event => {
-                  const band = bands.find(b => b.id === event.bandId);
-                  
-                  return (
-                    <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
-                      <td className="p-4">
-                        <div className="flex flex-col">
-                          <span className="text-white font-medium">{new Date(event.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
-                          <span className="text-xs text-slate-500 flex items-center gap-1 md:hidden"><Clock size={10}/> {event.time}</span>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        <span className="text-slate-200 font-medium block">{event.name}</span>
-                        <span className="text-xs text-slate-500 md:hidden">{event.city}</span>
-                      </td>
-                      <td className="p-4 hidden md:table-cell">
-                        <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-300">{band?.name}</span>
-                      </td>
-                      <td className="p-4 hidden md:table-cell">
-                        <span className="text-sm text-slate-400">{event.venue}, {event.city}</span>
-                      </td>
-                      <td className="p-4 hidden md:table-cell">
-                        <span className="text-sm text-slate-400 flex items-center gap-1"><Clock size={14} /> {event.time}</span>
-                      </td>
-                      <td className="p-4">
-                        <StatusBadge status={event.status} />
-                      </td>
-                      <td className="p-4 text-right">
-                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                           <button onClick={() => openEditEvent(event)} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg">
-                             <MoreVertical size={16} />
-                           </button>
-                           <button onClick={() => handleDeleteEvent(event.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-slate-700 rounded-lg">
-                             <Trash2 size={16} />
-                           </button>
-                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredEvents.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-slate-500">
-                      Nenhum evento encontrado {selectedBandFilter ? 'para esta banda' : ''}.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const ContractorsView = () => {
-    // Only Admin can manage contractors freely? Or everyone? Assuming everyone can see for now.
-    const filteredContractors = contractors.filter(c => 
-      c.name.toLowerCase().includes(filterText.toLowerCase()) || 
-      c.email.toLowerCase().includes(filterText.toLowerCase()) ||
-      c.address.city.toLowerCase().includes(filterText.toLowerCase())
-    );
-
-    return (
-       <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar contratante..." 
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
-            />
-          </div>
-          <button 
-            onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20"
-          >
-            <Plus size={18} /> Novo Contratante
-          </button>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
-           {filteredContractors.map(contractor => (
-             <div key={contractor.id} className="bg-slate-950 border border-slate-800 rounded-xl p-5 hover:border-slate-600 transition-all group">
-               <div className="flex justify-between items-start mb-4">
-                 <div>
-                    <h3 className="text-white font-bold text-lg leading-tight">{contractor.name}</h3>
-                    <p className="text-xs text-primary-400 mt-1 uppercase tracking-wider">{contractor.type}</p>
-                 </div>
-                 <div className="flex gap-1">
-                   <button onClick={() => openEditContractor(contractor)} className="p-2 text-slate-400 hover:text-white bg-slate-900 rounded-lg hover:bg-slate-800">
-                      <MoreVertical size={16} />
-                   </button>
-                   <button onClick={() => handleDeleteContractor(contractor.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-900 rounded-lg hover:bg-slate-800">
-                      <Trash2 size={16} />
-                   </button>
-                 </div>
-               </div>
-
-               <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-slate-400">
-                    <Users size={14} className="text-slate-500"/>
-                    <span>Resp: <span className="text-slate-200">{contractor.responsibleName || 'Não informado'}</span></span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-slate-400">
-                    <Phone size={14} className="text-slate-500"/>
-                    <span>{contractor.whatsapp || contractor.phone || 'Sem contato'}</span>
-                  </div>
-                   <div className="flex items-center gap-2 text-sm text-slate-400">
-                    <MapPin size={14} className="text-slate-500"/>
-                    <span className="truncate">{contractor.address.city}, {contractor.address.state}</span>
-                  </div>
-               </div>
-               
-               {contractor.additionalInfo.notes && (
-                 <div className="text-xs text-slate-500 bg-slate-900 p-2 rounded italic">
-                   "{contractor.additionalInfo.notes.substring(0, 60)}{contractor.additionalInfo.notes.length > 60 ? '...' : ''}"
-                 </div>
-               )}
-             </div>
-           ))}
-        </div>
-       </div>
-    );
-  }
-
-  const BandManagerView = () => {
-    return (
-      <div className="space-y-6 pb-20 md:pb-0">
-        <h2 className="text-2xl font-bold text-white mb-6">Gerenciamento de Bandas & Usuários</h2>
-        
-        <div className="flex flex-col gap-8">
-          {/* Bands List - Full Width */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
-             <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
-               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                 <Music size={20} className="text-primary-500"/> 
-                 Bandas Cadastradas
-               </h3>
-               <button 
-                onClick={handleAddBand}
-                className="flex items-center gap-2 text-sm bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"
-               >
-                 <Plus size={16} /> Nova Banda
-               </button>
-             </div>
-             
-             <div className="divide-y divide-slate-800">
-               {bands.map(band => (
-                 <div key={band.id} className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors">
-                    <div className="flex items-center gap-4">
-                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
-                          <Music size={18} />
-                       </div>
-                       <div>
-                          <p className="text-white font-medium text-lg">{band.name}</p>
-                          <p className="text-slate-500 text-sm">Gênero: {band.genre}</p>
-                       </div>
-                    </div>
-                    <div className="text-right">
-                       <span className="text-slate-500 text-sm bg-slate-900 px-3 py-1 rounded-full border border-slate-800">
-                         Ativa
-                       </span>
-                    </div>
-                 </div>
-               ))}
-               {bands.length === 0 && <p className="p-6 text-slate-500 text-center">Nenhuma banda cadastrada.</p>}
-             </div>
-          </div>
-
-          {/* Users List - Full Width */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
-             <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
-               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                 <Users size={20} className="text-accent-500"/> 
-                 Usuários e Permissões
-               </h3>
-               <button 
-                 onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }}
-                 className="flex items-center gap-2 text-sm bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition-colors border border-slate-700"
-               >
-                 <Plus size={16} /> Nova Usuário
-               </button>
-             </div>
-             
-             <div className="divide-y divide-slate-800">
-               {/* List Users */}
-               {users.map(u => (
-                  <div key={u.id} className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors group">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border ${u.role === UserRole.ADMIN ? 'bg-primary-900/50 text-primary-400 border-primary-500/20' : 'bg-slate-800 text-white border-slate-700'}`}>
-                        {u.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                           <p className="text-white font-medium">{u.name}</p>
-                           <span className={`text-[10px] px-2 py-0.5 rounded-full border ${u.role === UserRole.ADMIN ? 'bg-primary-500/10 border-primary-500/20 text-primary-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                              {u.role}
-                           </span>
-                        </div>
-                        <p className="text-slate-500 text-sm">{u.email}</p>
-                        {/* Show band access summary */}
-                        <p className="text-xs text-slate-600 mt-1">
-                          {u.role === UserRole.ADMIN ? 'Acesso total' : `Acesso a ${u.bandIds.length} banda(s)`}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => openEditUser(u)} className="p-2 text-slate-400 hover:text-white bg-slate-900 rounded-lg hover:bg-slate-800">
-                          <Edit2 size={16} />
-                       </button>
-                       {u.email !== 'admin' && (
-                         <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-900 rounded-lg hover:bg-slate-800">
-                            <Trash2 size={16} />
-                         </button>
-                       )}
-                    </div>
-                 </div>
-               ))}
-             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // State: Loading (Internal React State)
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
-        <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-        <p className="text-slate-400 text-sm animate-pulse tracking-wider">AGENDA D&E MUSIC</p>
-      </div>
-    );
-  }
-
-  // State: Not Logged In (Real Login Screen)
-  if (!currentUser) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white p-4">
-        <div className="w-full max-w-md bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl">
-          <div className="flex justify-center mb-6">
-             <div className="w-16 h-16 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
-                <Music size={32} />
-             </div>
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-2 text-center">Agenda D&E MUSIC</h1>
-          <p className="text-slate-400 mb-8 text-center">Gestão Artística Profissional</p>
-          
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Login / Email</label>
-              <input
-                required
-                type="text"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
-                placeholder="Digite seu login"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
-              <input
-                required
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
-                placeholder="Digite sua senha"
-              />
-            </div>
-            
-            {loginError && (
-              <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
-                 <AlertTriangle size={16} /> {loginError}
-              </div>
-            )}
-
-            <button 
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white py-3 px-4 rounded-xl font-medium transition-all shadow-lg shadow-primary-600/20 mt-4 disabled:opacity-50"
-            >
-              {isLoggingIn ? <Loader2 className="animate-spin"/> : <LogIn size={20} />}
-              {isLoggingIn ? 'Entrando...' : 'Acessar Sistema'}
-            </button>
-          </form>
-          
-          <div className="mt-8 text-center text-xs text-slate-600">
-             <p>Acesso restrito a colaboradores.</p>
-             <p>v1.2.0 • D&E Music App</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // State: Logged In
-  return (
-    <Layout 
-      user={currentUser} 
-      currentView={currentView} 
-      onChangeView={(view) => {
-        // Se mudar a view pela sidebar, limpa o filtro de banda
-        if (view !== 'agenda') {
-          setSelectedBandFilter(null);
-        }
-        setCurrentView(view);
-      }}
-      onLogout={handleLogout}
-    >
-      {/* Logout Button in Sidebar is managed by Layout, but let's pass a way to logout if needed, usually Layout handles view switching but maybe we need a logout prop later */}
-      <div className="absolute top-4 right-4 md:hidden">
-         {/* Mobile logout if needed, currently Layout has sidebar */}
-      </div>
-      
-      {currentView === 'dashboard' && <DashboardView />}
-      {currentView === 'agenda' && <AgendaView />}
-      {currentView === 'contractors' && <ContractorsView />}
-      {/* Only Admin sees Band Manager */}
-      {currentView === 'bands' && currentUser.role === UserRole.ADMIN && <BandManagerView />}
-      {currentView === 'bands' && currentUser.role !== UserRole.ADMIN && (
-        <div className="text-center text-slate-500 mt-20">Acesso negado.</div>
-      )}
-
-      {isFormOpen && (
-        <EventForm 
-          bands={getVisibleBands()} // Only pass bands user is allowed to see
-          contractors={contractors}
-          existingEvent={editingEvent}
-          // @ts-ignore
-          initialDate={newEventDate} // Pass calendar click date - Note: EventForm might need update to accept initialDate but ignoring type error if props mismatch for now or assuming it works if passed
-          // @ts-ignore
-          initialBandId={selectedBandFilter || undefined} // Pass filtered band
-          onSave={handleSaveEvent} 
-          onClose={() => { setIsFormOpen(false); setEditingEvent(null); }} 
-        />
-      )}
-
-      {isContractorFormOpen && (
-        <ContractorForm
-          existingContractor={editingContractor}
-          onSave={handleSaveContractor}
-          onClose={() => { setIsContractorFormOpen(false); setEditingContractor(null); }}
-        />
-      )}
-
-      {/* User Form Modal */}
-      {isUserFormOpen && currentUser.role === UserRole.ADMIN && (
-        <UserForm
-          bands={bands}
-          existingUser={editingUser}
-          onSave={handleSaveUser}
-          onClose={() => { setIsUserFormOpen(false); setEditingUser(null); }}
-        />
-      )}
-    </Layout>
-  );
-};
-
-const App = () => {
-  return (
-    <ErrorBoundary>
-      <AppContent />
-    </ErrorBoundary>
-  );
-};
-
-export default App;
+            <div className="flex items-center justify-between bg-primary

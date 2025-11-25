@@ -7,11 +7,13 @@ interface EventFormProps {
   bands: Band[];
   contractors: Contractor[];
   existingEvent?: Event | null;
+  initialDate?: string;
+  initialBandId?: string;
   onSave: (event: Event) => void;
   onClose: () => void;
 }
 
-const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, onSave, onClose }) => {
+const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, initialDate, initialBandId, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'financials' | 'ai'>('details');
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
@@ -21,9 +23,11 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
 
   const [formData, setFormData] = useState<Event>({
     id: existingEvent?.id || crypto.randomUUID(),
-    bandId: existingEvent?.bandId || bands[0]?.id || '',
+    bandId: existingEvent?.bandId || initialBandId || bands[0]?.id || '',
     name: existingEvent?.name || '',
-    date: existingEvent?.date ? new Date(existingEvent.date).toISOString().split('T')[0] : '',
+    date: existingEvent?.date 
+      ? new Date(existingEvent.date).toISOString().split('T')[0] 
+      : (initialDate || new Date().toISOString().split('T')[0]),
     time: existingEvent?.time || '20:00',
     durationHours: existingEvent?.durationHours || 2,
     city: existingEvent?.city || '',
@@ -115,7 +119,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 w-full max-w-3xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden">
+      <div className="bg-slate-900 w-full max-w-3xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up">
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-950">
           <h2 className="text-xl font-bold text-white">
@@ -150,7 +154,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 max-h-[70vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           {activeTab === 'details' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -245,11 +249,6 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                           <option key={c.id} value={c.name}>{c.name}</option>
                         ))}
                       </select>
-                      {/* Fallback para digitar caso não esteja na lista (embora o select acima restrinja, 
-                          em um cenário real usaríamos um datalist ou combobox. 
-                          Para simplificar mantendo o select, adicionamos um botão 'Outro' se necessário, 
-                          mas aqui assumiremos seleção da lista ou input direto se transformássemos o componente) 
-                      */}
                       
                       {/* Caso o usuário queira digitar um nome que não está na lista */}
                       <input 
