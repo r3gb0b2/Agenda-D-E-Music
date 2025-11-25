@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './services/databaseService';
-import { Event, Band, User, EventStatus } from './types';
+import { Event, Band, User, EventStatus, UserRole } from './types';
 import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import { 
@@ -79,6 +79,7 @@ const AppContent: React.FC = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [events, setEvents] = useState<Event[]>([]);
   const [bands, setBands] = useState<Band[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [filterText, setFilterText] = useState('');
@@ -102,20 +103,23 @@ const AppContent: React.FC = () => {
         const userPromise = db.getCurrentUser();
         const eventsPromise = db.getEvents();
         const bandsPromise = db.getBands();
+        const usersPromise = db.getUsers();
 
         // If data fetching takes too long (> 3s), we continue with what we have
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Tempo limite excedido"), 3000));
 
         try {
-           await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise]), timeoutPromise]);
+           await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise, usersPromise]), timeoutPromise]);
            const user = await userPromise;
            const loadedEvents = await eventsPromise;
            const loadedBands = await bandsPromise;
+           const loadedUsers = await usersPromise;
            
            if (isMounted) {
              setCurrentUser(user);
              setEvents(loadedEvents || []);
              setBands(loadedBands || []);
+             setUsers(loadedUsers || []);
              setIsLoading(false);
            }
         } catch (err) {
@@ -129,6 +133,7 @@ const AppContent: React.FC = () => {
                 setCurrentUser(u);
                 setEvents(e || []);
                 setBands(b || []);
+                setUsers([]);
               } catch (criticalErr) {
                 console.error("Critical fallback failure", criticalErr);
               }
@@ -152,6 +157,7 @@ const AppContent: React.FC = () => {
   const refreshData = async () => {
     setEvents(await db.getEvents());
     setBands(await db.getBands());
+    setUsers(await db.getUsers());
   };
 
   const handleSaveEvent = async (event: Event) => {
@@ -166,6 +172,33 @@ const AppContent: React.FC = () => {
       await db.deleteEvent(id);
       refreshData();
     }
+  };
+
+  const handleAddBand = async () => {
+    const name = window.prompt("Nome da nova banda:");
+    if (name) {
+      const newBand: Band = {
+        id: crypto.randomUUID(),
+        name: name,
+        genre: 'Geral',
+        members: 1
+      };
+      await db.saveBand(newBand);
+      refreshData();
+    }
+  };
+
+  const handleAddUser = async () => {
+    // Note: In a real Firebase Auth app, this would involve creating an Auth user.
+    // Here we just add to the DB collection for management display.
+    const name = window.prompt("Nome do usuário:");
+    if (!name) return;
+    const email = window.prompt("Email do usuário:");
+    if (!email) return;
+
+    // We can't easily save users in this simple mock structure without expanding db service significantly
+    // But for the UI feedback requested:
+    alert(`Funcionalidade de convite enviada para ${email} (Simulação)`);
   };
 
   const openEdit = (event: Event) => {
@@ -216,24 +249,18 @@ const AppContent: React.FC = () => {
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {bands.map(band => (
                <div key={band.id} className="bg-slate-950 border border-slate-800 p-6 rounded-xl hover:border-primary-500/50 transition-colors group cursor-pointer" onClick={() => setCurrentView('agenda')}>
-                 <div className="flex justify-between items-start mb-4">
-                   <div className="w-12 h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center text-primary-400 border border-slate-700 group-hover:scale-110 transition-transform">
+                 <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center text-primary-400 border border-slate-700 group-hover:scale-110 transition-transform shadow-lg">
                       <Mic2 size={24} />
                    </div>
-                   <span className="bg-slate-900 text-slate-400 text-xs px-2 py-1 rounded-full border border-slate-800">
-                     {band.genre}
-                   </span>
-                 </div>
-                 <h3 className="text-lg font-bold text-white mb-1">{band.name}</h3>
-                 <div className="flex items-center gap-4 text-sm text-slate-500">
-                    <span className="flex items-center gap-1"><Users size={14}/> {band.members} Integrantes</span>
+                   <h3 className="text-lg font-bold text-white tracking-wide">{band.name}</h3>
                  </div>
                </div>
              ))}
              
              {/* Add Band Card */}
              <button 
-               onClick={() => setCurrentView('bands')}
+               onClick={handleAddBand}
                className="bg-slate-900/50 border border-slate-800 border-dashed p-6 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-primary-400 hover:border-primary-500/50 transition-all gap-3"
              >
                 <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
@@ -421,14 +448,18 @@ const AppContent: React.FC = () => {
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
              <div className="flex justify-between items-center mb-4">
                <h3 className="text-lg font-semibold text-white flex items-center gap-2"><Music size={20} className="text-primary-500"/> Bandas</h3>
-               <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">+ Adicionar</button>
+               <button 
+                onClick={handleAddBand}
+                className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors"
+               >
+                 + Adicionar
+               </button>
              </div>
              <div className="space-y-3">
                {bands.map(band => (
                  <div key={band.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
                     <div>
                       <p className="text-white font-medium">{band.name}</p>
-                      <p className="text-xs text-slate-500">{band.genre} • {band.members} integrantes</p>
                     </div>
                  </div>
                ))}
@@ -440,7 +471,12 @@ const AppContent: React.FC = () => {
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
              <div className="flex justify-between items-center mb-4">
                <h3 className="text-lg font-semibold text-white flex items-center gap-2"><Users size={20} className="text-accent-500"/> Usuários</h3>
-               <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">+ Convidar</button>
+               <button 
+                 onClick={handleAddUser}
+                 className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors"
+               >
+                 + Convidar
+               </button>
              </div>
              <div className="space-y-3">
                <div className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
@@ -453,6 +489,20 @@ const AppContent: React.FC = () => {
                   </div>
                   <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700">ADMIN</span>
                </div>
+               {users.filter(u => u.role !== UserRole.ADMIN).map(u => (
+                  <div key={u.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium text-sm">{u.name}</p>
+                        <p className="text-xs text-slate-500">{u.email}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700">{u.role}</span>
+                 </div>
+               ))}
              </div>
           </div>
         </div>
