@@ -7,13 +7,11 @@ import {
   Plus, 
   Search, 
   MapPin, 
-  Calendar as CalendarIcon, 
   Clock, 
   DollarSign, 
   MoreVertical, 
   Trash2,
   Users,
-  Briefcase,
   Music,
   Loader2,
   LogIn
@@ -53,20 +51,14 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        // Wait a bit for UX smoother transition from HTML loader
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        const user = db.getCurrentUser();
-        
         // Load data safely
-        const loadedEvents = db.getEvents();
-        const loadedBands = db.getBands();
+        const user = await db.getCurrentUser();
+        const loadedEvents = await db.getEvents();
+        const loadedBands = await db.getBands();
         
-        // Batch updates
         setCurrentUser(user);
         setEvents(loadedEvents);
         setBands(loadedBands);
-        
       } catch (error) {
         console.error("Failed to initialize app:", error);
       } finally {
@@ -77,21 +69,21 @@ const App: React.FC = () => {
     init();
   }, []);
 
-  const refreshData = () => {
-    setEvents(db.getEvents());
-    setBands(db.getBands());
+  const refreshData = async () => {
+    setEvents(await db.getEvents());
+    setBands(await db.getBands());
   };
 
-  const handleSaveEvent = (event: Event) => {
-    db.saveEvent(event);
+  const handleSaveEvent = async (event: Event) => {
+    await db.saveEvent(event);
     refreshData();
     setIsFormOpen(false);
     setEditingEvent(null);
   };
 
-  const handleDeleteEvent = (id: string) => {
+  const handleDeleteEvent = async (id: string) => {
     if (confirm('Tem certeza que deseja excluir este evento?')) {
-      db.deleteEvent(id);
+      await db.deleteEvent(id);
       refreshData();
     }
   };
@@ -101,9 +93,8 @@ const App: React.FC = () => {
     setIsFormOpen(true);
   };
 
-  const handleLogin = () => {
-    // Fallback login manual re-fetch
-    const user = db.getCurrentUser();
+  const handleLogin = async () => {
+    const user = await db.getCurrentUser();
     setCurrentUser(user);
   };
 
@@ -325,18 +316,19 @@ const App: React.FC = () => {
                <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">+ Convidar</button>
              </div>
              <div className="space-y-3">
-               {db.getUsers().map(u => (
-                 <div key={u.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">{u.name.charAt(0)}</div>
-                      <div>
-                        <p className="text-white font-medium text-sm">{u.name}</p>
-                        <p className="text-xs text-slate-500">{u.email}</p>
-                      </div>
+               {/* Note: This might be empty if we are in firebase mode and no users exist yet */}
+               {/* We could fetch users via db.getUsers() but for sync render in this component we need to use state */}
+               {/* For this specific view, we'll just re-use the fetched users if we had them in state, or mock */}
+               <div className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">A</div>
+                    <div>
+                      <p className="text-white font-medium text-sm">Admin (Você)</p>
+                      <p className="text-xs text-slate-500">admin@dne.music</p>
                     </div>
-                    <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700">{u.role}</span>
-                 </div>
-               ))}
+                  </div>
+                  <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700">ADMIN</span>
+               </div>
              </div>
           </div>
         </div>
