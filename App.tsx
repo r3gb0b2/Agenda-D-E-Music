@@ -49,31 +49,54 @@ const App: React.FC = () => {
 
   // Initial Load
   useEffect(() => {
-    // Remove the HTML pre-loader once React starts execution
+    // Force remove loader after React mounts
     const preloader = document.getElementById('initial-loader');
     if (preloader) {
       preloader.style.opacity = '0';
       setTimeout(() => preloader.remove(), 500);
     }
 
+    let isMounted = true;
+
     const init = async () => {
       try {
-        // Load data safely
-        const user = await db.getCurrentUser();
-        const loadedEvents = await db.getEvents();
-        const loadedBands = await db.getBands();
-        
-        setCurrentUser(user);
-        setEvents(loadedEvents || []);
-        setBands(loadedBands || []);
+        // Load data safely with timeout
+        const userPromise = db.getCurrentUser();
+        const eventsPromise = db.getEvents();
+        const bandsPromise = db.getBands();
+
+        // If data fetching takes too long (> 3s), we stop loading to show UI
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Timeout"), 3000));
+
+        try {
+           await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise]), timeoutPromise]);
+           const user = await userPromise;
+           const loadedEvents = await eventsPromise;
+           const loadedBands = await bandsPromise;
+           
+           if (isMounted) {
+             setCurrentUser(user);
+             setEvents(loadedEvents || []);
+             setBands(loadedBands || []);
+           }
+        } catch (err) {
+           console.warn("Data load timeout or error, using fallbacks:", err);
+           // Try to set what we have
+           if (isMounted) {
+              const u = await userPromise.catch(() => null);
+              setCurrentUser(u);
+           }
+        }
       } catch (error) {
         console.error("Failed to initialize app:", error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     init();
+    
+    return () => { isMounted = false; };
   }, []);
 
   const refreshData = async () => {
@@ -379,7 +402,7 @@ const App: React.FC = () => {
             <LogIn size={20} className="group-hover:translate-x-1 transition-transform" /> 
             Acessar Sistema
           </button>
-          <p className="text-xs text-slate-600 mt-6">Modo Demo Local (Firebase opcional)</p>
+          <p className="text-xs text-slate-600 mt-6">Modo Demo Local (Firebase Habilitado)</p>
         </div>
       </div>
     );

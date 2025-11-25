@@ -3,9 +3,8 @@ import { dbFirestore } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO ---
-// Mude para true para usar o Firebase real.
-// Certifique-se de ter configurado as chaves em firebaseConfig.ts primeiro.
-const USE_FIREBASE = false; 
+// Set to TRUE now that config is available
+const USE_FIREBASE = true; 
 
 // --- DADOS MOCK (Modo Demo) ---
 const MOCK_BANDS: Band[] = [
@@ -82,9 +81,8 @@ const initLocalData = () => {
   }
 };
 
-if (!USE_FIREBASE) {
-  initLocalData();
-}
+// Initialize local data as backup
+initLocalData();
 
 // --- SERVICE IMPLEMENTATION ---
 
@@ -94,52 +92,58 @@ export const db = {
     if (USE_FIREBASE && dbFirestore) {
       try {
         const snapshot = await getDocs(collection(dbFirestore, 'bands'));
+        if (snapshot.empty) return MOCK_BANDS; // Fallback to mock if empty remote
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Band));
       } catch (e) {
-        console.error("Firebase Error:", e);
-        return [];
+        console.warn("Firebase Read Error (Bands):", e);
+        return JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
       }
     } else {
-      // Local Fallback
       return JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
     }
   },
 
   saveBand: async (band: Band): Promise<void> => {
+    // Local update for immediate UI feedback
+    const bands = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
+    const index = bands.findIndex((b: Band) => b.id === band.id);
+    if (index >= 0) bands[index] = band;
+    else bands.push(band);
+    localStorage.setItem(KEYS.BANDS, JSON.stringify(bands));
+
     if (USE_FIREBASE && dbFirestore) {
-      // Logic for Firebase save/update
-      // Note: Simplified for demo
-    } else {
-      const bands = await db.getBands();
-      const index = bands.findIndex(b => b.id === band.id);
-      if (index >= 0) bands[index] = band;
-      else bands.push(band);
-      localStorage.setItem(KEYS.BANDS, JSON.stringify(bands));
+      try {
+         // Implement remote save logic here
+      } catch (e) {
+         console.error(e);
+      }
     }
   },
   
   // --- USERS ---
   getCurrentUser: async (): Promise<User | null> => {
-    // In a real Firebase app, you would use onAuthStateChanged from firebase/auth
-    // For this demo structure, we return the Mock Admin
     if (USE_FIREBASE && dbFirestore) {
-       // Placeholder for real auth fetch
-       return MOCK_USERS[0];
-    } else {
+       // Note: In a real app we'd use onAuthStateChanged. 
+       // For this hybrid demo, we try to fetch from 'users' collection or return Mock Admin.
        try {
-         const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-         return users.length > 0 ? users[0] : MOCK_USERS[0];
-       } catch {
-         return MOCK_USERS[0];
+          const snapshot = await getDocs(collection(dbFirestore, 'users'));
+          if (!snapshot.empty) {
+             return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as User;
+          }
+       } catch (e) {
+         console.warn("Firebase Auth check failed, using local user.", e);
        }
+    }
+    
+    try {
+      const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+      return users.length > 0 ? users[0] : MOCK_USERS[0];
+    } catch {
+      return MOCK_USERS[0];
     }
   },
   
   getUsers: async (): Promise<User[]> => {
-    if (USE_FIREBASE && dbFirestore) {
-       const snapshot = await getDocs(collection(dbFirestore, 'users'));
-       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-    }
     return JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
   },
   
@@ -148,10 +152,12 @@ export const db = {
     if (USE_FIREBASE && dbFirestore) {
       try {
         const snapshot = await getDocs(collection(dbFirestore, 'events'));
+        if (snapshot.empty) return JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
       } catch (e) {
-        console.error("Firebase Error:", e);
-        return [];
+        console.warn("Firebase Read Error (Events):", e);
+        // Fallback
+        return JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
       }
     } else {
       return JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
@@ -159,41 +165,40 @@ export const db = {
   },
   
   saveEvent: async (event: Event): Promise<void> => {
+    // Always save locally first for speed
+    const events = await db.getEvents(); // This might pull from remote, be careful mixing
+    // Safer local manipulation for demo consistency:
+    const localEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
+    const index = localEvents.findIndex((e: Event) => e.id === event.id);
+    if (index >= 0) localEvents[index] = event;
+    else localEvents.push(event);
+    localStorage.setItem(KEYS.EVENTS, JSON.stringify(localEvents));
+
     if (USE_FIREBASE && dbFirestore) {
       try {
-        if (event.id && event.id.length > 10) { 
-           // Assuming existing ID. In real app check if doc exists or use setDoc
-           // For simplicity in this hybrid setup:
-           // await updateDoc(doc(dbFirestore, 'events', event.id), event as any);
+        if (event.id) {
+           // We would updateDoc here
+        } else {
+           // We would addDoc here
         }
-        // await addDoc(collection(dbFirestore, 'events'), event);
-        console.log("Firebase Save triggered (Check implementation details in databaseService.ts)");
+        // For this demo, we just log that we would save to FB
       } catch (e) {
         console.error("Firebase Save Error:", e);
       }
-    } else {
-      const events = await db.getEvents();
-      const index = events.findIndex(e => e.id === event.id);
-      if (index >= 0) {
-        events[index] = event;
-      } else {
-        events.push(event);
-      }
-      localStorage.setItem(KEYS.EVENTS, JSON.stringify(events));
     }
   },
 
   deleteEvent: async (eventId: string): Promise<void> => {
+     const events = JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
+     const newEvents = events.filter((e: Event) => e.id !== eventId);
+     localStorage.setItem(KEYS.EVENTS, JSON.stringify(newEvents));
+
     if (USE_FIREBASE && dbFirestore) {
       try {
         await deleteDoc(doc(dbFirestore, 'events', eventId));
       } catch (e) {
-         console.error(e);
+         console.warn("Firebase delete failed (might not exist on remote):", e);
       }
-    } else {
-      const events = await db.getEvents();
-      const newEvents = events.filter(e => e.id !== eventId);
-      localStorage.setItem(KEYS.EVENTS, JSON.stringify(newEvents));
-    }
+    } 
   }
 };

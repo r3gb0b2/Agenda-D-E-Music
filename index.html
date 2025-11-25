@@ -90,6 +90,7 @@
         margin-top: 1rem;
         font-size: 0.8rem;
         text-align: center;
+        max-width: 80%;
       }
 
       @keyframes spin {
@@ -109,12 +110,13 @@
     "react-dom": "https://esm.sh/react-dom@18.2.0",
     "react/": "https://esm.sh/react@18.2.0/",
     "react": "https://esm.sh/react@18.2.0",
-    "@google/genai": "https://esm.sh/@google/genai@0.1.0",
+    "@google/genai": "https://esm.sh/@google/genai@0.0.2",
     "lucide-react": "https://esm.sh/lucide-react@0.263.1",
     "recharts": "https://esm.sh/recharts@2.12.0",
     "firebase/app": "https://esm.sh/firebase@10.8.0/app",
     "firebase/firestore": "https://esm.sh/firebase@10.8.0/firestore",
     "firebase/auth": "https://esm.sh/firebase@10.8.0/auth",
+    "firebase/analytics": "https://esm.sh/firebase@10.8.0/analytics",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
   }
 }
@@ -127,19 +129,20 @@
         <div class="loader-spinner"></div>
         <div class="loader-text">AGENDA D&E MUSIC</div>
         <div class="loader-error" id="loader-error">
-          O carregamento está demorando mais que o esperado.<br/>
-          Verifique sua conexão ou recarregue a página.
+          Iniciando sistema...<br/>
+          Caso demore, verifique sua conexão.
         </div>
       </div>
     </div>
     <script>
-      // Failsafe: Show error message if React doesn't load in 8 seconds
+      // Failsafe: Show message if React doesn't load
       setTimeout(() => {
         const errorMsg = document.getElementById('loader-error');
         if (errorMsg && document.getElementById('initial-loader')) {
           errorMsg.style.display = 'block';
+          errorMsg.innerHTML = "O aplicativo está demorando para carregar.<br>Verifique se as bibliotecas (Firebase/React) não estão bloqueadas.";
         }
-      }, 8000);
+      }, 5000);
     </script>
   </body>
 </html>
