@@ -196,19 +196,20 @@ const AppContent: React.FC = () => {
 
   const DashboardView = () => {
     // Calculate stats
-    const totalRevenue = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? curr.financials.grossValue : 0), 0);
-    const totalNet = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? curr.financials.netValue : 0), 0);
+    const totalRevenue = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? (curr.financials?.grossValue || 0) : 0), 0);
+    const totalNet = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? (curr.financials?.netValue || 0) : 0), 0);
     const confirmedCount = events.filter(e => e.status === EventStatus.CONFIRMED).length;
     
     // Prepare Chart Data
     const chartData = events.reduce((acc: any[], event) => {
-      if (!event.date) return acc;
+      if (!event.date || !event.financials) return acc;
       const month = new Date(event.date).toLocaleString('pt-BR', { month: 'short' });
       const existing = acc.find(item => item.name === month);
+      const val = event.financials.grossValue || 0;
       if (existing) {
-        existing.value += event.financials.grossValue;
+        existing.value += val;
       } else {
-        acc.push({ name: month, value: event.financials.grossValue });
+        acc.push({ name: month, value: val });
       }
       return acc;
     }, []).slice(0, 6);
@@ -329,6 +330,9 @@ const AppContent: React.FC = () => {
             <tbody className="divide-y divide-slate-800">
               {filteredEvents.map(event => {
                 const band = bands.find(b => b.id === event.bandId);
+                // Safe access to financials
+                const netValue = event.financials?.netValue || 0;
+                
                 return (
                   <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
                     <td className="p-4">
@@ -348,7 +352,7 @@ const AppContent: React.FC = () => {
                       <span className="text-sm text-slate-400">{event.venue}, {event.city}</span>
                     </td>
                     <td className="p-4 hidden md:table-cell">
-                      <span className="text-sm text-green-400 font-medium">R$ {event.financials.netValue.toLocaleString('pt-BR')}</span>
+                      <span className="text-sm text-green-400 font-medium">R$ {netValue.toLocaleString('pt-BR')}</span>
                     </td>
                     <td className="p-4">
                       <StatusBadge status={event.status} />
