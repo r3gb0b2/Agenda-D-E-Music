@@ -554,64 +554,88 @@ const AppContent: React.FC = () => {
       <div className="space-y-6 pb-20 md:pb-0">
         <h2 className="text-2xl font-bold text-white mb-6">Gerenciamento de Bandas & Usuários</h2>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Bands List */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-             <div className="flex justify-between items-center mb-4">
-               <h3 className="text-lg font-semibold text-white flex items-center gap-2"><Music size={20} className="text-primary-500"/> Bandas</h3>
+        <div className="flex flex-col gap-8">
+          {/* Bands List - Full Width */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+             <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
+               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                 <Music size={20} className="text-primary-500"/> 
+                 Bandas Cadastradas
+               </h3>
                <button 
                 onClick={handleAddBand}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors"
+                className="flex items-center gap-2 text-sm bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-primary-500/20"
                >
-                 + Adicionar
+                 <Plus size={16} /> Nova Banda
                </button>
              </div>
-             <div className="space-y-3">
+             
+             <div className="divide-y divide-slate-800">
                {bands.map(band => (
-                 <div key={band.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
-                    <div>
-                      <p className="text-white font-medium">{band.name}</p>
+                 <div key={band.id} className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                          <Music size={18} />
+                       </div>
+                       <div>
+                          <p className="text-white font-medium text-lg">{band.name}</p>
+                          <p className="text-slate-500 text-sm">Gênero: {band.genre}</p>
+                       </div>
+                    </div>
+                    <div className="text-right">
+                       <span className="text-slate-500 text-sm bg-slate-900 px-3 py-1 rounded-full border border-slate-800">
+                         Ativa
+                       </span>
                     </div>
                  </div>
                ))}
-               {bands.length === 0 && <p className="text-slate-500 text-sm">Nenhuma banda cadastrada.</p>}
+               {bands.length === 0 && <p className="p-6 text-slate-500 text-center">Nenhuma banda cadastrada.</p>}
              </div>
           </div>
 
-          {/* Users List (Mock) */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-             <div className="flex justify-between items-center mb-4">
-               <h3 className="text-lg font-semibold text-white flex items-center gap-2"><Users size={20} className="text-accent-500"/> Usuários</h3>
+          {/* Users List - Full Width */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+             <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
+               <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                 <Users size={20} className="text-accent-500"/> 
+                 Usuários do Sistema
+               </h3>
                <button 
                  onClick={handleAddUser}
-                 className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors"
+                 className="flex items-center gap-2 text-sm bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition-colors border border-slate-700"
                >
-                 + Convidar
+                 <Plus size={16} /> Convidar Usuário
                </button>
              </div>
-             <div className="space-y-3">
-               <div className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">A</div>
+             
+             <div className="divide-y divide-slate-800">
+               {/* Admin Row */}
+               <div className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-primary-900/50 text-primary-400 flex items-center justify-center font-bold text-sm border border-primary-500/20">
+                       A
+                    </div>
                     <div>
-                      <p className="text-white font-medium text-sm">Admin (Você)</p>
-                      <p className="text-xs text-slate-500">admin@dne.music</p>
+                      <p className="text-white font-medium">Admin (Você)</p>
+                      <p className="text-slate-500 text-sm">admin@dne.music</p>
                     </div>
                   </div>
-                  <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700">ADMIN</span>
+                  <span className="text-xs bg-primary-500/10 text-primary-400 px-3 py-1 rounded-full border border-primary-500/20 font-medium">ADMIN</span>
                </div>
+               
+               {/* Other Users */}
                {users.filter(u => u.role !== UserRole.ADMIN).map(u => (
-                  <div key={u.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">
+                  <div key={u.id} className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-sm font-medium text-white border border-slate-700">
                         {u.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-white font-medium text-sm">{u.name}</p>
-                        <p className="text-xs text-slate-500">{u.email}</p>
+                        <p className="text-white font-medium">{u.name}</p>
+                        <p className="text-slate-500 text-sm">{u.email}</p>
                       </div>
                     </div>
-                    <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700">{u.role}</span>
+                    <span className="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 font-medium">{u.role}</span>
                  </div>
                ))}
              </div>
@@ -679,6 +703,7 @@ const AppContent: React.FC = () => {
       {isFormOpen && (
         <EventForm 
           bands={bands} 
+          contractors={contractors}
           existingEvent={editingEvent}
           onSave={handleSaveEvent} 
           onClose={() => { setIsFormOpen(false); setEditingEvent(null); }} 

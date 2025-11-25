@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Band, Event, EventStatus } from '../types';
-import { X, Calculator, Sparkles } from 'lucide-react';
+import { Band, Event, EventStatus, Contractor } from '../types';
+import { X, Calculator, Sparkles, User, Phone, MapPin, Mail } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
 
 interface EventFormProps {
   bands: Band[];
+  contractors: Contractor[];
   existingEvent?: Event | null;
   onSave: (event: Event) => void;
   onClose: () => void;
 }
 
-const EventForm: React.FC<EventFormProps> = ({ bands, existingEvent, onSave, onClose }) => {
+const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'financials' | 'ai'>('details');
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
+  
+  // Estado local para exibir detalhes do contratante selecionado
+  const [selectedContractorInfo, setSelectedContractorInfo] = useState<Contractor | undefined>(undefined);
 
   const [formData, setFormData] = useState<Event>({
     id: existingEvent?.id || crypto.randomUUID(),
@@ -36,6 +40,14 @@ const EventForm: React.FC<EventFormProps> = ({ bands, existingEvent, onSave, onC
       currency: 'BRL'
     }
   });
+
+  // Atualiza infos do contratante se já houver um nome preenchido (edição)
+  useEffect(() => {
+    if (formData.contractor) {
+      const match = contractors.find(c => c.name === formData.contractor);
+      setSelectedContractorInfo(match);
+    }
+  }, [formData.contractor, contractors]);
 
   // Auto-calculate net value
   useEffect(() => {
@@ -73,6 +85,20 @@ const EventForm: React.FC<EventFormProps> = ({ bands, existingEvent, onSave, onC
 
   const handleChange = (field: keyof Event, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleContractorChange = (value: string) => {
+    handleChange('contractor', value);
+    // Tenta encontrar dados adicionais para auto-preencher cidade se estiver vazio
+    const match = contractors.find(c => c.name === value);
+    if (match) {
+      if (!formData.city && match.address.city) {
+         handleChange('city', match.address.city);
+      }
+      if (!formData.venue && match.additionalInfo.venue) {
+         handleChange('venue', match.additionalInfo.venue);
+      }
+    }
   };
 
   const handleFinancialChange = (field: keyof typeof formData.financials, value: any) => {
@@ -203,26 +229,70 @@ const EventForm: React.FC<EventFormProps> = ({ bands, existingEvent, onSave, onC
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Contratante</label>
-                  <input
-                    type="text"
-                    value={formData.contractor}
-                    onChange={(e) => handleChange('contractor', e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
-                  />
+              {/* Seção de Contratante Aprimorada */}
+              <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Contratante</label>
+                    <div className="relative">
+                      <select
+                        value={formData.contractor}
+                        onChange={(e) => handleContractorChange(e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none appearance-none"
+                      >
+                        <option value="">Selecione ou digite...</option>
+                        {contractors.map(c => (
+                          <option key={c.id} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                      {/* Fallback para digitar caso não esteja na lista (embora o select acima restrinja, 
+                          em um cenário real usaríamos um datalist ou combobox. 
+                          Para simplificar mantendo o select, adicionamos um botão 'Outro' se necessário, 
+                          mas aqui assumiremos seleção da lista ou input direto se transformássemos o componente) 
+                      */}
+                      
+                      {/* Caso o usuário queira digitar um nome que não está na lista */}
+                      <input 
+                         type="text"
+                         className="mt-2 w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-slate-400 placeholder-slate-600 focus:text-white focus:border-primary-500"
+                         placeholder="Ou digite um novo contratante aqui..."
+                         value={formData.contractor}
+                         onChange={(e) => handleChange('contractor', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">Status</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => handleChange('status', e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                    >
+                      {Object.values(EventStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => handleChange('status', e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
-                  >
-                    {Object.values(EventStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
+
+                {/* Card de Informações do Contratante */}
+                {selectedContractorInfo && (
+                  <div className="mt-4 p-3 bg-slate-900 rounded border border-slate-800 flex flex-col gap-2 animate-fade-in">
+                    <div className="flex items-center gap-2 text-primary-400 font-medium text-sm">
+                      <User size={14} /> 
+                      <span>{selectedContractorInfo.responsibleName || 'Responsável não informado'}</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <Phone size={12} /> {selectedContractorInfo.whatsapp || selectedContractorInfo.phone || 'Sem telefone'}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail size={12} /> {selectedContractorInfo.email || 'Sem email'}
+                      </div>
+                      <div className="flex items-center gap-2 col-span-2">
+                         <MapPin size={12} /> {selectedContractorInfo.address.city}, {selectedContractorInfo.address.state}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
