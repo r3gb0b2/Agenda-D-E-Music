@@ -34,10 +34,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-slate-950 border-r border-slate-800">
         <div className="p-6">
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent">
-            BandMaster
+          <h1 className="text-xl font-bold bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent">
+            Agenda D&E MUSIC
           </h1>
-          <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Pro System</p>
+          <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Sistema de Gestão</p>
         </div>
 
         <nav className="flex-1 px-4 py-4">
@@ -63,7 +63,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
 
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 w-full bg-slate-950 border-b border-slate-800 z-50 flex items-center justify-between p-4">
-        <h1 className="text-xl font-bold text-white">BandMaster</h1>
+        <h1 className="text-lg font-bold text-white">Agenda D&E MUSIC</h1>
         <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-white">
           {isMobileMenuOpen ? <X /> : <Menu />}
         </button>

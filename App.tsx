@@ -50,15 +50,28 @@ const App: React.FC = () => {
 
   // Initial Load
   useEffect(() => {
-    // Simulate a brief loading sequence for smoother UX transition from the HTML pre-loader
-    const timer = setTimeout(() => {
-      const user = db.getCurrentUser();
-      setCurrentUser(user);
-      refreshData();
-      setIsLoading(false);
-    }, 800);
+    const init = async () => {
+      try {
+        // Wait a bit for UX smoother transition from HTML loader
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const user = db.getCurrentUser();
+        setCurrentUser(user);
+        
+        // Load data safely
+        const loadedEvents = db.getEvents();
+        const loadedBands = db.getBands();
+        setEvents(loadedEvents);
+        setBands(loadedBands);
+        
+      } catch (error) {
+        console.error("Failed to initialize app:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    return () => clearTimeout(timer);
+    init();
   }, []);
 
   const refreshData = () => {
@@ -327,7 +340,7 @@ const App: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
         <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
-        <p className="text-slate-400 text-sm animate-pulse tracking-wider">BANDMASTER PRO</p>
+        <p className="text-slate-400 text-sm animate-pulse tracking-wider">AGENDA D&E MUSIC</p>
       </div>
     );
   }
