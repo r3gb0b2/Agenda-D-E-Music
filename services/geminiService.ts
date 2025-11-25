@@ -5,15 +5,28 @@ import { Event, Band } from "../types";
 // This is for demonstration purposes as requested by the prompt structure.
 const getApiKey = () => {
   try {
-    return process.env.API_KEY || '';
+    return typeof process !== 'undefined' && process.env ? (process.env.API_KEY || '') : '';
   } catch {
     return '';
   }
 };
 
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
+let ai: GoogleGenAI | null = null;
+
+try {
+  const key = getApiKey();
+  if (key) {
+    ai = new GoogleGenAI({ apiKey: key });
+  }
+} catch (e) {
+  console.warn("Could not initialize Gemini AI:", e);
+}
 
 export const generateEventBrief = async (event: Event, bandName: string): Promise<string> => {
+  if (!ai) {
+    return "Funcionalidade de IA indisponível (Chave API não encontrada ou erro de inicialização).";
+  }
+
   try {
     const prompt = `
       Você é um assistente pessoal de uma banda. Crie um resumo curto, profissional e formatado para WhatsApp (com emojis) para enviar aos músicos sobre o seguinte evento.
@@ -38,6 +51,6 @@ export const generateEventBrief = async (event: Event, bandName: string): Promis
     return response.text || "Não foi possível gerar o resumo.";
   } catch (error) {
     console.error("Gemini Error:", error);
-    return "Erro ao conectar com a IA. Verifique sua chave de API.";
+    return "Erro ao conectar com a IA. Verifique sua chave de API e conexão.";
   }
 };

@@ -83,6 +83,17 @@ const initLocalData = () => {
 // Initialize local data as backup
 initLocalData();
 
+// Helper to ensure User object has valid fields
+const sanitizeUser = (data: any, id: string): User => {
+  return {
+    id: id,
+    name: data.name || 'Usuário',
+    email: data.email || 'sem-email@dne.music',
+    role: data.role || UserRole.MEMBER,
+    bandIds: data.bandIds || []
+  };
+};
+
 // --- SERVICE IMPLEMENTATION ---
 
 export const db = {
@@ -126,7 +137,8 @@ export const db = {
           // Attempt to get users from remote, if none, use fallback mock user
           const snapshot = await getDocs(collection(dbFirestore, 'users'));
           if (!snapshot.empty) {
-             return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as User;
+             const doc = snapshot.docs[0];
+             return sanitizeUser(doc.data(), doc.id);
           }
        } catch (e) {
          console.warn("Firebase Auth check failed, using local user.", e);
@@ -136,14 +148,16 @@ export const db = {
     // Fallback to local
     try {
       const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-      return users.length > 0 ? users[0] : MOCK_USERS[0];
+      const user = users.length > 0 ? users[0] : MOCK_USERS[0];
+      return sanitizeUser(user, user.id);
     } catch {
-      return MOCK_USERS[0];
+      return sanitizeUser(MOCK_USERS[0], MOCK_USERS[0].id);
     }
   },
   
   getUsers: async (): Promise<User[]> => {
-    return JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
+    const localUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
+    return localUsers.map((u: any) => sanitizeUser(u, u.id));
   },
   
   // --- EVENTS ---

@@ -54,7 +54,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
         <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white p-6 text-center">
           <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
           <h2 className="text-xl font-bold mb-2">Algo deu errado</h2>
-          <p className="text-slate-400 mb-6 max-w-md">Ocorreu um erro inesperado ao carregar a aplicação. Tente recarregar a página.</p>
+          <p className="text-slate-400 mb-6 max-w-md">Ocorreu um erro crítico na aplicação. Isso geralmente ocorre por falha de carregamento de dependências.</p>
           <pre className="bg-slate-900 p-2 rounded text-xs text-red-300 mb-6 max-w-lg overflow-auto">
             {this.state.error?.message}
           </pre>
@@ -62,7 +62,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
             onClick={() => window.location.reload()}
             className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 px-6 py-2 rounded-lg font-medium transition-colors"
           >
-            <RefreshCcw size={18} /> Recarregar Página
+            <RefreshCcw size={18} /> Tentar Novamente
           </button>
         </div>
       );
@@ -137,7 +137,7 @@ const AppContent: React.FC = () => {
       } catch (error) {
         console.error("Failed to initialize app:", error);
         if (isMounted) {
-          setLoadError("Falha ao inicializar. Verifique console.");
+          setLoadError("Falha ao inicializar. O aplicativo rodará em modo local.");
           setIsLoading(false);
         }
       }

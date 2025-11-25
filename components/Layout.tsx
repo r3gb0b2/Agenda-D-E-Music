@@ -12,6 +12,11 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeView }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
+  // Safety fallback for user name
+  const userName = user?.name || 'Usuário';
+  const userInitial = (userName.charAt(0) || '?').toUpperCase();
+  const userRole = user?.role || UserRole.MEMBER;
+
   const NavItem = ({ view, icon: Icon, label }: { view: string, icon: any, label: string }) => (
     <button
       onClick={() => {
@@ -49,7 +54,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
         <nav className="flex-1 px-4 py-4">
           <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem view="agenda" icon={Calendar} label="Agenda" />
-          {user.role === UserRole.ADMIN && (
+          {userRole === UserRole.ADMIN && (
              <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
           )}
         </nav>
@@ -57,11 +62,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center mb-4">
             <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white border border-slate-600">
-              {user.name.charAt(0)}
+              {userInitial}
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-white">{user.name}</p>
-              <p className="text-xs text-slate-500 capitalize">{user.role}</p>
+              <p className="text-sm font-medium text-white">{userName}</p>
+              <p className="text-xs text-slate-500 capitalize">{userRole}</p>
             </div>
           </div>
         </div>
@@ -86,7 +91,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
            <nav className="flex flex-col">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem view="agenda" icon={Calendar} label="Agenda" />
-            {user.role === UserRole.ADMIN && (
+            {userRole === UserRole.ADMIN && (
                <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
             )}
           </nav>
