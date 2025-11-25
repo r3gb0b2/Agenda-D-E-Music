@@ -1,0 +1,337 @@
+import React, { useState, useEffect } from 'react';
+import { db } from './services/databaseService';
+import { Event, Band, User, EventStatus, UserRole } from './types';
+import Layout from './components/Layout';
+import EventForm from './components/EventForm';
+import { 
+  Plus, 
+  Search, 
+  MapPin, 
+  Calendar as CalendarIcon, 
+  Clock, 
+  DollarSign, 
+  MoreVertical, 
+  Trash2,
+  Users,
+  Briefcase,
+  Music
+} from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+
+// --- Helper Components ---
+
+const StatusBadge = ({ status }: { status: EventStatus }) => {
+  const styles = {
+    [EventStatus.CONFIRMED]: 'bg-green-500/10 text-green-400 border-green-500/20',
+    [EventStatus.RESERVED]: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    [EventStatus.CANCELED]: 'bg-red-500/10 text-red-400 border-red-500/20',
+    [EventStatus.COMPLETED]: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  };
+
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status]}`}>
+      {status}
+    </span>
+  );
+};
+
+// --- Main App Component ---
+
+const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentView, setCurrentView] = useState('dashboard');
+  const [events, setEvents] = useState<Event[]>([]);
+  const [bands, setBands] = useState<Band[]>([]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [filterText, setFilterText] = useState('');
+
+  // Initial Load
+  useEffect(() => {
+    const user = db.getCurrentUser();
+    setCurrentUser(user);
+    refreshData();
+  }, []);
+
+  const refreshData = () => {
+    setEvents(db.getEvents());
+    setBands(db.getBands());
+  };
+
+  const handleSaveEvent = (event: Event) => {
+    db.saveEvent(event);
+    refreshData();
+    setIsFormOpen(false);
+    setEditingEvent(null);
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este evento?')) {
+      db.deleteEvent(id);
+      refreshData();
+    }
+  };
+
+  const openEdit = (event: Event) => {
+    setEditingEvent(event);
+    setIsFormOpen(true);
+  };
+
+  // --- Views ---
+
+  const DashboardView = () => {
+    // Calculate stats
+    const totalRevenue = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? curr.financials.grossValue : 0), 0);
+    const totalNet = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? curr.financials.netValue : 0), 0);
+    const confirmedCount = events.filter(e => e.status === EventStatus.CONFIRMED).length;
+    
+    // Prepare Chart Data (Revenue by Month)
+    const chartData = events.reduce((acc: any[], event) => {
+      const month = new Date(event.date).toLocaleString('pt-BR', { month: 'short' });
+      const existing = acc.find(item => item.name === month);
+      if (existing) {
+        existing.value += event.financials.grossValue;
+      } else {
+        acc.push({ name: month, value: event.financials.grossValue });
+      }
+      return acc;
+    }, []).slice(0, 6); // Last 6 months simplified
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/10 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-primary-500/20 transition-all"></div>
+            <h3 className="text-slate-400 text-sm font-medium mb-2">Faturamento Total (Bruto)</h3>
+            <p className="text-3xl font-bold text-white">R$ {totalRevenue.toLocaleString('pt-BR')}</p>
+            <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
+              <DollarSign size={12}/> Confirmados & Completos
+            </p>
+          </div>
+          
+          <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-accent-500/10 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-accent-500/20 transition-all"></div>
+            <h3 className="text-slate-400 text-sm font-medium mb-2">Lucro Líquido Estimado</h3>
+            <p className="text-3xl font-bold text-white">R$ {totalNet.toLocaleString('pt-BR')}</p>
+             <p className="text-xs text-slate-500 mt-2">Após comissões e impostos</p>
+          </div>
+
+          <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl relative overflow-hidden group">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-blue-500/20 transition-all"></div>
+            <h3 className="text-slate-400 text-sm font-medium mb-2">Shows Confirmados</h3>
+            <p className="text-3xl font-bold text-white">{confirmedCount}</p>
+            <p className="text-xs text-slate-500 mt-2">Próximos 30 dias</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl">
+          <h3 className="text-white font-semibold mb-6">Receita Mensal</h3>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value/1000}k`} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#fff' }}
+                  cursor={{ fill: '#1e293b', opacity: 0.4 }}
+                />
+                <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]}>
+                   {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#4f46e5'} />
+                    ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div>
+           <h3 className="text-white font-semibold mb-4">Próximos Eventos</h3>
+           <div className="space-y-3">
+             {events.slice(0, 3).map(event => (
+               <div key={event.id} onClick={() => openEdit(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-700 transition-colors cursor-pointer">
+                 <div className="flex items-center gap-4">
+                   <div className="bg-slate-900 w-12 h-12 rounded-lg flex flex-col items-center justify-center text-slate-400 border border-slate-800">
+                     <span className="text-xs font-bold uppercase">{new Date(event.date).toLocaleString('pt-BR', { month: 'short' })}</span>
+                     <span className="text-lg font-bold text-white">{new Date(event.date).getDate()}</span>
+                   </div>
+                   <div>
+                     <h4 className="text-white font-medium">{event.name}</h4>
+                     <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin size={12}/> {event.city}</p>
+                   </div>
+                 </div>
+                 <StatusBadge status={event.status} />
+               </div>
+             ))}
+           </div>
+        </div>
+      </div>
+    );
+  };
+
+  const AgendaView = () => {
+    // Sort and Filter
+    const filteredEvents = events
+      .filter(e => e.name.toLowerCase().includes(filterText.toLowerCase()) || e.city.toLowerCase().includes(filterText.toLowerCase()))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    return (
+      <div className="space-y-6 h-full flex flex-col">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar evento, cidade..." 
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
+            />
+          </div>
+          <button 
+            onClick={() => { setEditingEvent(null); setIsFormOpen(true); }}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20"
+          >
+            <Plus size={18} /> Novo Evento
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto rounded-xl border border-slate-800 bg-slate-950">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-900 sticky top-0 z-10">
+              <tr>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Data</th>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Evento</th>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Banda</th>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Local</th>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Valor (Líq)</th>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {filteredEvents.map(event => {
+                const band = bands.find(b => b.id === event.bandId);
+                return (
+                  <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
+                    <td className="p-4">
+                      <div className="flex flex-col">
+                        <span className="text-white font-medium">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
+                        <span className="text-xs text-slate-500 flex items-center gap-1"><Clock size={10}/> {event.time}</span>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className="text-slate-200 font-medium block">{event.name}</span>
+                      <span className="text-xs text-slate-500 md:hidden">{event.city}</span>
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      <span className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-300">{band?.name}</span>
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      <span className="text-sm text-slate-400">{event.venue}, {event.city}</span>
+                    </td>
+                    <td className="p-4 hidden md:table-cell">
+                      <span className="text-sm text-green-400 font-medium">R$ {event.financials.netValue.toLocaleString('pt-BR')}</span>
+                    </td>
+                    <td className="p-4">
+                      <StatusBadge status={event.status} />
+                    </td>
+                    <td className="p-4 text-right">
+                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onClick={() => openEdit(event)} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg">
+                           <MoreVertical size={16} />
+                         </button>
+                         <button onClick={() => handleDeleteEvent(event.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-slate-700 rounded-lg">
+                           <Trash2 size={16} />
+                         </button>
+                       </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredEvents.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-slate-500">
+                    Nenhum evento encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
+  const BandManagerView = () => {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold text-white mb-6">Gerenciamento de Bandas & Usuários</h2>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Bands List */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
+             <div className="flex justify-between items-center mb-4">
+               <h3 className="text-lg font-semibold text-white flex items-center gap-2"><Music size={20} className="text-primary-500"/> Bandas</h3>
+               <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">+ Adicionar</button>
+             </div>
+             <div className="space-y-3">
+               {bands.map(band => (
+                 <div key={band.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
+                    <div>
+                      <p className="text-white font-medium">{band.name}</p>
+                      <p className="text-xs text-slate-500">{band.genre} • {band.members} integrantes</p>
+                    </div>
+                 </div>
+               ))}
+             </div>
+          </div>
+
+          {/* Users List (Mock) */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
+             <div className="flex justify-between items-center mb-4">
+               <h3 className="text-lg font-semibold text-white flex items-center gap-2"><Users size={20} className="text-accent-500"/> Usuários</h3>
+               <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">+ Convidar</button>
+             </div>
+             <div className="space-y-3">
+               {db.getUsers().map(u => (
+                 <div key={u.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">{u.name.charAt(0)}</div>
+                      <div>
+                        <p className="text-white font-medium text-sm">{u.name}</p>
+                        <p className="text-xs text-slate-500">{u.email}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400 border border-slate-700">{u.role}</span>
+                 </div>
+               ))}
+             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) return <div className="flex items-center justify-center h-screen bg-slate-950 text-white">Carregando sistema...</div>;
+
+  return (
+    <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView}>
+      {currentView === 'dashboard' && <DashboardView />}
+      {currentView === 'agenda' && <AgendaView />}
+      {currentView === 'bands' && <BandManagerView />}
+
+      {isFormOpen && (
+        <EventForm 
+          bands={bands} 
+          existingEvent={editingEvent}
+          onSave={handleSaveEvent} 
+          onClose={() => { setIsFormOpen(false); setEditingEvent(null); }} 
+        />
+      )}
+    </Layout>
+  );
+};
+
+export default App;
