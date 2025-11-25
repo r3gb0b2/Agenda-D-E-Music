@@ -92,6 +92,18 @@
         text-align: center;
         max-width: 80%;
       }
+      
+      .loader-btn {
+        display: none;
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background-color: #334155;
+        color: white;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+        cursor: pointer;
+        border: 1px solid #475569;
+      }
 
       @keyframes spin {
         0% { transform: rotate(0deg); }
@@ -110,7 +122,7 @@
     "react-dom": "https://esm.sh/react-dom@18.2.0",
     "react/": "https://esm.sh/react@18.2.0/",
     "react": "https://esm.sh/react@18.2.0",
-    "@google/genai": "https://esm.sh/@google/genai@0.0.2",
+    "@google/genai": "https://esm.sh/@google/genai@0.2.1",
     "lucide-react": "https://esm.sh/lucide-react@0.263.1",
     "recharts": "https://esm.sh/recharts@2.12.0",
     "firebase/app": "https://esm.sh/firebase@10.8.0/app",
@@ -130,19 +142,24 @@
         <div class="loader-text">AGENDA D&E MUSIC</div>
         <div class="loader-error" id="loader-error">
           Iniciando sistema...<br/>
-          Caso demore, verifique sua conexão.
+          Caso demore, verifique sua conexão ou recarregue.
         </div>
+        <button class="loader-btn" id="force-load-btn" onclick="document.getElementById('initial-loader').remove()">
+          Forçar Entrada (Modo Offline)
+        </button>
       </div>
     </div>
     <script>
-      // Failsafe: Show message if React doesn't load
+      // Failsafe: Show manual entry button if React doesn't load in 4s
       setTimeout(() => {
         const errorMsg = document.getElementById('loader-error');
-        if (errorMsg && document.getElementById('initial-loader')) {
+        const btn = document.getElementById('force-load-btn');
+        if (errorMsg && btn && document.getElementById('initial-loader')) {
           errorMsg.style.display = 'block';
-          errorMsg.innerHTML = "O aplicativo está demorando para carregar.<br>Verifique se as bibliotecas (Firebase/React) não estão bloqueadas.";
+          errorMsg.innerHTML = "O carregamento está demorando.<br>Possível bloqueio de script ou erro de rede.";
+          btn.style.display = 'block';
         }
-      }, 5000);
+      }, 4000);
     </script>
   </body>
 </html>

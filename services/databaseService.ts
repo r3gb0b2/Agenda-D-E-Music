@@ -3,7 +3,6 @@ import { dbFirestore } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO ---
-// Set to TRUE now that config is available
 const USE_FIREBASE = true; 
 
 // --- DADOS MOCK (Modo Demo) ---
@@ -92,7 +91,7 @@ export const db = {
     if (USE_FIREBASE && dbFirestore) {
       try {
         const snapshot = await getDocs(collection(dbFirestore, 'bands'));
-        if (snapshot.empty) return MOCK_BANDS; // Fallback to mock if empty remote
+        if (snapshot.empty) return MOCK_BANDS; 
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Band));
       } catch (e) {
         console.warn("Firebase Read Error (Bands):", e);
@@ -104,7 +103,7 @@ export const db = {
   },
 
   saveBand: async (band: Band): Promise<void> => {
-    // Local update for immediate UI feedback
+    // Local update
     const bands = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
     const index = bands.findIndex((b: Band) => b.id === band.id);
     if (index >= 0) bands[index] = band;
@@ -113,7 +112,7 @@ export const db = {
 
     if (USE_FIREBASE && dbFirestore) {
       try {
-         // Implement remote save logic here
+         // Placeholder for Firebase save
       } catch (e) {
          console.error(e);
       }
@@ -123,9 +122,8 @@ export const db = {
   // --- USERS ---
   getCurrentUser: async (): Promise<User | null> => {
     if (USE_FIREBASE && dbFirestore) {
-       // Note: In a real app we'd use onAuthStateChanged. 
-       // For this hybrid demo, we try to fetch from 'users' collection or return Mock Admin.
        try {
+          // Attempt to get users from remote, if none, use fallback mock user
           const snapshot = await getDocs(collection(dbFirestore, 'users'));
           if (!snapshot.empty) {
              return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as User;
@@ -135,6 +133,7 @@ export const db = {
        }
     }
     
+    // Fallback to local
     try {
       const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
       return users.length > 0 ? users[0] : MOCK_USERS[0];
@@ -155,8 +154,7 @@ export const db = {
         if (snapshot.empty) return JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
       } catch (e) {
-        console.warn("Firebase Read Error (Events):", e);
-        // Fallback
+        console.warn("Firebase Read Error (Events) - Using Local:", e);
         return JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
       }
     } else {
@@ -165,23 +163,19 @@ export const db = {
   },
   
   saveEvent: async (event: Event): Promise<void> => {
-    // Always save locally first for speed
-    const events = await db.getEvents(); // This might pull from remote, be careful mixing
-    // Safer local manipulation for demo consistency:
+    // Local save
     const localEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
     const index = localEvents.findIndex((e: Event) => e.id === event.id);
     if (index >= 0) localEvents[index] = event;
     else localEvents.push(event);
     localStorage.setItem(KEYS.EVENTS, JSON.stringify(localEvents));
 
+    // Firebase save
     if (USE_FIREBASE && dbFirestore) {
       try {
-        if (event.id) {
-           // We would updateDoc here
-        } else {
-           // We would addDoc here
+        if (event.id && event.id.length > 5) { // Simple check if it looks like a real ID
+           // In a real app we'd use setDoc or addDoc
         }
-        // For this demo, we just log that we would save to FB
       } catch (e) {
         console.error("Firebase Save Error:", e);
       }
@@ -197,7 +191,7 @@ export const db = {
       try {
         await deleteDoc(doc(dbFirestore, 'events', eventId));
       } catch (e) {
-         console.warn("Firebase delete failed (might not exist on remote):", e);
+         console.warn("Firebase delete failed:", e);
       }
     } 
   }

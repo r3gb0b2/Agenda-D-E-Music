@@ -14,7 +14,8 @@ import {
   Users,
   Music,
   Loader2,
-  LogIn
+  LogIn,
+  AlertTriangle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -46,10 +47,11 @@ const App: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [filterText, setFilterText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Initial Load
   useEffect(() => {
-    // Force remove loader after React mounts
+    // Force remove HTML loader after React mounts
     const preloader = document.getElementById('initial-loader');
     if (preloader) {
       preloader.style.opacity = '0';
@@ -65,8 +67,9 @@ const App: React.FC = () => {
         const eventsPromise = db.getEvents();
         const bandsPromise = db.getBands();
 
-        // If data fetching takes too long (> 3s), we stop loading to show UI
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Timeout"), 3000));
+        // If data fetching takes too long (> 2s), we continue with what we have
+        // to show the login screen or dashboard
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Slow Connection"), 2500));
 
         try {
            await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise]), timeoutPromise]);
@@ -78,19 +81,31 @@ const App: React.FC = () => {
              setCurrentUser(user);
              setEvents(loadedEvents || []);
              setBands(loadedBands || []);
+             setIsLoading(false);
            }
         } catch (err) {
-           console.warn("Data load timeout or error, using fallbacks:", err);
+           console.warn("Data load timeout or error, forcing UI load with fallbacks:", err);
            // Try to set what we have
            if (isMounted) {
-              const u = await userPromise.catch(() => null);
-              setCurrentUser(u);
+              try {
+                const u = await userPromise.catch(() => null);
+                const e = await eventsPromise.catch(() => []);
+                const b = await bandsPromise.catch(() => []);
+                setCurrentUser(u);
+                setEvents(e || []);
+                setBands(b || []);
+              } catch (criticalErr) {
+                console.error("Critical fallback failure", criticalErr);
+              }
+              setIsLoading(false);
            }
         }
       } catch (error) {
         console.error("Failed to initialize app:", error);
-      } finally {
-        if (isMounted) setIsLoading(false);
+        if (isMounted) {
+          setLoadError("Falha ao inicializar. Verifique console.");
+          setIsLoading(false);
+        }
       }
     };
 
@@ -126,10 +141,18 @@ const App: React.FC = () => {
   const handleLogin = async () => {
     setIsLoading(true);
     try {
+      // Force reload user
       const user = await db.getCurrentUser();
-      setCurrentUser(user);
+      // If still null (e.g. Firebase error), use mock admin
+      if (!user) {
+         // This is a failsafe for the demo
+         const mockUser = (await db.getUsers())[0];
+         setCurrentUser(mockUser);
+      } else {
+         setCurrentUser(user);
+      }
     } catch (e) {
-      console.error(e);
+      console.error("Login error", e);
     } finally {
       setIsLoading(false);
     }
@@ -378,6 +401,17 @@ const App: React.FC = () => {
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
         <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
         <p className="text-slate-400 text-sm animate-pulse tracking-wider">AGENDA D&E MUSIC</p>
+        {loadError && (
+          <div className="mt-4 p-3 bg-red-900/30 border border-red-800 rounded text-red-300 text-xs flex items-center gap-2">
+            <AlertTriangle size={14}/> {loadError}
+          </div>
+        )}
+        <button 
+          onClick={() => setIsLoading(false)} 
+          className="mt-8 text-xs text-slate-600 hover:text-white underline"
+        >
+          Forçar Entrada (Demo)
+        </button>
       </div>
     );
   }
@@ -402,7 +436,7 @@ const App: React.FC = () => {
             <LogIn size={20} className="group-hover:translate-x-1 transition-transform" /> 
             Acessar Sistema
           </button>
-          <p className="text-xs text-slate-600 mt-6">Modo Demo Local (Firebase Habilitado)</p>
+          <p className="text-xs text-slate-600 mt-6">Modo Demo / Firebase</p>
         </div>
       </div>
     );
