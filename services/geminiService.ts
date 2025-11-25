@@ -3,7 +3,15 @@ import { Event, Band } from "../types";
 
 // NOTE: In a real production app, never expose the key in frontend code.
 // This is for demonstration purposes as requested by the prompt structure.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const getApiKey = () => {
+  try {
+    return process.env.API_KEY || '';
+  } catch {
+    return '';
+  }
+};
+
+const ai = new GoogleGenAI({ apiKey: getApiKey() });
 
 export const generateEventBrief = async (event: Event, bandName: string): Promise<string> => {
   try {

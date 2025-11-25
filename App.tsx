@@ -15,7 +15,8 @@ import {
   Music,
   Loader2,
   LogIn,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCcw
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -36,9 +37,43 @@ const StatusBadge = ({ status }: { status: EventStatus }) => {
   );
 };
 
+// Error Boundary Component
+class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white p-6 text-center">
+          <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
+          <h2 className="text-xl font-bold mb-2">Algo deu errado</h2>
+          <p className="text-slate-400 mb-6 max-w-md">Ocorreu um erro inesperado ao carregar a aplicação. Tente recarregar a página.</p>
+          <pre className="bg-slate-900 p-2 rounded text-xs text-red-300 mb-6 max-w-lg overflow-auto">
+            {this.state.error?.message}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 px-6 py-2 rounded-lg font-medium transition-colors"
+          >
+            <RefreshCcw size={18} /> Recarregar Página
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // --- Main App Component ---
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
   const [events, setEvents] = useState<Event[]>([]);
@@ -67,9 +102,8 @@ const App: React.FC = () => {
         const eventsPromise = db.getEvents();
         const bandsPromise = db.getBands();
 
-        // If data fetching takes too long (> 2s), we continue with what we have
-        // to show the login screen or dashboard
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Slow Connection"), 2500));
+        // If data fetching takes too long (> 3s), we continue with what we have
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Tempo limite excedido"), 3000));
 
         try {
            await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise]), timeoutPromise]);
@@ -85,9 +119,9 @@ const App: React.FC = () => {
            }
         } catch (err) {
            console.warn("Data load timeout or error, forcing UI load with fallbacks:", err);
-           // Try to set what we have
            if (isMounted) {
               try {
+                // Attempt to get whatever resolved
                 const u = await userPromise.catch(() => null);
                 const e = await eventsPromise.catch(() => []);
                 const b = await bandsPromise.catch(() => []);
@@ -141,13 +175,13 @@ const App: React.FC = () => {
   const handleLogin = async () => {
     setIsLoading(true);
     try {
-      // Force reload user
       const user = await db.getCurrentUser();
-      // If still null (e.g. Firebase error), use mock admin
       if (!user) {
-         // This is a failsafe for the demo
-         const mockUser = (await db.getUsers())[0];
-         setCurrentUser(mockUser);
+         // Fallback for demo
+         const mockUsers = await db.getUsers();
+         if (mockUsers && mockUsers.length > 0) {
+            setCurrentUser(mockUsers[0]);
+         }
       } else {
          setCurrentUser(user);
       }
@@ -166,7 +200,7 @@ const App: React.FC = () => {
     const totalNet = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? curr.financials.netValue : 0), 0);
     const confirmedCount = events.filter(e => e.status === EventStatus.CONFIRMED).length;
     
-    // Prepare Chart Data (Revenue by Month)
+    // Prepare Chart Data
     const chartData = events.reduce((acc: any[], event) => {
       if (!event.date) return acc;
       const month = new Date(event.date).toLocaleString('pt-BR', { month: 'short' });
@@ -458,6 +492,14 @@ const App: React.FC = () => {
         />
       )}
     </Layout>
+  );
+};
+
+const App = () => {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 };
 
