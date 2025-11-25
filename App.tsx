@@ -10,7 +10,6 @@ import {
   Search, 
   MapPin, 
   Clock, 
-  DollarSign, 
   MoreVertical, 
   Trash2,
   Users,
@@ -23,7 +22,6 @@ import {
   Mic2,
   Phone,
   Briefcase,
-  Lock,
   Edit2
 } from 'lucide-react';
 
@@ -108,17 +106,27 @@ const AppContent: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Initial Load
+  // Initial Load & Session Check
   useEffect(() => {
-    // Force remove HTML loader after React mounts
-    const preloader = document.getElementById('initial-loader');
-    if (preloader) {
-      preloader.style.opacity = '0';
-      setTimeout(() => preloader.remove(), 500);
-    }
+    const initApp = async () => {
+      // Force remove HTML loader after React mounts
+      const preloader = document.getElementById('initial-loader');
+      if (preloader) {
+        preloader.style.opacity = '0';
+        setTimeout(() => preloader.remove(), 500);
+      }
 
-    // Stop general loading spinner, waiting for user to log in
-    setIsLoading(false);
+      // Check for saved session
+      const savedUser = await db.getCurrentUser();
+      if (savedUser) {
+        setCurrentUser(savedUser);
+      }
+
+      // Stop general loading spinner
+      setIsLoading(false);
+    };
+
+    initApp();
   }, []);
 
   const refreshData = async () => {
@@ -146,6 +154,7 @@ const AppContent: React.FC = () => {
     try {
       const user = await db.login(loginEmail, loginPassword);
       if (user) {
+        await db.createSession(user); // Persist login for 24h
         setCurrentUser(user);
         setCurrentView('dashboard');
       } else {
@@ -159,11 +168,13 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await db.clearSession(); // Clear persisted session
     setCurrentUser(null);
     setLoginEmail('');
     setLoginPassword('');
     setEvents([]);
+    setCurrentView('dashboard');
   }
 
   // --- Handlers: Events ---
@@ -727,7 +738,12 @@ const AppContent: React.FC = () => {
 
   // State: Logged In
   return (
-    <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView}>
+    <Layout 
+      user={currentUser} 
+      currentView={currentView} 
+      onChangeView={setCurrentView}
+      onLogout={handleLogout}
+    >
       {/* Logout Button in Sidebar is managed by Layout, but let's pass a way to logout if needed, usually Layout handles view switching but maybe we need a logout prop later */}
       <div className="absolute top-4 right-4 md:hidden">
          {/* Mobile logout if needed, currently Layout has sidebar */}

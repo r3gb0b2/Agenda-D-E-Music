@@ -1,15 +1,16 @@
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, Calendar, Settings, Music, LogOut, Menu, X, Mic2, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
   user: User;
   currentView: string;
   onChangeView: (view: string) => void;
+  onLogout: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeView }) => {
+const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeView, onLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   // Safety fallback for user name
@@ -70,6 +71,13 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
               <p className="text-xs text-slate-500 capitalize">{userRole}</p>
             </div>
           </div>
+          
+          <button 
+            onClick={onLogout}
+            className="flex items-center justify-center w-full px-4 py-2 text-sm text-red-400 hover:text-white bg-slate-900 hover:bg-red-500/80 rounded-lg transition-all border border-slate-800 hover:border-red-500"
+          >
+            <LogOut size={16} className="mr-2" /> Sair
+          </button>
         </div>
       </aside>
 
@@ -96,6 +104,15 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
             {userRole === UserRole.ADMIN && (
                <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
             )}
+            
+            <div className="mt-8 border-t border-slate-800 pt-4">
+              <button 
+                onClick={onLogout}
+                className="flex items-center w-full px-4 py-3 text-red-400 rounded-lg hover:bg-slate-800"
+              >
+                <LogOut size={20} className="mr-3" /> Sair do Sistema
+              </button>
+            </div>
           </nav>
         </div>
       )}

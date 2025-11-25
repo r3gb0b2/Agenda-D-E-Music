@@ -41,7 +41,8 @@ const KEYS = {
   BANDS: `${STORAGE_PREFIX}bands`,
   USERS: `${STORAGE_PREFIX}users`,
   EVENTS: `${STORAGE_PREFIX}events`,
-  CONTRACTORS: `${STORAGE_PREFIX}contractors`
+  CONTRACTORS: `${STORAGE_PREFIX}contractors`,
+  SESSION: `${STORAGE_PREFIX}session` // Key for 24h session
 };
 
 // Helper to initialize local data
@@ -140,7 +141,41 @@ const sanitizeContractor = (data: any, id: string): Contractor => {
 // --- SERVICE IMPLEMENTATION ---
 
 export const db = {
-  // --- AUTHENTICATION ---
+  // --- AUTHENTICATION & SESSION ---
+  
+  createSession: async (user: User): Promise<void> => {
+    // Save session with 24h expiry
+    const sessionData = {
+      user: user,
+      expiry: Date.now() + (24 * 60 * 60 * 1000) // 24 hours from now
+    };
+    localStorage.setItem(KEYS.SESSION, JSON.stringify(sessionData));
+  },
+
+  clearSession: async (): Promise<void> => {
+    localStorage.removeItem(KEYS.SESSION);
+  },
+
+  getCurrentUser: async (): Promise<User | null> => {
+    try {
+      const sessionJson = localStorage.getItem(KEYS.SESSION);
+      if (!sessionJson) return null;
+
+      const session = JSON.parse(sessionJson);
+      
+      // Check for expiry
+      if (Date.now() > session.expiry) {
+        localStorage.removeItem(KEYS.SESSION); // Session expired
+        return null;
+      }
+
+      return session.user;
+    } catch (e) {
+      console.error("Error reading session", e);
+      return null;
+    }
+  },
+
   login: async (loginInput: string, passwordInput: string): Promise<User | null> => {
     // 1. Check Special Super Admin Hardcoded
     if (loginInput === 'admin' && passwordInput === 'admin') {
@@ -223,12 +258,6 @@ export const db = {
   },
   
   // --- USERS ---
-  getCurrentUser: async (): Promise<User | null> => {
-    // This is checking SESSION state, not login.
-    // For this simple app, we will assume session is managed by App state.
-    // This method is kept for compatibility if we want to restore session from LocalStorage 'session' key later.
-    return null; 
-  },
   
   saveUser: async (user: User): Promise<void> => {
     // Local save
