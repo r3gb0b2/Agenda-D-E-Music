@@ -9,13 +9,13 @@ import { getAuth } from "firebase/auth";
 // 4. Copie as chaves e cole abaixo
 
 const firebaseConfig = {
-  // Substitua estas strings vazias ou de exemplo pelas suas chaves reais
-  apiKey: "SUA_API_KEY_AQUI",
-  authDomain: "seu-projeto.firebaseapp.com",
-  projectId: "seu-projeto",
-  storageBucket: "seu-projeto.firebasestorage.app",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef",
+  apiKey: "AIzaSyDsi6VpfhLQW8UWgAp5c4TRV7vqOkDyauU",
+  authDomain: "stingressos-e0a5f.firebaseapp.com",
+  projectId: "stingressos-e0a5f",
+  storageBucket: "stingressos-e0a5f.firebasestorage.app",
+  messagingSenderId: "424186734009",
+  appId: "1:424186734009:web:385f6c645a3ace2f784268",
+  measurementId: "G-JTEQ46VCRY"
 };
 
 let app;
