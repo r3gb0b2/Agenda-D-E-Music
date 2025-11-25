@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Component, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -58,7 +58,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -571,8 +571,10 @@ const AppContent: React.FC = () => {
                 const currentDayIso = `${year}-${m}-${d}`;
                 
                 const dayEvents = filteredEvents.filter(e => {
-                  // We assume e.date is stored as YYYY-MM-DD
-                  return e.date && e.date.substring(0, 10) === currentDayIso;
+                  if (!e.date) return false;
+                  // Handle both '2023-10-10' and '2023-10-10T00:00:00.000Z' formats
+                  const eventDateOnly = e.date.includes('T') ? e.date.split('T')[0] : e.date;
+                  return eventDateOnly === currentDayIso;
                 });
 
                 const isToday = new Date().toISOString().split('T')[0] === currentDayIso;
@@ -583,7 +585,7 @@ const AppContent: React.FC = () => {
                     onClick={() => handleDayClick(dayNum)}
                     className={`
                       border-b border-r border-slate-800/50 p-2 
-                      min-h-[220px]  /* GIGANTIC CELLS FOR BETTER VISIBILITY */
+                      min-h-[130px]  /* ADJUSTED HEIGHT */
                       flex flex-col relative transition-colors cursor-pointer
                       hover:bg-slate-900/60
                       ${isToday ? 'bg-slate-900/80 ring-inset ring-1 ring-primary-500/30' : ''}
@@ -593,7 +595,7 @@ const AppContent: React.FC = () => {
                       {dayNum}
                     </span>
                     
-                    <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar flex-1">
+                    <div className="flex flex-col gap-1 overflow-y-auto custom-scrollbar flex-1 w-full">
                       {dayEvents.map(event => {
                          // Colors based on status
                          const statusStyle = {
@@ -606,43 +608,34 @@ const AppContent: React.FC = () => {
                          const bandName = bands.find(b => b.id === event.bandId)?.name;
 
                          return (
-                           <button 
+                           <div 
                              key={event.id}
                              onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                             className={`text-left p-3 rounded-lg border shadow-sm transition-all hover:scale-[1.02] ${statusStyle}`}
+                             className={`text-left p-2 rounded border shadow-sm transition-all hover:brightness-110 w-full ${statusStyle}`}
                            >
-                             <div className="flex items-start justify-between mb-1">
-                                <span className="font-bold text-sm bg-black/20 px-1.5 rounded">{event.time}</span>
+                             <div className="flex items-center justify-between mb-0.5">
+                                <span className="font-bold text-xs bg-black/30 px-1 rounded">{event.time}</span>
                                 {!selectedBandFilter && (
-                                  <span className="text-[10px] font-bold uppercase tracking-wider bg-black/20 px-1 rounded ml-2 truncate max-w-[80px]">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-black/30 px-1 rounded truncate max-w-[60px]">
                                     {bandName}
                                   </span>
                                 )}
                              </div>
                              
-                             <div className="font-bold text-sm leading-snug break-words mb-1">
+                             <div className="font-bold text-sm leading-tight truncate mb-0.5">
                                {event.name}
                              </div>
 
-                             <div className="space-y-0.5 opacity-90">
-                               <div className="text-xs flex items-center gap-1.5 truncate">
-                                 <MapPin size={12} className="shrink-0" /> 
-                                 <span className="truncate">{event.city}</span>
-                               </div>
-                               {event.venue && (
-                                 <div className="text-[11px] flex items-center gap-1.5 truncate text-white/80">
-                                   <Briefcase size={10} className="shrink-0" />
-                                   <span className="truncate">{event.venue}</span>
-                                 </div>
-                               )}
-                               {event.contractor && (
-                                 <div className="text-[10px] flex items-center gap-1.5 truncate italic text-white/70 mt-1 pt-1 border-t border-white/10">
-                                   <UserIcon size={10} className="shrink-0" />
-                                   <span className="truncate">{event.contractor}</span>
-                                 </div>
-                               )}
+                             <div className="flex items-center gap-1 text-[11px] leading-tight opacity-90 truncate">
+                               <MapPin size={10} className="shrink-0" /> 
+                               <span>{event.city}</span>
                              </div>
-                           </button>
+                             {event.venue && (
+                               <div className="text-[10px] opacity-80 truncate">
+                                 {event.venue}
+                                </div>
+                             )}
+                           </div>
                          )
                       })}
                     </div>
