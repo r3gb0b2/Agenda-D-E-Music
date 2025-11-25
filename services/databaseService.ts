@@ -1,48 +1,34 @@
 import { Band, Event, EventStatus, User, UserRole } from '../types';
 import { dbFirestore } from './firebaseConfig';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
 
 // --- CONFIGURAÇÃO ---
 const USE_FIREBASE = true; 
 
 // --- DADOS MOCK (Modo Demo Limpo) ---
 const MOCK_BANDS: Band[] = [
-  { id: 'b1', name: 'Banda Principal D&E', genre: 'Variado', members: 5 }
+  { id: 'b_new_1', name: 'Banda Principal', genre: 'Variado', members: 5 }
 ];
 
 const MOCK_USERS: User[] = [
-  { id: 'u1', name: 'Admin D&E', email: 'admin@demusic.com', role: UserRole.ADMIN, bandIds: ['b1'] },
+  { id: 'u_admin', name: 'Admin D&E', email: 'admin@demusic.com', role: UserRole.ADMIN, bandIds: ['b_new_1'] },
 ];
 
-const MOCK_EVENTS: Event[] = [
-  {
-    id: 'e_demo_1',
-    bandId: 'b1',
-    name: 'Exemplo: Show Corporativo',
-    date: new Date().toISOString(),
-    time: '20:00',
-    durationHours: 2,
-    city: 'São Paulo, SP',
-    venue: 'Espaço de Eventos',
-    contractor: 'Empresa X',
-    notes: 'Evento de exemplo do sistema novo.',
-    status: EventStatus.RESERVED,
-    financials: {
-      grossValue: 5000,
-      commissionType: 'PERCENTAGE',
-      commissionValue: 10,
-      taxes: 0,
-      netValue: 4500,
-      currency: 'BRL'
-    }
-  }
-];
+const MOCK_EVENTS: Event[] = [];
 
-// NOVAS CHAVES DE LOCAL STORAGE (Para isolar o banco de dados antigo)
+// NOVAS CHAVES DE ARMAZENAMENTO E COLEÇÕES (Versão 4 - Isolamento Total)
+// Mudamos o nome base para 'agendade_' para garantir que não haja conflito com 'stingressos' ou 'demusic_v3'
+const STORAGE_PREFIX = 'agendade_prod_v1_'; 
+const FB_COLLECTIONS = {
+  BANDS: 'ad_bands',
+  USERS: 'ad_users',
+  EVENTS: 'ad_events'
+};
+
 const KEYS = {
-  BANDS: 'demusic_v2_bands',
-  USERS: 'demusic_v2_users',
-  EVENTS: 'demusic_v2_events'
+  BANDS: `${STORAGE_PREFIX}bands`,
+  USERS: `${STORAGE_PREFIX}users`,
+  EVENTS: `${STORAGE_PREFIX}events`
 };
 
 // Helper to initialize local data
@@ -115,8 +101,12 @@ export const db = {
   getBands: async (): Promise<Band[]> => {
     if (USE_FIREBASE && dbFirestore) {
       try {
-        const snapshot = await getDocs(collection(dbFirestore, 'bands'));
-        if (snapshot.empty) return JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS)); 
+        const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.BANDS));
+        if (snapshot.empty) {
+           // Se vazio, retorna mock local mas não salva no firebase automaticamente para não sujar
+           const local = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
+           return local.length > 0 ? local : MOCK_BANDS;
+        }
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Band));
       } catch (e) {
         console.warn("Firebase Read Error (Bands):", e);
@@ -137,7 +127,8 @@ export const db = {
 
     if (USE_FIREBASE && dbFirestore) {
       try {
-         // Placeholder for Firebase save
+        const bandId = band.id || crypto.randomUUID();
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.BANDS, bandId), { ...band, id: bandId });
       } catch (e) {
          console.error(e);
       }
@@ -148,7 +139,7 @@ export const db = {
   getCurrentUser: async (): Promise<User | null> => {
     if (USE_FIREBASE && dbFirestore) {
        try {
-          const snapshot = await getDocs(collection(dbFirestore, 'users'));
+          const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.USERS));
           if (!snapshot.empty) {
              const doc = snapshot.docs[0];
              return sanitizeUser(doc.data(), doc.id);
@@ -179,27 +170,26 @@ export const db = {
 
     if (USE_FIREBASE && dbFirestore) {
       try {
-        const snapshot = await getDocs(collection(dbFirestore, 'events'));
+        const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.EVENTS));
         if (!snapshot.empty) {
            rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } else {
-           rawEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
+           rawEvents = []; 
         }
       } catch (e) {
         console.warn("Firebase Read Error (Events) - Using Local:", e);
-        rawEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
+        rawEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
       }
     } else {
-      rawEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
+      rawEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
     }
 
-    // Sanitize ALL events to prevent UI crashes
     return rawEvents.map(e => sanitizeEvent(e, e.id));
   },
   
   saveEvent: async (event: Event): Promise<void> => {
     // Local save
-    const localEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || JSON.stringify(MOCK_EVENTS));
+    const localEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
     const index = localEvents.findIndex((e: Event) => e.id === event.id);
     if (index >= 0) localEvents[index] = event;
     else localEvents.push(event);
@@ -208,9 +198,8 @@ export const db = {
     // Firebase save
     if (USE_FIREBASE && dbFirestore) {
       try {
-        if (event.id && event.id.length > 5) { 
-           // In a real app we'd use setDoc or addDoc
-        }
+        const eventId = event.id || crypto.randomUUID();
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.EVENTS, eventId), { ...event, id: eventId }, { merge: true });
       } catch (e) {
         console.error("Firebase Save Error:", e);
       }
@@ -224,7 +213,7 @@ export const db = {
 
     if (USE_FIREBASE && dbFirestore) {
       try {
-        await deleteDoc(doc(dbFirestore, 'events', eventId));
+        await deleteDoc(doc(dbFirestore, FB_COLLECTIONS.EVENTS, eventId));
       } catch (e) {
          console.warn("Firebase delete failed:", e);
       }

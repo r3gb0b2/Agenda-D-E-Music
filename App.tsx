@@ -16,9 +16,10 @@ import {
   Loader2,
   LogIn,
   AlertTriangle,
-  RefreshCcw
+  RefreshCcw,
+  CalendarDays,
+  Mic2
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 // --- Helper Components ---
 
@@ -195,92 +196,120 @@ const AppContent: React.FC = () => {
   // --- Views ---
 
   const DashboardView = () => {
-    // Calculate stats
-    const totalRevenue = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? (curr.financials?.grossValue || 0) : 0), 0);
-    const totalNet = events.reduce((acc, curr) => acc + (curr.status === EventStatus.CONFIRMED || curr.status === EventStatus.COMPLETED ? (curr.financials?.netValue || 0) : 0), 0);
     const confirmedCount = events.filter(e => e.status === EventStatus.CONFIRMED).length;
-    
-    // Prepare Chart Data
-    const chartData = events.reduce((acc: any[], event) => {
-      if (!event.date || !event.financials) return acc;
-      const month = new Date(event.date).toLocaleString('pt-BR', { month: 'short' });
-      const existing = acc.find(item => item.name === month);
-      const val = event.financials.grossValue || 0;
-      if (existing) {
-        existing.value += val;
-      } else {
-        acc.push({ name: month, value: val });
-      }
-      return acc;
-    }, []).slice(0, 6);
+    const reservedCount = events.filter(e => e.status === EventStatus.RESERVED).length;
 
     return (
-      <div className="space-y-6 animate-fade-in pb-20 md:pb-0">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/10 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-primary-500/20 transition-all"></div>
-            <h3 className="text-slate-400 text-sm font-medium mb-2">Faturamento Total (Bruto)</h3>
-            <p className="text-3xl font-bold text-white">R$ {totalRevenue.toLocaleString('pt-BR')}</p>
-            <p className="text-xs text-green-400 mt-2 flex items-center gap-1">
-              <DollarSign size={12}/> Confirmados & Completos
-            </p>
-          </div>
-          
-          <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-accent-500/10 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-accent-500/20 transition-all"></div>
-            <h3 className="text-slate-400 text-sm font-medium mb-2">Lucro Líquido Estimado</h3>
-            <p className="text-3xl font-bold text-white">R$ {totalNet.toLocaleString('pt-BR')}</p>
-             <p className="text-xs text-slate-500 mt-2">Após comissões e impostos</p>
-          </div>
-
-          <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl relative overflow-hidden group">
-             <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-blue-500/20 transition-all"></div>
-            <h3 className="text-slate-400 text-sm font-medium mb-2">Shows Confirmados</h3>
-            <p className="text-3xl font-bold text-white">{confirmedCount}</p>
-            <p className="text-xs text-slate-500 mt-2">Próximos 30 dias</p>
-          </div>
-        </div>
-
-        <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl">
-          <h3 className="text-white font-semibold mb-6">Receita Mensal</h3>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value/1000}k`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#fff' }}
-                  cursor={{ fill: '#1e293b', opacity: 0.4 }}
-                />
-                <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]}>
-                   {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#6366f1' : '#4f46e5'} />
-                    ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
+      <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
+        
+        {/* Bandas Section (Hero) */}
         <div>
-           <h3 className="text-white font-semibold mb-4">Próximos Eventos</h3>
-           <div className="space-y-3">
-             {events.slice(0, 3).map(event => (
-               <div key={event.id} onClick={() => openEdit(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-700 transition-colors cursor-pointer">
-                 <div className="flex items-center gap-4">
-                   <div className="bg-slate-900 w-12 h-12 rounded-lg flex flex-col items-center justify-center text-slate-400 border border-slate-800">
-                     <span className="text-xs font-bold uppercase">{event.date ? new Date(event.date).toLocaleString('pt-BR', { month: 'short' }) : '--'}</span>
-                     <span className="text-lg font-bold text-white">{event.date ? new Date(event.date).getDate() : '--'}</span>
+           <div className="flex justify-between items-center mb-4">
+             <h2 className="text-xl font-bold text-white flex items-center gap-2">
+               <Music className="text-primary-500" /> Minhas Bandas
+             </h2>
+             <button onClick={() => setCurrentView('bands')} className="text-sm text-slate-400 hover:text-white">
+               Gerenciar
+             </button>
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             {bands.map(band => (
+               <div key={band.id} className="bg-slate-950 border border-slate-800 p-6 rounded-xl hover:border-primary-500/50 transition-colors group cursor-pointer" onClick={() => setCurrentView('agenda')}>
+                 <div className="flex justify-between items-start mb-4">
+                   <div className="w-12 h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center text-primary-400 border border-slate-700 group-hover:scale-110 transition-transform">
+                      <Mic2 size={24} />
                    </div>
-                   <div>
-                     <h4 className="text-white font-medium">{event.name}</h4>
-                     <p className="text-sm text-slate-500 flex items-center gap-1"><MapPin size={12}/> {event.city}</p>
-                   </div>
+                   <span className="bg-slate-900 text-slate-400 text-xs px-2 py-1 rounded-full border border-slate-800">
+                     {band.genre}
+                   </span>
                  </div>
-                 <StatusBadge status={event.status} />
+                 <h3 className="text-lg font-bold text-white mb-1">{band.name}</h3>
+                 <div className="flex items-center gap-4 text-sm text-slate-500">
+                    <span className="flex items-center gap-1"><Users size={14}/> {band.members} Integrantes</span>
+                 </div>
                </div>
              ))}
+             
+             {/* Add Band Card */}
+             <button 
+               onClick={() => setCurrentView('bands')}
+               className="bg-slate-900/50 border border-slate-800 border-dashed p-6 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-primary-400 hover:border-primary-500/50 transition-all gap-3"
+             >
+                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
+                   <Plus size={24} />
+                </div>
+                <span className="font-medium">Cadastrar Nova Banda</span>
+             </button>
+           </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-slate-500 text-xs uppercase font-semibold">Total de Shows</p>
+             <p className="text-2xl font-bold text-white mt-1">{events.length}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-green-500/80 text-xs uppercase font-semibold">Confirmados</p>
+             <p className="text-2xl font-bold text-white mt-1">{confirmedCount}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-yellow-500/80 text-xs uppercase font-semibold">Reservados</p>
+             <p className="text-2xl font-bold text-white mt-1">{reservedCount}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-blue-500/80 text-xs uppercase font-semibold">Cidades</p>
+             <p className="text-2xl font-bold text-white mt-1">{new Set(events.map(e => e.city)).size}</p>
+          </div>
+        </div>
+
+        {/* Upcoming Events */}
+        <div>
+           <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <CalendarDays className="text-accent-500" /> Próximos Eventos
+              </h3>
+              <button onClick={() => setCurrentView('agenda')} className="text-sm text-slate-400 hover:text-white">
+                Ver Agenda Completa
+              </button>
+           </div>
+           
+           <div className="space-y-3">
+             {events.length === 0 ? (
+               <div className="text-center py-12 bg-slate-950 border border-slate-800 rounded-xl">
+                  <CalendarDays size={48} className="mx-auto text-slate-700 mb-3" />
+                  <p className="text-slate-400">Nenhum evento agendado.</p>
+                  <button onClick={() => { setEditingEvent(null); setIsFormOpen(true); }} className="mt-4 text-primary-400 text-sm hover:underline">
+                    + Criar primeiro evento
+                  </button>
+               </div>
+             ) : (
+               events.slice(0, 5).map(event => {
+                 const band = bands.find(b => b.id === event.bandId);
+                 return (
+                   <div key={event.id} onClick={() => openEdit(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-600 transition-all cursor-pointer group">
+                     <div className="flex items-center gap-4">
+                       <div className="bg-slate-900 w-14 h-14 rounded-lg flex flex-col items-center justify-center text-slate-400 border border-slate-800 group-hover:border-slate-600 group-hover:bg-slate-800 transition-colors">
+                         <span className="text-xs font-bold uppercase">{event.date ? new Date(event.date).toLocaleString('pt-BR', { month: 'short' }) : '--'}</span>
+                         <span className="text-xl font-bold text-white">{event.date ? new Date(event.date).getDate() : '--'}</span>
+                       </div>
+                       <div>
+                         <h4 className="text-white font-medium text-lg">{event.name}</h4>
+                         <div className="flex flex-col md:flex-row md:items-center md:gap-3 text-sm text-slate-500">
+                           <span className="flex items-center gap-1"><MapPin size={12}/> {event.city}</span>
+                           <span className="hidden md:inline">•</span>
+                           <span className="text-primary-400">{band?.name}</span>
+                         </div>
+                       </div>
+                     </div>
+                     <div className="flex items-center gap-4">
+                        <StatusBadge status={event.status} />
+                     </div>
+                   </div>
+                 );
+               })
+             )}
            </div>
         </div>
       </div>
@@ -322,7 +351,7 @@ const AppContent: React.FC = () => {
                 <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Evento</th>
                 <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Banda</th>
                 <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Local</th>
-                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Valor (Líq)</th>
+                <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider hidden md:table-cell">Horário</th>
                 <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="p-4 text-xs font-medium text-slate-400 uppercase tracking-wider text-right">Ações</th>
               </tr>
@@ -330,15 +359,13 @@ const AppContent: React.FC = () => {
             <tbody className="divide-y divide-slate-800">
               {filteredEvents.map(event => {
                 const band = bands.find(b => b.id === event.bandId);
-                // Safe access to financials
-                const netValue = event.financials?.netValue || 0;
                 
                 return (
                   <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
                     <td className="p-4">
                       <div className="flex flex-col">
                         <span className="text-white font-medium">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
-                        <span className="text-xs text-slate-500 flex items-center gap-1"><Clock size={10}/> {event.time}</span>
+                        <span className="text-xs text-slate-500 flex items-center gap-1 md:hidden"><Clock size={10}/> {event.time}</span>
                       </div>
                     </td>
                     <td className="p-4">
@@ -352,7 +379,7 @@ const AppContent: React.FC = () => {
                       <span className="text-sm text-slate-400">{event.venue}, {event.city}</span>
                     </td>
                     <td className="p-4 hidden md:table-cell">
-                      <span className="text-sm text-green-400 font-medium">R$ {netValue.toLocaleString('pt-BR')}</span>
+                      <span className="text-sm text-slate-400 flex items-center gap-1"><Clock size={14} /> {event.time}</span>
                     </td>
                     <td className="p-4">
                       <StatusBadge status={event.status} />
@@ -465,7 +492,7 @@ const AppContent: React.FC = () => {
              </div>
           </div>
           <h1 className="text-2xl font-bold text-white mb-2">Agenda D&E MUSIC</h1>
-          <p className="text-slate-400 mb-8">Sistema de gestão artística e financeira.</p>
+          <p className="text-slate-400 mb-8">Sistema de gestão artística e logística.</p>
           
           <button 
             onClick={handleLogin}
