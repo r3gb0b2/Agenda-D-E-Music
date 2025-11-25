@@ -62,6 +62,7 @@
         justify-content: center;
         background-color: #020617;
         z-index: 9999;
+        transition: opacity 0.5s ease-out;
       }
 
       .loader-spinner {
@@ -83,6 +84,14 @@
         font-weight: 600;
       }
 
+      .loader-error {
+        display: none;
+        color: #ef4444;
+        margin-top: 1rem;
+        font-size: 0.8rem;
+        text-align: center;
+      }
+
       @keyframes spin {
         0% { transform: rotate(0deg); }
         100% { transform: rotate(360deg); }
@@ -96,12 +105,16 @@
   <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react": "https://esm.sh/react@18.2.0",
+    "@google/genai": "https://esm.sh/@google/genai@0.1.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.263.1",
+    "recharts": "https://esm.sh/recharts@2.12.0",
+    "firebase/app": "https://esm.sh/firebase@10.8.0/app",
+    "firebase/firestore": "https://esm.sh/firebase@10.8.0/firestore",
+    "firebase/auth": "https://esm.sh/firebase@10.8.0/auth",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
   }
 }
@@ -110,10 +123,23 @@
   <body>
     <div id="root">
       <!-- Initial Loader visible before React mounts -->
-      <div class="app-loader">
+      <div class="app-loader" id="initial-loader">
         <div class="loader-spinner"></div>
         <div class="loader-text">AGENDA D&E MUSIC</div>
+        <div class="loader-error" id="loader-error">
+          O carregamento está demorando mais que o esperado.<br/>
+          Verifique sua conexão ou recarregue a página.
+        </div>
       </div>
     </div>
+    <script>
+      // Failsafe: Show error message if React doesn't load in 8 seconds
+      setTimeout(() => {
+        const errorMsg = document.getElementById('loader-error');
+        if (errorMsg && document.getElementById('initial-loader')) {
+          errorMsg.style.display = 'block';
+        }
+      }, 8000);
+    </script>
   </body>
 </html>

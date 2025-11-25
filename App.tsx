@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './services/databaseService';
-import { Event, Band, User, EventStatus, UserRole } from './types';
+import { Event, Band, User, EventStatus } from './types';
 import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import { 
@@ -49,6 +49,13 @@ const App: React.FC = () => {
 
   // Initial Load
   useEffect(() => {
+    // Remove the HTML pre-loader once React starts execution
+    const preloader = document.getElementById('initial-loader');
+    if (preloader) {
+      preloader.style.opacity = '0';
+      setTimeout(() => preloader.remove(), 500);
+    }
+
     const init = async () => {
       try {
         // Load data safely
@@ -57,8 +64,8 @@ const App: React.FC = () => {
         const loadedBands = await db.getBands();
         
         setCurrentUser(user);
-        setEvents(loadedEvents);
-        setBands(loadedBands);
+        setEvents(loadedEvents || []);
+        setBands(loadedBands || []);
       } catch (error) {
         console.error("Failed to initialize app:", error);
       } finally {
@@ -94,8 +101,15 @@ const App: React.FC = () => {
   };
 
   const handleLogin = async () => {
-    const user = await db.getCurrentUser();
-    setCurrentUser(user);
+    setIsLoading(true);
+    try {
+      const user = await db.getCurrentUser();
+      setCurrentUser(user);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // --- Views ---
@@ -108,6 +122,7 @@ const App: React.FC = () => {
     
     // Prepare Chart Data (Revenue by Month)
     const chartData = events.reduce((acc: any[], event) => {
+      if (!event.date) return acc;
       const month = new Date(event.date).toLocaleString('pt-BR', { month: 'short' });
       const existing = acc.find(item => item.name === month);
       if (existing) {
@@ -116,10 +131,10 @@ const App: React.FC = () => {
         acc.push({ name: month, value: event.financials.grossValue });
       }
       return acc;
-    }, []).slice(0, 6); // Last 6 months simplified
+    }, []).slice(0, 6);
 
     return (
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6 animate-fade-in pb-20 md:pb-0">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-24 h-24 bg-primary-500/10 rounded-full blur-2xl -mr-12 -mt-12 group-hover:bg-primary-500/20 transition-all"></div>
@@ -174,8 +189,8 @@ const App: React.FC = () => {
                <div key={event.id} onClick={() => openEdit(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-700 transition-colors cursor-pointer">
                  <div className="flex items-center gap-4">
                    <div className="bg-slate-900 w-12 h-12 rounded-lg flex flex-col items-center justify-center text-slate-400 border border-slate-800">
-                     <span className="text-xs font-bold uppercase">{new Date(event.date).toLocaleString('pt-BR', { month: 'short' })}</span>
-                     <span className="text-lg font-bold text-white">{new Date(event.date).getDate()}</span>
+                     <span className="text-xs font-bold uppercase">{event.date ? new Date(event.date).toLocaleString('pt-BR', { month: 'short' }) : '--'}</span>
+                     <span className="text-lg font-bold text-white">{event.date ? new Date(event.date).getDate() : '--'}</span>
                    </div>
                    <div>
                      <h4 className="text-white font-medium">{event.name}</h4>
@@ -198,7 +213,7 @@ const App: React.FC = () => {
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return (
-      <div className="space-y-6 h-full flex flex-col">
+      <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
@@ -287,7 +302,7 @@ const App: React.FC = () => {
 
   const BandManagerView = () => {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 pb-20 md:pb-0">
         <h2 className="text-2xl font-bold text-white mb-6">Gerenciamento de Bandas & Usuários</h2>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -306,6 +321,7 @@ const App: React.FC = () => {
                     </div>
                  </div>
                ))}
+               {bands.length === 0 && <p className="text-slate-500 text-sm">Nenhuma banda cadastrada.</p>}
              </div>
           </div>
 
@@ -316,9 +332,6 @@ const App: React.FC = () => {
                <button className="text-xs bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors">+ Convidar</button>
              </div>
              <div className="space-y-3">
-               {/* Note: This might be empty if we are in firebase mode and no users exist yet */}
-               {/* We could fetch users via db.getUsers() but for sync render in this component we need to use state */}
-               {/* For this specific view, we'll just re-use the fetched users if we had them in state, or mock */}
                <div className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs text-white">A</div>
@@ -336,7 +349,7 @@ const App: React.FC = () => {
     );
   }
 
-  // State: Loading
+  // State: Loading (Internal React State)
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
@@ -366,6 +379,7 @@ const App: React.FC = () => {
             <LogIn size={20} className="group-hover:translate-x-1 transition-transform" /> 
             Acessar Sistema
           </button>
+          <p className="text-xs text-slate-600 mt-6">Modo Demo Local (Firebase opcional)</p>
         </div>
       </div>
     );
