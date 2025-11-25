@@ -22,7 +22,9 @@ import {
   Mic2,
   Phone,
   Briefcase,
-  Edit2
+  Edit2,
+  ChevronRight,
+  FilterX
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -98,6 +100,8 @@ const AppContent: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null); // New state for editing user
   
   const [filterText, setFilterText] = useState('');
+  const [selectedBandFilter, setSelectedBandFilter] = useState<string | null>(null); // Filtro específico de banda
+
   const [isLoading, setIsLoading] = useState(true);
   
   // Login State
@@ -251,6 +255,12 @@ const AppContent: React.FC = () => {
     setIsUserFormOpen(true);
   }
 
+  // Navegação Especial: Banda -> Agenda Filtrada
+  const handleBandClick = (bandId: string) => {
+    setSelectedBandFilter(bandId);
+    setCurrentView('agenda');
+  };
+
   // --- Filter Logic based on User Role ---
   const getVisibleBands = () => {
     if (!currentUser) return [];
@@ -276,49 +286,48 @@ const AppContent: React.FC = () => {
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
         
-        {/* Bandas Section (Hero) */}
+        {/* Bandas Section - Lista Simples */}
         <div>
            <div className="flex justify-between items-center mb-4">
              <h2 className="text-xl font-bold text-white flex items-center gap-2">
                <Music className="text-primary-500" /> Minhas Bandas
              </h2>
              {currentUser?.role === UserRole.ADMIN && (
-               <button onClick={() => setCurrentView('bands')} className="text-sm text-slate-400 hover:text-white">
-                 Gerenciar
+               <button onClick={handleAddBand} className="text-sm text-primary-400 hover:text-white flex items-center gap-1">
+                 <Plus size={14} /> Nova Banda
                </button>
              )}
            </div>
            
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {visibleBands.map(band => (
-               <div key={band.id} className="bg-slate-950 border border-slate-800 p-6 rounded-xl hover:border-primary-500/50 transition-colors group cursor-pointer" onClick={() => setCurrentView('agenda')}>
-                 <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center text-primary-400 border border-slate-700 group-hover:scale-110 transition-transform shadow-lg">
-                      <Mic2 size={24} />
+           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+             <div className="divide-y divide-slate-800">
+               {visibleBands.map(band => (
+                 <div 
+                   key={band.id} 
+                   onClick={() => handleBandClick(band.id)}
+                   className="flex items-center justify-between p-4 hover:bg-slate-900 transition-colors cursor-pointer group"
+                 >
+                   <div className="flex items-center gap-3">
+                     <span className="font-medium text-white text-lg">{band.name}</span>
                    </div>
-                   <h3 className="text-lg font-bold text-white tracking-wide">{band.name}</h3>
+                   <div className="flex items-center gap-2 text-slate-500 group-hover:text-primary-400 transition-colors">
+                     <span className="text-xs uppercase tracking-wider hidden md:inline">Ver Agenda</span>
+                     <ChevronRight size={18} />
+                   </div>
                  </div>
-               </div>
-             ))}
-             
-             {/* Add Band Card */}
-             {currentUser?.role === UserRole.ADMIN && (
-              <button 
-                onClick={handleAddBand}
-                className="bg-slate-900/50 border border-slate-800 border-dashed p-6 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-primary-400 hover:border-primary-500/50 transition-all gap-3"
-              >
-                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
-                    <Plus size={24} />
-                  </div>
-                  <span className="font-medium">Cadastrar Nova Banda</span>
-              </button>
-             )}
-             
-             {visibleBands.length === 0 && currentUser?.role !== UserRole.ADMIN && (
-               <p className="text-slate-500 col-span-3 text-center py-8">
-                 Você ainda não foi vinculado a nenhuma banda. Peça ao administrador.
-               </p>
-             )}
+               ))}
+               
+               {visibleBands.length === 0 && currentUser?.role !== UserRole.ADMIN && (
+                 <p className="p-6 text-slate-500 text-center">
+                   Você ainda não foi vinculado a nenhuma banda.
+                 </p>
+               )}
+                {visibleBands.length === 0 && currentUser?.role === UserRole.ADMIN && (
+                 <p className="p-6 text-slate-500 text-center">
+                   Nenhuma banda cadastrada.
+                 </p>
+               )}
+             </div>
            </div>
         </div>
 
@@ -395,30 +404,58 @@ const AppContent: React.FC = () => {
   };
 
   const AgendaView = () => {
-    const visibleEvents = getVisibleEvents();
+    let visibleEvents = getVisibleEvents();
+    
+    // Aplicar Filtro de Banda (se houver)
+    if (selectedBandFilter) {
+      visibleEvents = visibleEvents.filter(e => e.bandId === selectedBandFilter);
+    }
+
     const filteredEvents = visibleEvents
       .filter(e => e.name.toLowerCase().includes(filterText.toLowerCase()) || e.city.toLowerCase().includes(filterText.toLowerCase()))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    const selectedBandName = bands.find(b => b.id === selectedBandFilter)?.name;
 
     return (
       <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar evento, cidade..." 
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
-            />
+        
+        {/* Cabeçalho / Filtros */}
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+              <input 
+                type="text" 
+                placeholder="Buscar evento, cidade..." 
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
+              />
+            </div>
+            <button 
+              onClick={() => { setEditingEvent(null); setIsFormOpen(true); }}
+              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20"
+            >
+              <Plus size={18} /> Novo Evento
+            </button>
           </div>
-          <button 
-            onClick={() => { setEditingEvent(null); setIsFormOpen(true); }}
-            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20"
-          >
-            <Plus size={18} /> Novo Evento
-          </button>
+
+          {/* Banner de Filtro Ativo */}
+          {selectedBandFilter && (
+            <div className="flex items-center justify-between bg-primary-900/20 border border-primary-500/30 text-primary-300 px-4 py-3 rounded-lg animate-fade-in">
+              <span className="flex items-center gap-2">
+                <Music size={16} /> 
+                Mostrando apenas shows de: <strong className="text-white">{selectedBandName}</strong>
+              </span>
+              <button 
+                onClick={() => setSelectedBandFilter(null)}
+                className="flex items-center gap-1 text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1 rounded border border-slate-700 transition-colors"
+              >
+                <FilterX size={14} /> Limpar Filtro
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-auto rounded-xl border border-slate-800 bg-slate-950">
@@ -478,7 +515,7 @@ const AppContent: React.FC = () => {
               {filteredEvents.length === 0 && (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-slate-500">
-                    Nenhum evento encontrado.
+                    Nenhum evento encontrado {selectedBandFilter ? 'para esta banda' : ''}.
                   </td>
                 </tr>
               )}
@@ -741,7 +778,13 @@ const AppContent: React.FC = () => {
     <Layout 
       user={currentUser} 
       currentView={currentView} 
-      onChangeView={setCurrentView}
+      onChangeView={(view) => {
+        // Se mudar a view pela sidebar, limpa o filtro de banda
+        if (view !== 'agenda') {
+          setSelectedBandFilter(null);
+        }
+        setCurrentView(view);
+      }}
       onLogout={handleLogout}
     >
       {/* Logout Button in Sidebar is managed by Layout, but let's pass a way to logout if needed, usually Layout handles view switching but maybe we need a logout prop later */}
