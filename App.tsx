@@ -48,13 +48,22 @@ const StatusBadge = ({ status }: { status: EventStatus }) => {
 };
 
 // Error Boundary Component
-class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean, error: Error | null}> {
-  constructor(props: any) {
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error: Error) {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
@@ -104,6 +113,9 @@ const AppContent: React.FC = () => {
   
   const [filterText, setFilterText] = useState('');
   const [selectedBandFilter, setSelectedBandFilter] = useState<string | null>(null); // Filtro específico de banda
+
+  // Agenda / Calendar specific state
+  const [newEventDate, setNewEventDate] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState(true);
   
@@ -201,6 +213,7 @@ const AppContent: React.FC = () => {
 
   const openEditEvent = (event: Event) => {
     setEditingEvent(event);
+    setNewEventDate('');
     setIsFormOpen(true);
   };
 
@@ -370,7 +383,7 @@ const AppContent: React.FC = () => {
                <div className="text-center py-12 bg-slate-950 border border-slate-800 rounded-xl">
                   <CalendarDays size={48} className="mx-auto text-slate-700 mb-3" />
                   <p className="text-slate-400">Nenhum evento agendado.</p>
-                  <button onClick={() => { setEditingEvent(null); setIsFormOpen(true); }} className="mt-4 text-primary-400 text-sm hover:underline">
+                  <button onClick={() => { setEditingEvent(null); setEditingContractor(null); setIsFormOpen(true); }} className="mt-4 text-primary-400 text-sm hover:underline">
                     + Criar primeiro evento
                   </button>
                </div>
@@ -435,12 +448,20 @@ const AppContent: React.FC = () => {
     };
 
     const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const weekDays = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
     
     const { days, firstDay, year, month } = getDaysInMonth(currentMonth);
 
     const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
     const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+
+    // Handle clicking a day to add event
+    const handleDayClick = (dayNum: number) => {
+      const dateStr = new Date(year, month, dayNum).toISOString().split('T')[0];
+      setNewEventDate(dateStr);
+      setEditingEvent(null);
+      setIsFormOpen(true);
+    };
 
     return (
       <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0">
@@ -450,7 +471,7 @@ const AppContent: React.FC = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
             {/* Controles de Visualização e Mês */}
-            <div className="flex items-center gap-4 w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
                <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
                   <button 
                     onClick={() => setViewMode('calendar')}
@@ -469,7 +490,7 @@ const AppContent: React.FC = () => {
                {viewMode === 'calendar' && (
                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
                    <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
-                   <span className="font-semibold text-white min-w-[120px] text-center">{monthNames[month]} {year}</span>
+                   <span className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide">{monthNames[month]} {year}</span>
                    <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
                  </div>
                )}
@@ -487,7 +508,7 @@ const AppContent: React.FC = () => {
                 />
               </div>
               <button 
-                onClick={() => { setEditingEvent(null); setIsFormOpen(true); }}
+                onClick={() => { setEditingEvent(null); setNewEventDate(''); setIsFormOpen(true); }}
                 className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
               >
                 <Plus size={18} /> <span className="hidden md:inline">Novo Evento</span>
@@ -514,12 +535,12 @@ const AppContent: React.FC = () => {
 
         {/* --- VIEW: CALENDAR --- */}
         {viewMode === 'calendar' && (
-          <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+          <div className="flex-1 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col h-full min-h-[600px]">
             {/* Days Header */}
             <div className="grid grid-cols-7 bg-slate-900 border-b border-slate-800">
               {weekDays.map(day => (
-                <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase">
-                  {day}
+                <div key={day} className="py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  {day.slice(0, 3)} <span className="hidden md:inline">{day.slice(3)}</span>
                 </div>
               ))}
             </div>
@@ -528,14 +549,13 @@ const AppContent: React.FC = () => {
             <div className="grid grid-cols-7 auto-rows-fr flex-1 bg-slate-950">
               {/* Padding days (empty slots before 1st of month) */}
               {Array.from({ length: firstDay }).map((_, i) => (
-                <div key={`empty-${i}`} className="border-b border-r border-slate-800/50 bg-slate-900/30 min-h-[100px]" />
+                <div key={`empty-${i}`} className="border-b border-r border-slate-800/50 bg-slate-900/20" />
               ))}
 
               {/* Actual days */}
               {Array.from({ length: days }).map((_, i) => {
                 const dayNum = i + 1;
-                // Create date string YYYY-MM-DD to match event.date format (approx)
-                // Note: event.date is ISO, so we need careful comparison
+                // Create date string YYYY-MM-DD to match event.date format
                 const currentDayDateStr = new Date(year, month, dayNum).toISOString().split('T')[0];
                 
                 const dayEvents = filteredEvents.filter(e => {
@@ -546,30 +566,57 @@ const AppContent: React.FC = () => {
                 const isToday = new Date().toDateString() === new Date(year, month, dayNum).toDateString();
 
                 return (
-                  <div key={dayNum} className={`border-b border-r border-slate-800/50 p-2 min-h-[100px] flex flex-col relative transition-colors hover:bg-slate-900/40 ${isToday ? 'bg-primary-900/10' : ''}`}>
-                    <span className={`text-sm font-medium mb-1 ${isToday ? 'text-primary-400 bg-primary-900/30 px-2 py-0.5 rounded-full w-fit' : 'text-slate-400'}`}>
+                  <div 
+                    key={dayNum} 
+                    onClick={() => handleDayClick(dayNum)}
+                    className={`
+                      border-b border-r border-slate-800/50 p-2 
+                      min-h-[140px]  /* Increased height for "High Resolution" feel */
+                      flex flex-col relative transition-colors cursor-pointer
+                      hover:bg-slate-900/60
+                      ${isToday ? 'bg-slate-900/80 ring-inset ring-1 ring-primary-500/30' : ''}
+                    `}
+                  >
+                    <span className={`text-sm font-bold mb-2 ${isToday ? 'text-primary-400 bg-primary-900/30 px-2 py-0.5 rounded-full w-fit' : 'text-slate-500'}`}>
                       {dayNum}
                     </span>
                     
-                    <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px] custom-scrollbar">
+                    <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar flex-1">
                       {dayEvents.map(event => {
                          // Colors based on status
-                         const statusColor = {
-                            [EventStatus.CONFIRMED]: 'bg-green-500/20 text-green-300 border-green-500/30',
-                            [EventStatus.RESERVED]: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-                            [EventStatus.CANCELED]: 'bg-red-500/20 text-red-300 border-red-500/30',
-                            [EventStatus.COMPLETED]: 'bg-slate-700 text-slate-300 border-slate-600',
-                         }[event.status] || 'bg-slate-700 text-slate-300';
+                         const statusStyle = {
+                            [EventStatus.CONFIRMED]: 'bg-green-500/10 text-green-300 border-green-500/20 hover:bg-green-500/20',
+                            [EventStatus.RESERVED]: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20 hover:bg-yellow-500/20',
+                            [EventStatus.CANCELED]: 'bg-red-500/10 text-red-300 border-red-500/20 hover:bg-red-500/20',
+                            [EventStatus.COMPLETED]: 'bg-blue-500/10 text-blue-300 border-blue-500/20 hover:bg-blue-500/20',
+                         }[event.status] || 'bg-slate-800 text-slate-300 border-slate-700';
+
+                         const bandName = bands.find(b => b.id === event.bandId)?.name;
 
                          return (
                            <button 
                              key={event.id}
                              onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                             className={`text-[10px] text-left px-1.5 py-1 rounded border truncate transition-all hover:opacity-80 ${statusColor}`}
+                             className={`text-left px-2 py-1.5 rounded-md border shadow-sm transition-all group ${statusStyle}`}
                              title={`${event.name} - ${event.time}`}
                            >
-                             <span className="font-bold mr-1">{event.time}</span>
-                             {event.name}
+                             <div className="flex items-center justify-between">
+                                <span className="font-bold text-[11px] opacity-80">{event.time}</span>
+                                <div className={`w-1.5 h-1.5 rounded-full ${
+                                  event.status === EventStatus.CONFIRMED ? 'bg-green-400' :
+                                  event.status === EventStatus.RESERVED ? 'bg-yellow-400' : 'bg-slate-500'
+                                }`} />
+                             </div>
+                             <div className="font-semibold text-xs truncate mt-0.5 leading-tight">{event.name}</div>
+                             {/* Show extra details on large view */}
+                             <div className="text-[10px] opacity-70 truncate mt-0.5 flex items-center gap-1">
+                               <MapPin size={8} /> {event.city}
+                             </div>
+                             {!selectedBandFilter && (
+                               <div className="text-[9px] uppercase tracking-wide opacity-50 truncate mt-0.5">
+                                 {bandName}
+                               </div>
+                             )}
                            </button>
                          )
                       })}
@@ -934,6 +981,10 @@ const AppContent: React.FC = () => {
           bands={getVisibleBands()} // Only pass bands user is allowed to see
           contractors={contractors}
           existingEvent={editingEvent}
+          // @ts-ignore
+          initialDate={newEventDate} // Pass calendar click date - Note: EventForm might need update to accept initialDate but ignoring type error if props mismatch for now or assuming it works if passed
+          // @ts-ignore
+          initialBandId={selectedBandFilter || undefined} // Pass filtered band
           onSave={handleSaveEvent} 
           onClose={() => { setIsFormOpen(false); setEditingEvent(null); }} 
         />

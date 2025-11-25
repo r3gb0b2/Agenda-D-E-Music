@@ -196,29 +196,51 @@ export const db = {
       return sanitizeUser(localMatch, localMatch.id);
     }
 
-    // 3. Try Firebase Auth (Only if it looks like an email)
-    if (USE_FIREBASE && auth && normalizedLogin.includes('@')) {
+    // 3. Try Firebase
+    if (USE_FIREBASE && dbFirestore) {
+      // 3a. Try Firebase Auth (Main accounts)
+      if (auth && normalizedLogin.includes('@')) {
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, normalizedLogin, passwordInput);
+          const snapshot = await getDocs(query(collection(dbFirestore, FB_COLLECTIONS.USERS), where("email", "==", normalizedLogin)));
+          if (!snapshot.empty) {
+            const doc = snapshot.docs[0];
+            return sanitizeUser(doc.data(), doc.id);
+          } else {
+             return {
+               id: userCredential.user.uid,
+               name: userCredential.user.displayName || 'Usuário Firebase',
+               email: normalizedLogin,
+               role: UserRole.MEMBER,
+               bandIds: []
+             };
+          }
+        } catch (e) {
+          // Auth failed, proceed to check manual collection
+        }
+      }
+
+      // 3b. Try Manual Firestore Collection (For Admin-created users without Firebase Auth)
       try {
-        // Firebase Auth handles email case insensitivity usually, but we pass normalized just in case
-        const userCredential = await signInWithEmailAndPassword(auth, normalizedLogin, passwordInput);
+        const usersRef = collection(dbFirestore, FB_COLLECTIONS.USERS);
+        // Query by email
+        const q = query(usersRef, where("email", "==", normalizedLogin));
+        const querySnapshot = await getDocs(q);
         
-        // Find user details in Firestore by email (querying lowercase)
-        const snapshot = await getDocs(query(collection(dbFirestore!, FB_COLLECTIONS.USERS), where("email", "==", normalizedLogin)));
-        if (!snapshot.empty) {
-          const doc = snapshot.docs[0];
-          return sanitizeUser(doc.data(), doc.id);
-        } else {
-           // Create basic user entry if auth exists but firestore doesn't
-           return {
-             id: userCredential.user.uid,
-             name: userCredential.user.displayName || 'Usuário Firebase',
-             email: userCredential.user.email ? userCredential.user.email.toLowerCase() : normalizedLogin,
-             role: UserRole.MEMBER,
-             bandIds: []
-           };
+        if (!querySnapshot.empty) {
+          // Find the user with matching password
+          // Note: In production, passwords should be hashed. This is a demo/internal tool approach.
+          const userDoc = querySnapshot.docs.find(doc => {
+            const data = doc.data();
+            return data.password === passwordInput;
+          });
+
+          if (userDoc) {
+            return sanitizeUser(userDoc.data(), userDoc.id);
+          }
         }
       } catch (e) {
-        console.warn("Firebase Login Failed:", e);
+        console.warn("Firestore manual login check failed:", e);
       }
     }
 
@@ -281,9 +303,9 @@ export const db = {
     if (USE_FIREBASE && dbFirestore) {
       try {
         const userId = normalizedUser.id || crypto.randomUUID();
-        // Remove password before saving to Firestore for security best practice (even in demo)
-        const { password, ...userSafe } = normalizedUser; 
-        await setDoc(doc(dbFirestore, FB_COLLECTIONS.USERS, userId), { ...userSafe, id: userId }, { merge: true });
+        // IMPORTANT: We save the password here so the 'manual login' check works for sub-users
+        // created by the admin who don't have Firebase Auth accounts.
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.USERS, userId), { ...normalizedUser, id: userId }, { merge: true });
       } catch (e) {
         console.error("Firebase User Save Error", e);
       }
