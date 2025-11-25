@@ -1,4 +1,4 @@
-import { Band, Event, EventStatus, User, UserRole } from '../types';
+import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType } from '../types';
 import { dbFirestore } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
 
@@ -15,6 +15,7 @@ const MOCK_USERS: User[] = [
 ];
 
 const MOCK_EVENTS: Event[] = [];
+const MOCK_CONTRACTORS: Contractor[] = [];
 
 // NOVAS CHAVES DE ARMAZENAMENTO E COLEÇÕES (Versão 4 - Isolamento Total)
 // Mudamos o nome base para 'agendade_' para garantir que não haja conflito com 'stingressos' ou 'demusic_v3'
@@ -22,13 +23,15 @@ const STORAGE_PREFIX = 'agendade_prod_v1_';
 const FB_COLLECTIONS = {
   BANDS: 'ad_bands',
   USERS: 'ad_users',
-  EVENTS: 'ad_events'
+  EVENTS: 'ad_events',
+  CONTRACTORS: 'ad_contractors'
 };
 
 const KEYS = {
   BANDS: `${STORAGE_PREFIX}bands`,
   USERS: `${STORAGE_PREFIX}users`,
-  EVENTS: `${STORAGE_PREFIX}events`
+  EVENTS: `${STORAGE_PREFIX}events`,
+  CONTRACTORS: `${STORAGE_PREFIX}contractors`
 };
 
 // Helper to initialize local data
@@ -37,6 +40,7 @@ const initLocalData = () => {
     if (!localStorage.getItem(KEYS.BANDS)) localStorage.setItem(KEYS.BANDS, JSON.stringify(MOCK_BANDS));
     if (!localStorage.getItem(KEYS.USERS)) localStorage.setItem(KEYS.USERS, JSON.stringify(MOCK_USERS));
     if (!localStorage.getItem(KEYS.EVENTS)) localStorage.setItem(KEYS.EVENTS, JSON.stringify(MOCK_EVENTS));
+    if (!localStorage.getItem(KEYS.CONTRACTORS)) localStorage.setItem(KEYS.CONTRACTORS, JSON.stringify(MOCK_CONTRACTORS));
   } catch (e) {
     console.warn("LocalStorage access failed", e);
   }
@@ -92,6 +96,34 @@ const sanitizeEvent = (data: any, id: string): Event => {
     status: data?.status || EventStatus.RESERVED,
     financials: safeFinancials
   } as Event;
+};
+
+// Helper for Contractors
+const sanitizeContractor = (data: any, id: string): Contractor => {
+  return {
+    id: id,
+    type: data?.type || ContractorType.FISICA,
+    name: data?.name || '',
+    responsibleName: data?.responsibleName || '',
+    phone: data?.phone || '',
+    whatsapp: data?.whatsapp || '',
+    email: data?.email || '',
+    address: {
+      street: data?.address?.street || '',
+      number: data?.address?.number || '',
+      complement: data?.address?.complement || '',
+      neighborhood: data?.address?.neighborhood || '',
+      zipCode: data?.address?.zipCode || '',
+      city: data?.address?.city || '',
+      state: data?.address?.state || '',
+      country: data?.address?.country || 'Brasil',
+    },
+    additionalInfo: {
+      event: data?.additionalInfo?.event || '',
+      venue: data?.additionalInfo?.venue || '',
+      notes: data?.additionalInfo?.notes || '',
+    }
+  };
 };
 
 // --- SERVICE IMPLEMENTATION ---
@@ -218,5 +250,56 @@ export const db = {
          console.warn("Firebase delete failed:", e);
       }
     } 
+  },
+
+  // --- CONTRACTORS ---
+  getContractors: async (): Promise<Contractor[]> => {
+    let rawContractors: any[] = [];
+    if (USE_FIREBASE && dbFirestore) {
+      try {
+        const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.CONTRACTORS));
+        if (!snapshot.empty) {
+          rawContractors = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        }
+      } catch (e) {
+        console.warn("Firebase Read Error (Contractors):", e);
+        rawContractors = JSON.parse(localStorage.getItem(KEYS.CONTRACTORS) || '[]');
+      }
+    } else {
+      rawContractors = JSON.parse(localStorage.getItem(KEYS.CONTRACTORS) || '[]');
+    }
+    return rawContractors.map(c => sanitizeContractor(c, c.id));
+  },
+
+  saveContractor: async (contractor: Contractor): Promise<void> => {
+    // Local save
+    const local = JSON.parse(localStorage.getItem(KEYS.CONTRACTORS) || '[]');
+    const index = local.findIndex((c: Contractor) => c.id === contractor.id);
+    if (index >= 0) local[index] = contractor;
+    else local.push(contractor);
+    localStorage.setItem(KEYS.CONTRACTORS, JSON.stringify(local));
+
+    if (USE_FIREBASE && dbFirestore) {
+      try {
+        const id = contractor.id || crypto.randomUUID();
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.CONTRACTORS, id), { ...contractor, id: id }, { merge: true });
+      } catch (e) {
+        console.error("Firebase Save Error:", e);
+      }
+    }
+  },
+
+  deleteContractor: async (id: string): Promise<void> => {
+    const local = JSON.parse(localStorage.getItem(KEYS.CONTRACTORS) || '[]');
+    const newLocal = local.filter((c: Contractor) => c.id !== id);
+    localStorage.setItem(KEYS.CONTRACTORS, JSON.stringify(newLocal));
+
+    if (USE_FIREBASE && dbFirestore) {
+      try {
+        await deleteDoc(doc(dbFirestore, FB_COLLECTIONS.CONTRACTORS, id));
+      } catch (e) {
+        console.warn("Firebase delete failed:", e);
+      }
+    }
   }
 };

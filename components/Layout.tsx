@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, Calendar, Settings, Music, LogOut, Menu, X, Mic2 } from 'lucide-react';
+import { LayoutDashboard, Calendar, Settings, Music, LogOut, Menu, X, Mic2, Briefcase } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -54,6 +54,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
         <nav className="flex-1 px-4 py-4">
           <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem view="agenda" icon={Calendar} label="Agenda" />
+          <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
           {userRole === UserRole.ADMIN && (
              <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
           )}
@@ -91,6 +92,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
            <nav className="flex flex-col">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem view="agenda" icon={Calendar} label="Agenda" />
+            <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
             {userRole === UserRole.ADMIN && (
                <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
             )}

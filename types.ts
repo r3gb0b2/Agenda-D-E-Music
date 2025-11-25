@@ -11,6 +11,11 @@ export enum UserRole {
   MEMBER = 'MEMBER'    // Musician
 }
 
+export enum ContractorType {
+  FISICA = 'FISICA',
+  JURIDICA = 'JURIDICA'
+}
+
 export interface Band {
   id: string;
   name: string;
@@ -48,6 +53,33 @@ export interface Event {
   notes: string;
   status: EventStatus;
   financials: Financials;
+}
+
+export interface Contractor {
+  id: string;
+  type: ContractorType;
+  name: string; // Nome ou Razão Social
+  responsibleName: string;
+  phone: string;
+  whatsapp: string;
+  email: string;
+  // Endereço
+  address: {
+    street: string;
+    number: string;
+    complement: string;
+    neighborhood: string;
+    zipCode: string;
+    city: string;
+    state: string;
+    country: string;
+  };
+  // Infos Adicionais
+  additionalInfo: {
+    event: string; // Campo "Evento" solicitado
+    venue: string; // Campo "Local" solicitado
+    notes: string;
+  };
 }
 
 export interface DashboardStats {

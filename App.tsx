@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './services/databaseService';
-import { Event, Band, User, EventStatus, UserRole } from './types';
+import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
 import EventForm from './components/EventForm';
+import ContractorForm from './components/ContractorForm';
 import { 
   Plus, 
   Search, 
@@ -18,7 +19,9 @@ import {
   AlertTriangle,
   RefreshCcw,
   CalendarDays,
-  Mic2
+  Mic2,
+  Phone,
+  Briefcase
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -77,11 +80,18 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
 const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
+  
+  // Data State
   const [events, setEvents] = useState<Event[]>([]);
   const [bands, setBands] = useState<Band[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [contractors, setContractors] = useState<Contractor[]>([]);
+  
+  // UI State
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
   const [filterText, setFilterText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -104,22 +114,25 @@ const AppContent: React.FC = () => {
         const eventsPromise = db.getEvents();
         const bandsPromise = db.getBands();
         const usersPromise = db.getUsers();
+        const contractorsPromise = db.getContractors();
 
         // If data fetching takes too long (> 3s), we continue with what we have
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Tempo limite excedido"), 3000));
 
         try {
-           await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise, usersPromise]), timeoutPromise]);
+           await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise, usersPromise, contractorsPromise]), timeoutPromise]);
            const user = await userPromise;
            const loadedEvents = await eventsPromise;
            const loadedBands = await bandsPromise;
            const loadedUsers = await usersPromise;
+           const loadedContractors = await contractorsPromise;
            
            if (isMounted) {
              setCurrentUser(user);
              setEvents(loadedEvents || []);
              setBands(loadedBands || []);
              setUsers(loadedUsers || []);
+             setContractors(loadedContractors || []);
              setIsLoading(false);
            }
         } catch (err) {
@@ -130,9 +143,11 @@ const AppContent: React.FC = () => {
                 const u = await userPromise.catch(() => null);
                 const e = await eventsPromise.catch(() => []);
                 const b = await bandsPromise.catch(() => []);
+                const c = await contractorsPromise.catch(() => []);
                 setCurrentUser(u);
                 setEvents(e || []);
                 setBands(b || []);
+                setContractors(c || []);
                 setUsers([]);
               } catch (criticalErr) {
                 console.error("Critical fallback failure", criticalErr);
@@ -158,8 +173,10 @@ const AppContent: React.FC = () => {
     setEvents(await db.getEvents());
     setBands(await db.getBands());
     setUsers(await db.getUsers());
+    setContractors(await db.getContractors());
   };
 
+  // --- Handlers: Events ---
   const handleSaveEvent = async (event: Event) => {
     await db.saveEvent(event);
     refreshData();
@@ -174,6 +191,32 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const openEditEvent = (event: Event) => {
+    setEditingEvent(event);
+    setIsFormOpen(true);
+  };
+
+  // --- Handlers: Contractors ---
+  const handleSaveContractor = async (contractor: Contractor) => {
+    await db.saveContractor(contractor);
+    refreshData();
+    setIsContractorFormOpen(false);
+    setEditingContractor(null);
+  }
+
+  const handleDeleteContractor = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este contratante?')) {
+      await db.deleteContractor(id);
+      refreshData();
+    }
+  }
+
+  const openEditContractor = (contractor: Contractor) => {
+    setEditingContractor(contractor);
+    setIsContractorFormOpen(true);
+  }
+
+  // --- Handlers: Bands/Users ---
   const handleAddBand = async () => {
     const name = window.prompt("Nome da nova banda:");
     if (name) {
@@ -189,21 +232,11 @@ const AppContent: React.FC = () => {
   };
 
   const handleAddUser = async () => {
-    // Note: In a real Firebase Auth app, this would involve creating an Auth user.
-    // Here we just add to the DB collection for management display.
     const name = window.prompt("Nome do usuário:");
     if (!name) return;
     const email = window.prompt("Email do usuário:");
     if (!email) return;
-
-    // We can't easily save users in this simple mock structure without expanding db service significantly
-    // But for the UI feedback requested:
     alert(`Funcionalidade de convite enviada para ${email} (Simulação)`);
-  };
-
-  const openEdit = (event: Event) => {
-    setEditingEvent(event);
-    setIsFormOpen(true);
   };
 
   const handleLogin = async () => {
@@ -211,7 +244,6 @@ const AppContent: React.FC = () => {
     try {
       const user = await db.getCurrentUser();
       if (!user) {
-         // Fallback for demo
          const mockUsers = await db.getUsers();
          if (mockUsers && mockUsers.length > 0) {
             setCurrentUser(mockUsers[0]);
@@ -315,7 +347,7 @@ const AppContent: React.FC = () => {
                events.slice(0, 5).map(event => {
                  const band = bands.find(b => b.id === event.bandId);
                  return (
-                   <div key={event.id} onClick={() => openEdit(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-600 transition-all cursor-pointer group">
+                   <div key={event.id} onClick={() => openEditEvent(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-600 transition-all cursor-pointer group">
                      <div className="flex items-center gap-4">
                        <div className="bg-slate-900 w-14 h-14 rounded-lg flex flex-col items-center justify-center text-slate-400 border border-slate-800 group-hover:border-slate-600 group-hover:bg-slate-800 transition-colors">
                          <span className="text-xs font-bold uppercase">{event.date ? new Date(event.date).toLocaleString('pt-BR', { month: 'short' }) : '--'}</span>
@@ -344,7 +376,6 @@ const AppContent: React.FC = () => {
   };
 
   const AgendaView = () => {
-    // Sort and Filter
     const filteredEvents = events
       .filter(e => e.name.toLowerCase().includes(filterText.toLowerCase()) || e.city.toLowerCase().includes(filterText.toLowerCase()))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -413,7 +444,7 @@ const AppContent: React.FC = () => {
                     </td>
                     <td className="p-4 text-right">
                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={() => openEdit(event)} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg">
+                         <button onClick={() => openEditEvent(event)} className="p-2 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg">
                            <MoreVertical size={16} />
                          </button>
                          <button onClick={() => handleDeleteEvent(event.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-800 hover:bg-slate-700 rounded-lg">
@@ -437,6 +468,86 @@ const AppContent: React.FC = () => {
       </div>
     );
   };
+
+  const ContractorsView = () => {
+    const filteredContractors = contractors.filter(c => 
+      c.name.toLowerCase().includes(filterText.toLowerCase()) || 
+      c.email.toLowerCase().includes(filterText.toLowerCase()) ||
+      c.address.city.toLowerCase().includes(filterText.toLowerCase())
+    );
+
+    return (
+       <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar contratante..." 
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
+            />
+          </div>
+          <button 
+            onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }}
+            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20"
+          >
+            <Plus size={18} /> Novo Contratante
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto">
+           {filteredContractors.map(contractor => (
+             <div key={contractor.id} className="bg-slate-950 border border-slate-800 rounded-xl p-5 hover:border-slate-600 transition-all group">
+               <div className="flex justify-between items-start mb-4">
+                 <div>
+                    <h3 className="text-white font-bold text-lg leading-tight">{contractor.name}</h3>
+                    <p className="text-xs text-primary-400 mt-1 uppercase tracking-wider">{contractor.type}</p>
+                 </div>
+                 <div className="flex gap-1">
+                   <button onClick={() => openEditContractor(contractor)} className="p-2 text-slate-400 hover:text-white bg-slate-900 rounded-lg hover:bg-slate-800">
+                      <MoreVertical size={16} />
+                   </button>
+                   <button onClick={() => handleDeleteContractor(contractor.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-900 rounded-lg hover:bg-slate-800">
+                      <Trash2 size={16} />
+                   </button>
+                 </div>
+               </div>
+
+               <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Users size={14} className="text-slate-500"/>
+                    <span>Resp: <span className="text-slate-200">{contractor.responsibleName || 'Não informado'}</span></span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Phone size={14} className="text-slate-500"/>
+                    <span>{contractor.whatsapp || contractor.phone || 'Sem contato'}</span>
+                  </div>
+                   <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <MapPin size={14} className="text-slate-500"/>
+                    <span className="truncate">{contractor.address.city}, {contractor.address.state}</span>
+                  </div>
+               </div>
+               
+               {contractor.additionalInfo.notes && (
+                 <div className="text-xs text-slate-500 bg-slate-900 p-2 rounded italic">
+                   "{contractor.additionalInfo.notes.substring(0, 60)}{contractor.additionalInfo.notes.length > 60 ? '...' : ''}"
+                 </div>
+               )}
+             </div>
+           ))}
+           
+           {filteredContractors.length === 0 && (
+             <div className="col-span-full py-12 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl">
+               <Briefcase size={48} className="mx-auto text-slate-700 mb-3" />
+               <p>Nenhum contratante encontrado.</p>
+             </div>
+           )}
+        </div>
+       </div>
+    );
+  }
 
   const BandManagerView = () => {
     return (
@@ -562,6 +673,7 @@ const AppContent: React.FC = () => {
     <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView}>
       {currentView === 'dashboard' && <DashboardView />}
       {currentView === 'agenda' && <AgendaView />}
+      {currentView === 'contractors' && <ContractorsView />}
       {currentView === 'bands' && <BandManagerView />}
 
       {isFormOpen && (
@@ -570,6 +682,14 @@ const AppContent: React.FC = () => {
           existingEvent={editingEvent}
           onSave={handleSaveEvent} 
           onClose={() => { setIsFormOpen(false); setEditingEvent(null); }} 
+        />
+      )}
+
+      {isContractorFormOpen && (
+        <ContractorForm
+          existingContractor={editingContractor}
+          onSave={handleSaveContractor}
+          onClose={() => { setIsContractorFormOpen(false); setEditingContractor(null); }}
         />
       )}
     </Layout>
