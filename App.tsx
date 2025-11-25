@@ -14,7 +14,8 @@ import {
   Trash2,
   Users,
   Briefcase,
-  Music
+  Music,
+  Loader2
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -45,12 +46,19 @@ const App: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [filterText, setFilterText] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Initial Load
   useEffect(() => {
-    const user = db.getCurrentUser();
-    setCurrentUser(user);
-    refreshData();
+    // Simulate a brief loading sequence for smoother UX transition from the HTML pre-loader
+    const timer = setTimeout(() => {
+      const user = db.getCurrentUser();
+      setCurrentUser(user);
+      refreshData();
+      setIsLoading(false);
+    }, 800);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const refreshData = () => {
@@ -314,7 +322,15 @@ const App: React.FC = () => {
     );
   }
 
-  if (!currentUser) return <div className="flex items-center justify-center h-screen bg-slate-950 text-white">Carregando sistema...</div>;
+  // Enhanced Loading State
+  if (isLoading || !currentUser) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
+        <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
+        <p className="text-slate-400 text-sm animate-pulse tracking-wider">BANDMASTER PRO</p>
+      </div>
+    );
+  }
 
   return (
     <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView}>
