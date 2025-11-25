@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ReactNode } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -27,7 +27,8 @@ import {
   FilterX,
   ChevronLeft,
   List,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  User as UserIcon
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -49,7 +50,7 @@ const StatusBadge = ({ status }: { status: EventStatus }) => {
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 interface ErrorBoundaryState {
@@ -57,7 +58,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -65,6 +66,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
   }
 
   render() {
@@ -394,8 +399,8 @@ const AppContent: React.FC = () => {
                    <div key={event.id} onClick={() => openEditEvent(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-600 transition-all cursor-pointer group">
                      <div className="flex items-center gap-4">
                        <div className="bg-slate-900 w-14 h-14 rounded-lg flex flex-col items-center justify-center text-slate-400 border border-slate-800 group-hover:border-slate-600 group-hover:bg-slate-800 transition-colors">
-                         <span className="text-xs font-bold uppercase">{event.date ? new Date(event.date).toLocaleString('pt-BR', { month: 'short' }) : '--'}</span>
-                         <span className="text-xl font-bold text-white">{event.date ? new Date(event.date).getDate() : '--'}</span>
+                         <span className="text-xs font-bold uppercase">{event.date ? new Date(event.date + 'T00:00:00').toLocaleString('pt-BR', { month: 'short' }) : '--'}</span>
+                         <span className="text-xl font-bold text-white">{event.date ? event.date.split('-')[2] : '--'}</span>
                        </div>
                        <div>
                          <h4 className="text-white font-medium text-lg">{event.name}</h4>
@@ -457,7 +462,11 @@ const AppContent: React.FC = () => {
 
     // Handle clicking a day to add event
     const handleDayClick = (dayNum: number) => {
-      const dateStr = new Date(year, month, dayNum).toISOString().split('T')[0];
+      // Create string YYYY-MM-DD manually to avoid timezone shift
+      const d = String(dayNum).padStart(2, '0');
+      const m = String(month + 1).padStart(2, '0');
+      const dateStr = `${year}-${m}-${d}`;
+
       setNewEventDate(dateStr);
       setEditingEvent(null);
       setIsFormOpen(true);
@@ -555,15 +564,18 @@ const AppContent: React.FC = () => {
               {/* Actual days */}
               {Array.from({ length: days }).map((_, i) => {
                 const dayNum = i + 1;
-                // Create date string YYYY-MM-DD to match event.date format
-                const currentDayDateStr = new Date(year, month, dayNum).toISOString().split('T')[0];
+                
+                // Construct Date String safely for comparison (YYYY-MM-DD)
+                const d = String(dayNum).padStart(2, '0');
+                const m = String(month + 1).padStart(2, '0');
+                const currentDayIso = `${year}-${m}-${d}`;
                 
                 const dayEvents = filteredEvents.filter(e => {
-                  const eventDate = new Date(e.date).toISOString().split('T')[0];
-                  return eventDate === currentDayDateStr;
+                  // We assume e.date is stored as YYYY-MM-DD
+                  return e.date && e.date.substring(0, 10) === currentDayIso;
                 });
 
-                const isToday = new Date().toDateString() === new Date(year, month, dayNum).toDateString();
+                const isToday = new Date().toISOString().split('T')[0] === currentDayIso;
 
                 return (
                   <div 
@@ -571,24 +583,24 @@ const AppContent: React.FC = () => {
                     onClick={() => handleDayClick(dayNum)}
                     className={`
                       border-b border-r border-slate-800/50 p-2 
-                      min-h-[140px]  /* Increased height for "High Resolution" feel */
+                      min-h-[220px]  /* GIGANTIC CELLS FOR BETTER VISIBILITY */
                       flex flex-col relative transition-colors cursor-pointer
                       hover:bg-slate-900/60
                       ${isToday ? 'bg-slate-900/80 ring-inset ring-1 ring-primary-500/30' : ''}
                     `}
                   >
-                    <span className={`text-sm font-bold mb-2 ${isToday ? 'text-primary-400 bg-primary-900/30 px-2 py-0.5 rounded-full w-fit' : 'text-slate-500'}`}>
+                    <span className={`text-lg font-bold mb-2 ml-1 ${isToday ? 'text-primary-400 bg-primary-900/30 px-2 rounded-full w-fit' : 'text-slate-600'}`}>
                       {dayNum}
                     </span>
                     
-                    <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar flex-1">
+                    <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar flex-1">
                       {dayEvents.map(event => {
                          // Colors based on status
                          const statusStyle = {
-                            [EventStatus.CONFIRMED]: 'bg-green-500/10 text-green-300 border-green-500/20 hover:bg-green-500/20',
-                            [EventStatus.RESERVED]: 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20 hover:bg-yellow-500/20',
-                            [EventStatus.CANCELED]: 'bg-red-500/10 text-red-300 border-red-500/20 hover:bg-red-500/20',
-                            [EventStatus.COMPLETED]: 'bg-blue-500/10 text-blue-300 border-blue-500/20 hover:bg-blue-500/20',
+                            [EventStatus.CONFIRMED]: 'bg-green-600 text-white border-green-500',
+                            [EventStatus.RESERVED]: 'bg-yellow-600 text-white border-yellow-500',
+                            [EventStatus.CANCELED]: 'bg-red-900/80 text-red-200 border-red-800',
+                            [EventStatus.COMPLETED]: 'bg-blue-900/80 text-blue-200 border-blue-800',
                          }[event.status] || 'bg-slate-800 text-slate-300 border-slate-700';
 
                          const bandName = bands.find(b => b.id === event.bandId)?.name;
@@ -597,26 +609,39 @@ const AppContent: React.FC = () => {
                            <button 
                              key={event.id}
                              onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                             className={`text-left px-2 py-1.5 rounded-md border shadow-sm transition-all group ${statusStyle}`}
-                             title={`${event.name} - ${event.time}`}
+                             className={`text-left p-3 rounded-lg border shadow-sm transition-all hover:scale-[1.02] ${statusStyle}`}
                            >
-                             <div className="flex items-center justify-between">
-                                <span className="font-bold text-[11px] opacity-80">{event.time}</span>
-                                <div className={`w-1.5 h-1.5 rounded-full ${
-                                  event.status === EventStatus.CONFIRMED ? 'bg-green-400' :
-                                  event.status === EventStatus.RESERVED ? 'bg-yellow-400' : 'bg-slate-500'
-                                }`} />
+                             <div className="flex items-start justify-between mb-1">
+                                <span className="font-bold text-sm bg-black/20 px-1.5 rounded">{event.time}</span>
+                                {!selectedBandFilter && (
+                                  <span className="text-[10px] font-bold uppercase tracking-wider bg-black/20 px-1 rounded ml-2 truncate max-w-[80px]">
+                                    {bandName}
+                                  </span>
+                                )}
                              </div>
-                             <div className="font-semibold text-xs truncate mt-0.5 leading-tight">{event.name}</div>
-                             {/* Show extra details on large view */}
-                             <div className="text-[10px] opacity-70 truncate mt-0.5 flex items-center gap-1">
-                               <MapPin size={8} /> {event.city}
+                             
+                             <div className="font-bold text-sm leading-snug break-words mb-1">
+                               {event.name}
                              </div>
-                             {!selectedBandFilter && (
-                               <div className="text-[9px] uppercase tracking-wide opacity-50 truncate mt-0.5">
-                                 {bandName}
+
+                             <div className="space-y-0.5 opacity-90">
+                               <div className="text-xs flex items-center gap-1.5 truncate">
+                                 <MapPin size={12} className="shrink-0" /> 
+                                 <span className="truncate">{event.city}</span>
                                </div>
-                             )}
+                               {event.venue && (
+                                 <div className="text-[11px] flex items-center gap-1.5 truncate text-white/80">
+                                   <Briefcase size={10} className="shrink-0" />
+                                   <span className="truncate">{event.venue}</span>
+                                 </div>
+                               )}
+                               {event.contractor && (
+                                 <div className="text-[10px] flex items-center gap-1.5 truncate italic text-white/70 mt-1 pt-1 border-t border-white/10">
+                                   <UserIcon size={10} className="shrink-0" />
+                                   <span className="truncate">{event.contractor}</span>
+                                 </div>
+                               )}
+                             </div>
                            </button>
                          )
                       })}
@@ -653,7 +678,7 @@ const AppContent: React.FC = () => {
                     <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
                       <td className="p-4">
                         <div className="flex flex-col">
-                          <span className="text-white font-medium">{new Date(event.date).toLocaleDateString('pt-BR')}</span>
+                          <span className="text-white font-medium">{new Date(event.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span>
                           <span className="text-xs text-slate-500 flex items-center gap-1 md:hidden"><Clock size={10}/> {event.time}</span>
                         </div>
                       </td>
