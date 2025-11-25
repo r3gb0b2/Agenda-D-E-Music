@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, ReactNode, Component, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -58,11 +59,10 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = { hasError: false, error: null };
-
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -469,10 +469,10 @@ const AppContent: React.FC = () => {
     };
 
     return (
-      <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0">
+      <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0 max-h-[calc(100vh-100px)]">
         
         {/* Header da Agenda */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 shrink-0">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
             {/* Controles de Visualização e Mês */}
@@ -532,9 +532,9 @@ const AppContent: React.FC = () => {
 
         {/* MODO CALENDÁRIO */}
         {viewMode === 'calendar' && (
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col">
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0">
             {/* Week Days Header */}
-            <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900">
+            <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 shrink-0">
               {weekDays.map(day => (
                 <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   {day}
@@ -542,11 +542,11 @@ const AppContent: React.FC = () => {
               ))}
             </div>
 
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 auto-rows-fr flex-1 bg-slate-900 gap-px border-b border-slate-800">
+            {/* Calendar Grid - SCROLLABLE */}
+            <div className="grid grid-cols-7 auto-rows-fr flex-1 bg-slate-900 gap-px overflow-y-auto custom-scrollbar">
               {/* Empty cells for previous month */}
               {Array.from({ length: firstDay }).map((_, i) => (
-                <div key={`empty-${i}`} className="bg-slate-950/50 min-h-[100px]"></div>
+                <div key={`empty-${i}`} className="bg-slate-950/50 min-h-[120px]"></div>
               ))}
 
               {/* Days of current month */}
@@ -570,13 +570,13 @@ const AppContent: React.FC = () => {
                   <div 
                     key={dayNum} 
                     onClick={() => handleDayClick(dayNum)}
-                    className={`bg-slate-950 min-h-[100px] p-2 border-r border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer relative group flex flex-col gap-1`}
+                    className={`bg-slate-950 min-h-[120px] h-auto p-2 border-r border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer relative group flex flex-col gap-1`}
                   >
                     <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
                       {dayNum} {isToday && '(Hoje)'}
                     </span>
                     
-                    <div className="flex flex-col gap-1 overflow-hidden">
+                    <div className="flex flex-col gap-1">
                       {dayEvents.map(event => {
                          const band = bands.find(b => b.id === event.bandId);
                          
@@ -590,15 +590,16 @@ const AppContent: React.FC = () => {
                           <div 
                             key={event.id}
                             onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                            className={`p-1.5 rounded text-xs border shadow-sm cursor-pointer hover:scale-[1.02] transition-transform ${statusColor} text-white`}
+                            className={`p-2 rounded text-xs border shadow-sm cursor-pointer hover:scale-[1.02] transition-transform ${statusColor} text-white`}
                             title={`${event.time} - ${event.name}`}
                           >
-                             <div className="font-bold flex justify-between">
+                             <div className="font-bold flex justify-between mb-0.5">
                                <span>{event.time}</span>
                              </div>
-                             <div className="truncate font-semibold text-[10px] leading-tight mt-0.5">{event.name}</div>
-                             <div className="truncate text-[9px] opacity-90">{event.city}</div>
-                             <div className="truncate text-[9px] opacity-75 italic">{band?.name}</div>
+                             {/* REMOVED truncate to allow text wrapping for zooming visibility */}
+                             <div className="font-semibold text-xs leading-tight mb-0.5 break-words">{event.name}</div>
+                             <div className="text-[10px] opacity-90 break-words leading-tight">{event.city}</div>
+                             <div className="text-[10px] opacity-75 italic mt-1">{band?.name}</div>
                           </div>
                          )
                       })}
@@ -891,7 +892,7 @@ const AppContent: React.FC = () => {
       onChangeView={setCurrentView}
       onLogout={handleLogout}
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto h-full">
         {currentView === 'dashboard' && <DashboardView />}
         {currentView === 'agenda' && <AgendaView />}
         {currentView === 'contractors' && <ContractorsView />}
