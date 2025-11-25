@@ -15,7 +15,8 @@ import {
   Users,
   Briefcase,
   Music,
-  Loader2
+  Loader2,
+  LogIn
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -53,14 +54,16 @@ const App: React.FC = () => {
     const init = async () => {
       try {
         // Wait a bit for UX smoother transition from HTML loader
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 800));
         
         const user = db.getCurrentUser();
-        setCurrentUser(user);
         
         // Load data safely
         const loadedEvents = db.getEvents();
         const loadedBands = db.getBands();
+        
+        // Batch updates
+        setCurrentUser(user);
         setEvents(loadedEvents);
         setBands(loadedBands);
         
@@ -96,6 +99,12 @@ const App: React.FC = () => {
   const openEdit = (event: Event) => {
     setEditingEvent(event);
     setIsFormOpen(true);
+  };
+
+  const handleLogin = () => {
+    // Fallback login manual re-fetch
+    const user = db.getCurrentUser();
+    setCurrentUser(user);
   };
 
   // --- Views ---
@@ -335,8 +344,8 @@ const App: React.FC = () => {
     );
   }
 
-  // Enhanced Loading State
-  if (isLoading || !currentUser) {
+  // State: Loading
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
         <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
@@ -345,6 +354,32 @@ const App: React.FC = () => {
     );
   }
 
+  // State: Not Logged In (Fallback)
+  if (!currentUser) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white p-4">
+        <div className="w-full max-w-md bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl text-center">
+          <div className="flex justify-center mb-6">
+             <div className="w-16 h-16 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
+                <Music size={32} />
+             </div>
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Agenda D&E MUSIC</h1>
+          <p className="text-slate-400 mb-8">Sistema de gestão artística e financeira.</p>
+          
+          <button 
+            onClick={handleLogin}
+            className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white py-3 px-4 rounded-xl font-medium transition-all shadow-lg shadow-primary-600/20 group"
+          >
+            <LogIn size={20} className="group-hover:translate-x-1 transition-transform" /> 
+            Acessar Sistema
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // State: Logged In
   return (
     <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView}>
       {currentView === 'dashboard' && <DashboardView />}

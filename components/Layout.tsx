@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, Calendar, Settings, Music, LogOut, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Calendar, Settings, Music, LogOut, Menu, X, Mic2 } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,10 +34,16 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
       {/* Sidebar - Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-slate-950 border-r border-slate-800">
         <div className="p-6">
-          <h1 className="text-xl font-bold bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent">
-            Agenda D&E MUSIC
-          </h1>
-          <p className="text-xs text-slate-500 mt-1 uppercase tracking-wider">Sistema de Gestão</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white shadow-md">
+              <Mic2 size={16} />
+            </div>
+            <h1 className="text-lg font-bold text-white leading-tight">
+              Agenda<br/>
+              <span className="text-primary-400">D&E MUSIC</span>
+            </h1>
+          </div>
+          <p className="text-xs text-slate-500 uppercase tracking-wider pl-1">Sistema de Gestão</p>
         </div>
 
         <nav className="flex-1 px-4 py-4">
@@ -50,7 +56,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
 
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center mb-4">
-            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
+            <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white border border-slate-600">
               {user.name.charAt(0)}
             </div>
             <div className="ml-3">
@@ -63,15 +69,20 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
 
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 w-full bg-slate-950 border-b border-slate-800 z-50 flex items-center justify-between p-4">
-        <h1 className="text-lg font-bold text-white">Agenda D&E MUSIC</h1>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-white">
-          {isMobileMenuOpen ? <X /> : <Menu />}
+        <div className="flex items-center gap-2">
+           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white">
+              <Mic2 size={16} />
+           </div>
+           <h1 className="text-lg font-bold text-white">Agenda D&E MUSIC</h1>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-white p-2 rounded hover:bg-slate-800">
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
 
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-slate-900 pt-20 px-4 md:hidden">
+        <div className="fixed inset-0 z-40 bg-slate-900 pt-24 px-4 md:hidden">
            <nav className="flex flex-col">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem view="agenda" icon={Calendar} label="Agenda" />
@@ -83,7 +94,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
       )}
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-slate-900 md:p-8 p-4 pt-20 md:pt-8">
+      <main className="flex-1 overflow-y-auto bg-slate-900 md:p-8 p-4 pt-24 md:pt-8">
         {children}
       </main>
     </div>

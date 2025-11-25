@@ -66,20 +66,36 @@ const KEYS = {
 
 // Helper to initialize data
 const initData = () => {
-  if (!localStorage.getItem(KEYS.BANDS)) localStorage.setItem(KEYS.BANDS, JSON.stringify(MOCK_BANDS));
-  if (!localStorage.getItem(KEYS.USERS)) localStorage.setItem(KEYS.USERS, JSON.stringify(MOCK_USERS));
-  if (!localStorage.getItem(KEYS.EVENTS)) localStorage.setItem(KEYS.EVENTS, JSON.stringify(MOCK_EVENTS));
+  try {
+    if (!localStorage.getItem(KEYS.BANDS)) localStorage.setItem(KEYS.BANDS, JSON.stringify(MOCK_BANDS));
+    if (!localStorage.getItem(KEYS.USERS)) localStorage.setItem(KEYS.USERS, JSON.stringify(MOCK_USERS));
+    if (!localStorage.getItem(KEYS.EVENTS)) localStorage.setItem(KEYS.EVENTS, JSON.stringify(MOCK_EVENTS));
+  } catch (e) {
+    console.warn("LocalStorage access failed", e);
+  }
 };
 
 initData();
 
 // Service Methods
 export const db = {
-  getBands: (): Band[] => JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]'),
+  getBands: (): Band[] => {
+    try {
+      return JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
+    } catch { return MOCK_BANDS; }
+  },
   
-  getUsers: (): User[] => JSON.parse(localStorage.getItem(KEYS.USERS) || '[]'),
+  getUsers: (): User[] => {
+     try {
+       return JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+     } catch { return MOCK_USERS; }
+  },
   
-  getEvents: (): Event[] => JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]'),
+  getEvents: (): Event[] => {
+    try {
+      return JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
+    } catch { return MOCK_EVENTS; }
+  },
   
   saveEvent: (event: Event): void => {
     const events = db.getEvents();
@@ -109,5 +125,13 @@ export const db = {
   },
 
   // Simulate "Firebase" Auth
-  getCurrentUser: (): User => MOCK_USERS[0], 
+  getCurrentUser: (): User => {
+    // Robustness: Try to get from LS, fallback to Mock, fallback to Default
+    try {
+        const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+        if (users.length > 0) return users[0];
+    } catch (e) { /* ignore */ }
+    
+    return MOCK_USERS[0]; 
+  }, 
 };
