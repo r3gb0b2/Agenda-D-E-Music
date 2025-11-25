@@ -4,6 +4,7 @@ import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import ContractorForm from './components/ContractorForm';
+import UserForm from './components/UserForm'; // Imported
 import { 
   Plus, 
   Search, 
@@ -21,7 +22,9 @@ import {
   CalendarDays,
   Mic2,
   Phone,
-  Briefcase
+  Briefcase,
+  Lock,
+  Edit2
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -58,7 +61,7 @@ class ErrorBoundary extends React.Component<{children: React.ReactNode}, {hasErr
         <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white p-6 text-center">
           <AlertTriangle className="w-16 h-16 text-red-500 mb-4" />
           <h2 className="text-xl font-bold mb-2">Algo deu errado</h2>
-          <p className="text-slate-400 mb-6 max-w-md">Ocorreu um erro crítico na aplicação. Isso geralmente ocorre por falha de carregamento de dependências.</p>
+          <p className="text-slate-400 mb-6 max-w-md">Ocorreu um erro crítico na aplicação.</p>
           <pre className="bg-slate-900 p-2 rounded text-xs text-red-300 mb-6 max-w-lg overflow-auto">
             {this.state.error?.message}
           </pre>
@@ -90,11 +93,20 @@ const AppContent: React.FC = () => {
   // UI State
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
+  const [isUserFormOpen, setIsUserFormOpen] = useState(false); // New state for User Form
+  
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null); // New state for editing user
+  
   const [filterText, setFilterText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  
+  // Login State
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Initial Load
   useEffect(() => {
@@ -105,76 +117,54 @@ const AppContent: React.FC = () => {
       setTimeout(() => preloader.remove(), 500);
     }
 
-    let isMounted = true;
-
-    const init = async () => {
-      try {
-        // Load data safely with timeout
-        const userPromise = db.getCurrentUser();
-        const eventsPromise = db.getEvents();
-        const bandsPromise = db.getBands();
-        const usersPromise = db.getUsers();
-        const contractorsPromise = db.getContractors();
-
-        // If data fetching takes too long (> 3s), we continue with what we have
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Tempo limite excedido"), 3000));
-
-        try {
-           await Promise.race([Promise.all([userPromise, eventsPromise, bandsPromise, usersPromise, contractorsPromise]), timeoutPromise]);
-           const user = await userPromise;
-           const loadedEvents = await eventsPromise;
-           const loadedBands = await bandsPromise;
-           const loadedUsers = await usersPromise;
-           const loadedContractors = await contractorsPromise;
-           
-           if (isMounted) {
-             setCurrentUser(user);
-             setEvents(loadedEvents || []);
-             setBands(loadedBands || []);
-             setUsers(loadedUsers || []);
-             setContractors(loadedContractors || []);
-             setIsLoading(false);
-           }
-        } catch (err) {
-           console.warn("Data load timeout or error, forcing UI load with fallbacks:", err);
-           if (isMounted) {
-              try {
-                // Attempt to get whatever resolved
-                const u = await userPromise.catch(() => null);
-                const e = await eventsPromise.catch(() => []);
-                const b = await bandsPromise.catch(() => []);
-                const c = await contractorsPromise.catch(() => []);
-                setCurrentUser(u);
-                setEvents(e || []);
-                setBands(b || []);
-                setContractors(c || []);
-                setUsers([]);
-              } catch (criticalErr) {
-                console.error("Critical fallback failure", criticalErr);
-              }
-              setIsLoading(false);
-           }
-        }
-      } catch (error) {
-        console.error("Failed to initialize app:", error);
-        if (isMounted) {
-          setLoadError("Falha ao inicializar. O aplicativo rodará em modo local.");
-          setIsLoading(false);
-        }
-      }
-    };
-
-    init();
-    
-    return () => { isMounted = false; };
+    // Stop general loading spinner, waiting for user to log in
+    setIsLoading(false);
   }, []);
 
   const refreshData = async () => {
-    setEvents(await db.getEvents());
-    setBands(await db.getBands());
-    setUsers(await db.getUsers());
-    setContractors(await db.getContractors());
+    // Only load data if logged in
+    if (currentUser) {
+      setEvents(await db.getEvents());
+      setBands(await db.getBands());
+      setUsers(await db.getUsers());
+      setContractors(await db.getContractors());
+    }
   };
+
+  useEffect(() => {
+    if (currentUser) {
+      refreshData();
+    }
+  }, [currentUser]);
+
+  // --- Handlers: Login ---
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setIsLoggingIn(true);
+    
+    try {
+      const user = await db.login(loginEmail, loginPassword);
+      if (user) {
+        setCurrentUser(user);
+        setCurrentView('dashboard');
+      } else {
+        setLoginError('Credenciais inválidas. Tente "admin" / "admin"');
+      }
+    } catch (err) {
+      setLoginError('Erro ao conectar ao sistema.');
+      console.error(err);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setLoginEmail('');
+    setLoginPassword('');
+    setEvents([]);
+  }
 
   // --- Handlers: Events ---
   const handleSaveEvent = async (event: Event) => {
@@ -231,38 +221,46 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleAddUser = async () => {
-    const name = window.prompt("Nome do usuário:");
-    if (!name) return;
-    const email = window.prompt("Email do usuário:");
-    if (!email) return;
-    alert(`Funcionalidade de convite enviada para ${email} (Simulação)`);
+  const handleSaveUser = async (user: User) => {
+    await db.saveUser(user);
+    refreshData();
+    setIsUserFormOpen(false);
+    setEditingUser(null);
+  }
+  
+  const handleDeleteUser = async (id: string) => {
+    if (confirm('Tem certeza que deseja remover este usuário?')) {
+      await db.deleteUser(id);
+      refreshData();
+    }
+  }
+
+  const openEditUser = (user: User) => {
+    setEditingUser(user);
+    setIsUserFormOpen(true);
+  }
+
+  // --- Filter Logic based on User Role ---
+  const getVisibleBands = () => {
+    if (!currentUser) return [];
+    if (currentUser.role === UserRole.ADMIN) return bands;
+    return bands.filter(b => currentUser.bandIds.includes(b.id));
   };
 
-  const handleLogin = async () => {
-    setIsLoading(true);
-    try {
-      const user = await db.getCurrentUser();
-      if (!user) {
-         const mockUsers = await db.getUsers();
-         if (mockUsers && mockUsers.length > 0) {
-            setCurrentUser(mockUsers[0]);
-         }
-      } else {
-         setCurrentUser(user);
-      }
-    } catch (e) {
-      console.error("Login error", e);
-    } finally {
-      setIsLoading(false);
-    }
+  const getVisibleEvents = () => {
+    const visibleBands = getVisibleBands();
+    const visibleBandIds = visibleBands.map(b => b.id);
+    return events.filter(e => visibleBandIds.includes(e.bandId));
   };
 
   // --- Views ---
 
   const DashboardView = () => {
-    const confirmedCount = events.filter(e => e.status === EventStatus.CONFIRMED).length;
-    const reservedCount = events.filter(e => e.status === EventStatus.RESERVED).length;
+    const visibleEvents = getVisibleEvents();
+    const visibleBands = getVisibleBands();
+    
+    const confirmedCount = visibleEvents.filter(e => e.status === EventStatus.CONFIRMED).length;
+    const reservedCount = visibleEvents.filter(e => e.status === EventStatus.RESERVED).length;
 
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
@@ -273,13 +271,15 @@ const AppContent: React.FC = () => {
              <h2 className="text-xl font-bold text-white flex items-center gap-2">
                <Music className="text-primary-500" /> Minhas Bandas
              </h2>
-             <button onClick={() => setCurrentView('bands')} className="text-sm text-slate-400 hover:text-white">
-               Gerenciar
-             </button>
+             {currentUser?.role === UserRole.ADMIN && (
+               <button onClick={() => setCurrentView('bands')} className="text-sm text-slate-400 hover:text-white">
+                 Gerenciar
+               </button>
+             )}
            </div>
            
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {bands.map(band => (
+             {visibleBands.map(band => (
                <div key={band.id} className="bg-slate-950 border border-slate-800 p-6 rounded-xl hover:border-primary-500/50 transition-colors group cursor-pointer" onClick={() => setCurrentView('agenda')}>
                  <div className="flex items-center gap-4">
                    <div className="w-12 h-12 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center text-primary-400 border border-slate-700 group-hover:scale-110 transition-transform shadow-lg">
@@ -291,15 +291,23 @@ const AppContent: React.FC = () => {
              ))}
              
              {/* Add Band Card */}
-             <button 
-               onClick={handleAddBand}
-               className="bg-slate-900/50 border border-slate-800 border-dashed p-6 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-primary-400 hover:border-primary-500/50 transition-all gap-3"
-             >
-                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
-                   <Plus size={24} />
-                </div>
-                <span className="font-medium">Cadastrar Nova Banda</span>
-             </button>
+             {currentUser?.role === UserRole.ADMIN && (
+              <button 
+                onClick={handleAddBand}
+                className="bg-slate-900/50 border border-slate-800 border-dashed p-6 rounded-xl flex flex-col items-center justify-center text-slate-500 hover:text-primary-400 hover:border-primary-500/50 transition-all gap-3"
+              >
+                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
+                    <Plus size={24} />
+                  </div>
+                  <span className="font-medium">Cadastrar Nova Banda</span>
+              </button>
+             )}
+             
+             {visibleBands.length === 0 && currentUser?.role !== UserRole.ADMIN && (
+               <p className="text-slate-500 col-span-3 text-center py-8">
+                 Você ainda não foi vinculado a nenhuma banda. Peça ao administrador.
+               </p>
+             )}
            </div>
         </div>
 
@@ -307,7 +315,7 @@ const AppContent: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-slate-500 text-xs uppercase font-semibold">Total de Shows</p>
-             <p className="text-2xl font-bold text-white mt-1">{events.length}</p>
+             <p className="text-2xl font-bold text-white mt-1">{visibleEvents.length}</p>
           </div>
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-green-500/80 text-xs uppercase font-semibold">Confirmados</p>
@@ -319,7 +327,7 @@ const AppContent: React.FC = () => {
           </div>
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-blue-500/80 text-xs uppercase font-semibold">Cidades</p>
-             <p className="text-2xl font-bold text-white mt-1">{new Set(events.map(e => e.city)).size}</p>
+             <p className="text-2xl font-bold text-white mt-1">{new Set(visibleEvents.map(e => e.city)).size}</p>
           </div>
         </div>
 
@@ -335,7 +343,7 @@ const AppContent: React.FC = () => {
            </div>
            
            <div className="space-y-3">
-             {events.length === 0 ? (
+             {visibleEvents.length === 0 ? (
                <div className="text-center py-12 bg-slate-950 border border-slate-800 rounded-xl">
                   <CalendarDays size={48} className="mx-auto text-slate-700 mb-3" />
                   <p className="text-slate-400">Nenhum evento agendado.</p>
@@ -344,7 +352,7 @@ const AppContent: React.FC = () => {
                   </button>
                </div>
              ) : (
-               events.slice(0, 5).map(event => {
+               visibleEvents.slice(0, 5).map(event => {
                  const band = bands.find(b => b.id === event.bandId);
                  return (
                    <div key={event.id} onClick={() => openEditEvent(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-600 transition-all cursor-pointer group">
@@ -376,7 +384,8 @@ const AppContent: React.FC = () => {
   };
 
   const AgendaView = () => {
-    const filteredEvents = events
+    const visibleEvents = getVisibleEvents();
+    const filteredEvents = visibleEvents
       .filter(e => e.name.toLowerCase().includes(filterText.toLowerCase()) || e.city.toLowerCase().includes(filterText.toLowerCase()))
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -470,6 +479,7 @@ const AppContent: React.FC = () => {
   };
 
   const ContractorsView = () => {
+    // Only Admin can manage contractors freely? Or everyone? Assuming everyone can see for now.
     const filteredContractors = contractors.filter(c => 
       c.name.toLowerCase().includes(filterText.toLowerCase()) || 
       c.email.toLowerCase().includes(filterText.toLowerCase()) ||
@@ -537,13 +547,6 @@ const AppContent: React.FC = () => {
                )}
              </div>
            ))}
-           
-           {filteredContractors.length === 0 && (
-             <div className="col-span-full py-12 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl">
-               <Briefcase size={48} className="mx-auto text-slate-700 mb-3" />
-               <p>Nenhum contratante encontrado.</p>
-             </div>
-           )}
         </div>
        </div>
     );
@@ -598,44 +601,49 @@ const AppContent: React.FC = () => {
              <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                  <Users size={20} className="text-accent-500"/> 
-                 Usuários do Sistema
+                 Usuários e Permissões
                </h3>
                <button 
-                 onClick={handleAddUser}
+                 onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }}
                  className="flex items-center gap-2 text-sm bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition-colors border border-slate-700"
                >
-                 <Plus size={16} /> Convidar Usuário
+                 <Plus size={16} /> Novo Usuário
                </button>
              </div>
              
              <div className="divide-y divide-slate-800">
-               {/* Admin Row */}
-               <div className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-primary-900/50 text-primary-400 flex items-center justify-center font-bold text-sm border border-primary-500/20">
-                       A
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">Admin (Você)</p>
-                      <p className="text-slate-500 text-sm">admin@dne.music</p>
-                    </div>
-                  </div>
-                  <span className="text-xs bg-primary-500/10 text-primary-400 px-3 py-1 rounded-full border border-primary-500/20 font-medium">ADMIN</span>
-               </div>
-               
-               {/* Other Users */}
-               {users.filter(u => u.role !== UserRole.ADMIN).map(u => (
-                  <div key={u.id} className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors">
+               {/* List Users */}
+               {users.map(u => (
+                  <div key={u.id} className="flex items-center justify-between p-4 hover:bg-slate-900/50 transition-colors group">
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-sm font-medium text-white border border-slate-700">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border ${u.role === UserRole.ADMIN ? 'bg-primary-900/50 text-primary-400 border-primary-500/20' : 'bg-slate-800 text-white border-slate-700'}`}>
                         {u.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-white font-medium">{u.name}</p>
+                        <div className="flex items-center gap-2">
+                           <p className="text-white font-medium">{u.name}</p>
+                           <span className={`text-[10px] px-2 py-0.5 rounded-full border ${u.role === UserRole.ADMIN ? 'bg-primary-500/10 border-primary-500/20 text-primary-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                              {u.role}
+                           </span>
+                        </div>
                         <p className="text-slate-500 text-sm">{u.email}</p>
+                        {/* Show band access summary */}
+                        <p className="text-xs text-slate-600 mt-1">
+                          {u.role === UserRole.ADMIN ? 'Acesso total' : `Acesso a ${u.bandIds.length} banda(s)`}
+                        </p>
                       </div>
                     </div>
-                    <span className="text-xs bg-slate-800 text-slate-400 px-3 py-1 rounded-full border border-slate-700 font-medium">{u.role}</span>
+                    
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <button onClick={() => openEditUser(u)} className="p-2 text-slate-400 hover:text-white bg-slate-900 rounded-lg hover:bg-slate-800">
+                          <Edit2 size={16} />
+                       </button>
+                       {u.email !== 'admin' && (
+                         <button onClick={() => handleDeleteUser(u.id)} className="p-2 text-slate-400 hover:text-red-400 bg-slate-900 rounded-lg hover:bg-slate-800">
+                            <Trash2 size={16} />
+                         </button>
+                       )}
+                    </div>
                  </div>
                ))}
              </div>
@@ -651,42 +659,67 @@ const AppContent: React.FC = () => {
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
         <Loader2 className="w-12 h-12 text-primary-500 animate-spin mb-4" />
         <p className="text-slate-400 text-sm animate-pulse tracking-wider">AGENDA D&E MUSIC</p>
-        {loadError && (
-          <div className="mt-4 p-3 bg-red-900/30 border border-red-800 rounded text-red-300 text-xs flex items-center gap-2">
-            <AlertTriangle size={14}/> {loadError}
-          </div>
-        )}
-        <button 
-          onClick={() => setIsLoading(false)} 
-          className="mt-8 text-xs text-slate-600 hover:text-white underline"
-        >
-          Forçar Entrada (Demo)
-        </button>
       </div>
     );
   }
 
-  // State: Not Logged In (Fallback)
+  // State: Not Logged In (Real Login Screen)
   if (!currentUser) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white p-4">
-        <div className="w-full max-w-md bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl text-center">
+        <div className="w-full max-w-md bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-2xl">
           <div className="flex justify-center mb-6">
              <div className="w-16 h-16 bg-gradient-to-br from-primary-600 to-accent-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary-500/30">
                 <Music size={32} />
              </div>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Agenda D&E MUSIC</h1>
-          <p className="text-slate-400 mb-8">Sistema de gestão artística e logística.</p>
+          <h1 className="text-2xl font-bold text-white mb-2 text-center">Agenda D&E MUSIC</h1>
+          <p className="text-slate-400 mb-8 text-center">Gestão Artística Profissional</p>
           
-          <button 
-            onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white py-3 px-4 rounded-xl font-medium transition-all shadow-lg shadow-primary-600/20 group"
-          >
-            <LogIn size={20} className="group-hover:translate-x-1 transition-transform" /> 
-            Acessar Sistema
-          </button>
-          <p className="text-xs text-slate-600 mt-6">Modo Demo / Firebase</p>
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Login / Email</label>
+              <input
+                required
+                type="text"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
+                placeholder="Digite seu login"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
+              <input
+                required
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
+                placeholder="Digite sua senha"
+              />
+            </div>
+            
+            {loginError && (
+              <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm flex items-center gap-2">
+                 <AlertTriangle size={16} /> {loginError}
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white py-3 px-4 rounded-xl font-medium transition-all shadow-lg shadow-primary-600/20 mt-4 disabled:opacity-50"
+            >
+              {isLoggingIn ? <Loader2 className="animate-spin"/> : <LogIn size={20} />}
+              {isLoggingIn ? 'Entrando...' : 'Acessar Sistema'}
+            </button>
+          </form>
+          
+          <div className="mt-8 text-center text-xs text-slate-600">
+             <p>Acesso restrito a colaboradores.</p>
+             <p>v1.2.0 • D&E Music App</p>
+          </div>
         </div>
       </div>
     );
@@ -695,14 +728,23 @@ const AppContent: React.FC = () => {
   // State: Logged In
   return (
     <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView}>
+      {/* Logout Button in Sidebar is managed by Layout, but let's pass a way to logout if needed, usually Layout handles view switching but maybe we need a logout prop later */}
+      <div className="absolute top-4 right-4 md:hidden">
+         {/* Mobile logout if needed, currently Layout has sidebar */}
+      </div>
+      
       {currentView === 'dashboard' && <DashboardView />}
       {currentView === 'agenda' && <AgendaView />}
       {currentView === 'contractors' && <ContractorsView />}
-      {currentView === 'bands' && <BandManagerView />}
+      {/* Only Admin sees Band Manager */}
+      {currentView === 'bands' && currentUser.role === UserRole.ADMIN && <BandManagerView />}
+      {currentView === 'bands' && currentUser.role !== UserRole.ADMIN && (
+        <div className="text-center text-slate-500 mt-20">Acesso negado.</div>
+      )}
 
       {isFormOpen && (
         <EventForm 
-          bands={bands} 
+          bands={getVisibleBands()} // Only pass bands user is allowed to see
           contractors={contractors}
           existingEvent={editingEvent}
           onSave={handleSaveEvent} 
@@ -715,6 +757,16 @@ const AppContent: React.FC = () => {
           existingContractor={editingContractor}
           onSave={handleSaveContractor}
           onClose={() => { setIsContractorFormOpen(false); setEditingContractor(null); }}
+        />
+      )}
+
+      {/* User Form Modal */}
+      {isUserFormOpen && currentUser.role === UserRole.ADMIN && (
+        <UserForm
+          bands={bands}
+          existingUser={editingUser}
+          onSave={handleSaveUser}
+          onClose={() => { setIsUserFormOpen(false); setEditingUser(null); }}
         />
       )}
     </Layout>

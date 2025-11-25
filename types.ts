@@ -27,6 +27,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string; // Para autenticação local
   role: UserRole;
   bandIds: string[]; // Access to specific bands
 }

@@ -1,6 +1,7 @@
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType } from '../types';
-import { dbFirestore } from './firebaseConfig';
+import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 // --- CONFIGURAÇÃO ---
 const USE_FIREBASE = true; 
@@ -10,15 +11,24 @@ const MOCK_BANDS: Band[] = [
   { id: 'b_new_1', name: 'Banda Principal', genre: 'Variado', members: 5 }
 ];
 
+// Admin padrão solicitado
+const SUPER_ADMIN: User = { 
+  id: 'u_admin_master', 
+  name: 'Super Admin', 
+  email: 'admin', // Login simplificado
+  password: 'admin', // Senha simplificada
+  role: UserRole.ADMIN, 
+  bandIds: [] // Admin vê tudo
+};
+
 const MOCK_USERS: User[] = [
-  { id: 'u_admin', name: 'Admin D&E', email: 'admin@demusic.com', role: UserRole.ADMIN, bandIds: ['b_new_1'] },
+  SUPER_ADMIN
 ];
 
 const MOCK_EVENTS: Event[] = [];
 const MOCK_CONTRACTORS: Contractor[] = [];
 
 // NOVAS CHAVES DE ARMAZENAMENTO E COLEÇÕES (Versão 4 - Isolamento Total)
-// Mudamos o nome base para 'agendade_' para garantir que não haja conflito com 'stingressos' ou 'demusic_v3'
 const STORAGE_PREFIX = 'agendade_prod_v1_'; 
 const FB_COLLECTIONS = {
   BANDS: 'ad_bands',
@@ -55,6 +65,7 @@ const sanitizeUser = (data: any, id: string): User => {
     id: id,
     name: data?.name || 'Usuário',
     email: data?.email || 'sem-email@dne.music',
+    password: data?.password || '',
     role: data?.role || UserRole.MEMBER,
     bandIds: data?.bandIds || []
   };
@@ -129,13 +140,57 @@ const sanitizeContractor = (data: any, id: string): Contractor => {
 // --- SERVICE IMPLEMENTATION ---
 
 export const db = {
+  // --- AUTHENTICATION ---
+  login: async (loginInput: string, passwordInput: string): Promise<User | null> => {
+    // 1. Check Special Super Admin Hardcoded
+    if (loginInput === 'admin' && passwordInput === 'admin') {
+      return SUPER_ADMIN;
+    }
+
+    // 2. Try Local Mock Data (Simulated Backend)
+    const localUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    const localMatch = localUsers.find((u: User) => 
+      (u.email === loginInput || (u.email === 'admin' && loginInput === 'admin')) && 
+      u.password === passwordInput
+    );
+    
+    if (localMatch) {
+      return sanitizeUser(localMatch, localMatch.id);
+    }
+
+    // 3. Try Firebase Auth (Only if it looks like an email)
+    if (USE_FIREBASE && auth && loginInput.includes('@')) {
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, loginInput, passwordInput);
+        // Find user details in Firestore by email
+        const snapshot = await getDocs(query(collection(dbFirestore!, FB_COLLECTIONS.USERS), where("email", "==", loginInput)));
+        if (!snapshot.empty) {
+          const doc = snapshot.docs[0];
+          return sanitizeUser(doc.data(), doc.id);
+        } else {
+           // Create basic user entry if auth exists but firestore doesn't
+           return {
+             id: userCredential.user.uid,
+             name: userCredential.user.displayName || 'Usuário Firebase',
+             email: userCredential.user.email || loginInput,
+             role: UserRole.MEMBER,
+             bandIds: []
+           };
+        }
+      } catch (e) {
+        console.warn("Firebase Login Failed:", e);
+      }
+    }
+
+    return null;
+  },
+
   // --- BANDS ---
   getBands: async (): Promise<Band[]> => {
     if (USE_FIREBASE && dbFirestore) {
       try {
         const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.BANDS));
         if (snapshot.empty) {
-           // Se vazio, retorna mock local mas não salva no firebase automaticamente para não sujar
            const local = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
            return local.length > 0 ? local : MOCK_BANDS;
         }
@@ -169,31 +224,69 @@ export const db = {
   
   // --- USERS ---
   getCurrentUser: async (): Promise<User | null> => {
+    // This is checking SESSION state, not login.
+    // For this simple app, we will assume session is managed by App state.
+    // This method is kept for compatibility if we want to restore session from LocalStorage 'session' key later.
+    return null; 
+  },
+  
+  saveUser: async (user: User): Promise<void> => {
+    // Local save
+    const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    const index = users.findIndex((u: User) => u.id === user.id);
+    if (index >= 0) users[index] = user;
+    else users.push(user);
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+
     if (USE_FIREBASE && dbFirestore) {
-       try {
-          const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.USERS));
-          if (!snapshot.empty) {
-             const doc = snapshot.docs[0];
-             return sanitizeUser(doc.data(), doc.id);
-          }
-       } catch (e) {
-         console.warn("Firebase Auth check failed, using local user.", e);
-       }
+      try {
+        const userId = user.id || crypto.randomUUID();
+        // Remove password before saving to Firestore for security best practice (even in demo)
+        // In a real app, you'd use Firebase Auth for password management
+        const { password, ...userSafe } = user; 
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.USERS, userId), { ...userSafe, id: userId }, { merge: true });
+      } catch (e) {
+        console.error("Firebase User Save Error", e);
+      }
     }
-    
-    // Fallback to local
-    try {
-      const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-      const user = users.length > 0 ? users[0] : MOCK_USERS[0];
-      return sanitizeUser(user, user.id);
-    } catch {
-      return sanitizeUser(MOCK_USERS[0], MOCK_USERS[0].id);
+  },
+
+  deleteUser: async (userId: string): Promise<void> => {
+    const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    const newUsers = users.filter((u: User) => u.id !== userId);
+    localStorage.setItem(KEYS.USERS, JSON.stringify(newUsers));
+
+    if (USE_FIREBASE && dbFirestore) {
+      try {
+        await deleteDoc(doc(dbFirestore, FB_COLLECTIONS.USERS, userId));
+      } catch (e) {
+        console.error(e);
+      }
     }
   },
   
   getUsers: async (): Promise<User[]> => {
-    const localUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
-    return localUsers.map((u: any) => sanitizeUser(u, u.id));
+    let rawUsers: any[] = [];
+    if (USE_FIREBASE && dbFirestore) {
+       try {
+          const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.USERS));
+          if (!snapshot.empty) {
+             rawUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          }
+       } catch (e) {
+         console.warn("Firebase User Read failed", e);
+         rawUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
+       }
+    } else {
+       rawUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
+    }
+    
+    // Ensure Super Admin is always in the list locally for login purposes
+    if (!rawUsers.find(u => u.email === 'admin')) {
+      rawUsers.unshift(SUPER_ADMIN);
+    }
+    
+    return rawUsers.map((u: any) => sanitizeUser(u, u.id));
   },
   
   // --- EVENTS ---
