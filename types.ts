@@ -8,8 +8,11 @@ export enum EventStatus {
 
 export enum UserRole {
   ADMIN = 'ADMIN',
-  MANAGER = 'MANAGER', // Band Manager
-  MEMBER = 'MEMBER'    // Musician
+  MANAGER = 'MANAGER',   // Gerente Geral
+  SALES = 'SALES',       // Comercial (Cadastra datas)
+  CONTRACTS = 'CONTRACTS', // Contratos (Gere contratos e users visualizadores)
+  VIEWER = 'VIEWER',     // Visualizador (Só vê disponibilidade)
+  MEMBER = 'MEMBER'      // Músico (Visualização básica)
 }
 
 export enum ContractorType {
@@ -60,6 +63,7 @@ export interface Event {
   createdBy: string; // Name of the user who created
   createdAt: string; // ISO String of creation timestamp
   hasContract: boolean; // If false, shows warning that contract is missing
+  contractUrl?: string; // Link/Name of the uploaded contract file
 }
 
 export interface Contractor {

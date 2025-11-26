@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Band, Event, EventStatus, Contractor, User } from '../types';
-import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag } from 'lucide-react';
+import { Band, Event, EventStatus, Contractor, User, UserRole } from '../types';
+import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag, Upload, FileText } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
 import { db } from '../services/databaseService';
 
@@ -28,6 +28,11 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
 
   // Estado local para exibir detalhes do contratante selecionado
   const [selectedContractorInfo, setSelectedContractorInfo] = useState<Contractor | undefined>(undefined);
+
+  // Access Control logic
+  const canSeeFinancials = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.MANAGER || currentUser?.role === UserRole.CONTRACTS;
+  const canEditContracts = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.CONTRACTS;
+  const isComercial = currentUser?.role === UserRole.SALES;
 
   const [formData, setFormData] = useState<Event>({
     id: existingEvent?.id || crypto.randomUUID(),
@@ -56,7 +61,8 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     createdBy: existingEvent?.createdBy || currentUser?.name || 'Sistema',
     createdAt: existingEvent?.createdAt || new Date().toISOString(),
     // Keep existing or default to false (pending contract) for new events
-    hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false 
+    hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false,
+    contractUrl: existingEvent?.contractUrl || ''
   });
 
   // Load Suggestions on Mount
@@ -129,6 +135,16 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     }
   };
 
+  // Mock file upload handler
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      // In a real app, this would upload to Firebase Storage
+      // Here we just mock it by using the file name
+      handleChange('contractUrl', e.target.files[0].name);
+      handleChange('hasContract', true); // Auto check "received" if file uploaded
+    }
+  };
+
   const handleFinancialChange = (field: keyof typeof formData.financials, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -167,12 +183,16 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
           >
             Detalhes & Logística
           </button>
-          <button
-            onClick={() => setActiveTab('financials')}
-            className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'financials' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
-          >
-            Financeiro
-          </button>
+          
+          {canSeeFinancials && (
+            <button
+              onClick={() => setActiveTab('financials')}
+              className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'financials' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
+            >
+              Financeiro
+            </button>
+          )}
+          
           {existingEvent && (
             <button
               onClick={() => setActiveTab('ai')}
@@ -289,7 +309,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                 </div>
               </div>
 
-              {/* Seção de Contratante Aprimorada */}
+              {/* Seção de Contratante */}
               <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700/50">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -306,7 +326,6 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                         ))}
                       </select>
                       
-                      {/* Caso o usuário queira digitar um nome que não está na lista */}
                       <input 
                          type="text"
                          className="mt-2 w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-slate-400 placeholder-slate-600 focus:text-white focus:border-primary-500"
@@ -328,26 +347,46 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                       </select>
                     </div>
 
-                    {/* Checkbox de Contrato */}
-                    <div 
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${formData.hasContract ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/10 border-red-500/30'}`}
-                      onClick={() => handleChange('hasContract', !formData.hasContract)}
-                    >
-                      <div className={`p-2 rounded-full ${formData.hasContract ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                        {formData.hasContract ? <FileCheck size={18} /> : <FileWarning size={18} />}
+                    {/* Gestão de Contratos (Visible only for Admins & Contracts Role) */}
+                    {(canEditContracts) && (
+                      <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Gestão de Contrato</label>
+                        
+                        {/* Toggle Checkbox */}
+                        <div 
+                          className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-all mb-3 ${formData.hasContract ? 'bg-green-900/20' : 'bg-red-900/10'}`}
+                          onClick={() => handleChange('hasContract', !formData.hasContract)}
+                        >
+                          <div className={`p-1.5 rounded-full ${formData.hasContract ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                            {formData.hasContract ? <FileCheck size={16} /> : <FileWarning size={16} />}
+                          </div>
+                          <div className="flex-1">
+                            <span className={`block font-medium text-sm ${formData.hasContract ? 'text-green-400' : 'text-red-400'}`}>
+                              {formData.hasContract ? 'Contrato Recebido' : 'Pendente'}
+                            </span>
+                          </div>
+                          <div className={`w-8 h-5 rounded-full relative transition-colors ${formData.hasContract ? 'bg-green-500' : 'bg-slate-600'}`}>
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formData.hasContract ? 'left-4' : 'left-1'}`} />
+                          </div>
+                        </div>
+
+                        {/* File Upload Mock */}
+                        <div className="flex items-center gap-2">
+                           <label className="flex-1 cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-600 border-dashed rounded px-3 py-2 text-center transition-colors">
+                              <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
+                                <Upload size={14}/> {formData.contractUrl ? 'Substituir Arquivo' : 'Enviar Contrato (PDF)'}
+                              </span>
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleFileUpload} />
+                           </label>
+                           {formData.contractUrl && (
+                             <div className="text-green-400" title="Arquivo anexado">
+                               <FileText size={18} />
+                             </div>
+                           )}
+                        </div>
+                        {formData.contractUrl && <p className="text-[10px] text-slate-500 mt-1 truncate">Arquivo: {formData.contractUrl}</p>}
                       </div>
-                      <div className="flex-1">
-                        <span className={`block font-medium ${formData.hasContract ? 'text-green-400' : 'text-red-400'}`}>
-                          {formData.hasContract ? 'Contrato Recebido' : 'Contrato Pendente'}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          {formData.hasContract ? 'Documentação ok' : 'O contratante não enviou o contrato'}
-                        </span>
-                      </div>
-                      <div className={`w-10 h-6 rounded-full relative transition-colors ${formData.hasContract ? 'bg-green-500' : 'bg-slate-600'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.hasContract ? 'left-5' : 'left-1'}`} />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 

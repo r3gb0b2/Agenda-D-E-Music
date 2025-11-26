@@ -96,9 +96,6 @@ const sanitizeEvent = (data: any, id: string): Event => {
   }
 
   // Handle createdAt stability for legacy data
-  // If createdAt is missing, assign a very old, stable date (Unix epoch).
-  // This ensures legacy data consistently appears at the bottom of "Latest Updates"
-  // and does not get incorrectly sorted by its event date.
   let safeCreatedAt = data?.createdAt;
   if (!safeCreatedAt) {
       safeCreatedAt = new Date(0).toISOString(); // '1970-01-01T00:00:00.000Z'
@@ -121,7 +118,8 @@ const sanitizeEvent = (data: any, id: string): Event => {
     // New fields defaults
     createdBy: data?.createdBy || 'Sistema',
     createdAt: safeCreatedAt,
-    hasContract: data?.hasContract !== undefined ? data.hasContract : true // Default to true for old events to avoid mass warnings
+    hasContract: data?.hasContract !== undefined ? data.hasContract : true,
+    contractUrl: data?.contractUrl || ''
   } as Event;
 };
 
@@ -194,7 +192,7 @@ export const db = {
   login: async (loginInput: string, passwordInput: string): Promise<User | null> => {
     // Normalização para minúsculo (Case Insensitive)
     const normalizedLogin = loginInput.trim().toLowerCase();
-    const cleanPassword = passwordInput.trim(); // Ensure no trailing spaces from copy/paste
+    const cleanPassword = passwordInput.trim(); 
 
     // 1. Check Special Super Admin Hardcoded
     if (normalizedLogin === 'admin' && passwordInput === 'admin') {
@@ -214,7 +212,7 @@ export const db = {
 
     // 3. Try Firebase
     if (USE_FIREBASE && dbFirestore) {
-      // 3a. Try Firebase Auth (Main accounts)
+      // 3a. Try Firebase Auth
       if (auth && normalizedLogin.includes('@')) {
         try {
           const userCredential = await signInWithEmailAndPassword(auth, normalizedLogin, passwordInput);
@@ -236,16 +234,13 @@ export const db = {
         }
       }
 
-      // 3b. Try Manual Firestore Collection (For Admin-created users without Firebase Auth)
+      // 3b. Try Manual Firestore Collection
       try {
         const usersRef = collection(dbFirestore, FB_COLLECTIONS.USERS);
-        // Query by email
         const q = query(usersRef, where("email", "==", normalizedLogin));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
-          // Find the user with matching password
-          // Note: In production, passwords should be hashed. This is a demo/internal tool approach.
           const userDoc = querySnapshot.docs.find(doc => {
             const data = doc.data();
             return data.password === passwordInput || data.password === cleanPassword;
@@ -265,7 +260,7 @@ export const db = {
 
   // --- SUGGESTIONS (Auto-Save/Learning) ---
   getUniqueValues: async (field: 'eventType' | 'venue' | 'city' | 'contractor'): Promise<string[]> => {
-    // Basic defaults to start with
+    // Basic defaults
     const defaults = {
         eventType: ['Casamento', 'Corporativo', 'Formatura', 'Aniversário', 'Show Público', 'Bar/Restaurante', 'Bodas'],
         city: [],
@@ -284,7 +279,6 @@ export const db = {
         if (field === 'contractor' && e.contractor) values.add(e.contractor);
     });
     
-    // Get Contractors for specific fields
     if (field === 'contractor' || field === 'city') {
         const contractors = await db.getContractors();
         contractors.forEach(c => {
@@ -316,7 +310,6 @@ export const db = {
   },
 
   saveBand: async (band: Band): Promise<void> => {
-    // Local update
     const bands = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
     const index = bands.findIndex((b: Band) => b.id === band.id);
     if (index >= 0) bands[index] = band;
@@ -336,15 +329,12 @@ export const db = {
   // --- USERS ---
   
   saveUser: async (user: User): Promise<void> => {
-    // Ensure email is always lowercase when saving
     const normalizedUser = {
       ...user,
       email: user.email.trim().toLowerCase(),
-      // Optional: trim password here too if you want strict saving
       password: user.password?.trim() || ''
     };
 
-    // Local save
     const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
     const index = users.findIndex((u: User) => u.id === normalizedUser.id);
     if (index >= 0) users[index] = normalizedUser;
@@ -354,8 +344,6 @@ export const db = {
     if (USE_FIREBASE && dbFirestore) {
       try {
         const userId = normalizedUser.id || crypto.randomUUID();
-        // IMPORTANT: We save the password here so the 'manual login' check works for sub-users
-        // created by the admin who don't have Firebase Auth accounts.
         await setDoc(doc(dbFirestore, FB_COLLECTIONS.USERS, userId), { ...normalizedUser, id: userId }, { merge: true });
       } catch (e) {
         console.error("Firebase User Save Error", e);
@@ -393,7 +381,7 @@ export const db = {
        rawUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
     }
     
-    // Ensure Super Admin is always in the list locally for login purposes
+    // Ensure Super Admin is always in the list locally
     if (!rawUsers.find(u => u.email === 'admin')) {
       rawUsers.unshift(SUPER_ADMIN);
     }
@@ -410,8 +398,6 @@ export const db = {
         const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.EVENTS));
         if (!snapshot.empty) {
            rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        } else {
-           rawEvents = []; 
         }
       } catch (e) {
         console.warn("Firebase Read Error (Events) - Using Local:", e);
@@ -425,14 +411,12 @@ export const db = {
   },
   
   saveEvent: async (event: Event): Promise<void> => {
-    // Local save
     const localEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
     const index = localEvents.findIndex((e: Event) => e.id === event.id);
     if (index >= 0) localEvents[index] = event;
     else localEvents.push(event);
     localStorage.setItem(KEYS.EVENTS, JSON.stringify(localEvents));
 
-    // Firebase save
     if (USE_FIREBASE && dbFirestore) {
       try {
         const eventId = event.id || crypto.randomUUID();
@@ -477,7 +461,6 @@ export const db = {
   },
 
   saveContractor: async (contractor: Contractor): Promise<void> => {
-    // Local save
     const local = JSON.parse(localStorage.getItem(KEYS.CONTRACTORS) || '[]');
     const index = local.findIndex((c: Contractor) => c.id === contractor.id);
     if (index >= 0) local[index] = contractor;
