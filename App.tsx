@@ -44,7 +44,8 @@ import {
   MessageCircle,
   Mail,
   Send,
-  FolderOpen
+  FolderOpen,
+  ChevronDown
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -91,6 +92,8 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState;
+
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -244,6 +247,7 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   
   // Send Modal State
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
@@ -776,9 +780,43 @@ const AppContent: React.FC = () => {
                )}
 
                {viewMode === 'calendar' && (
-                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2">
+                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2 relative">
                    <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
-                   <span className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide">{monthNames[month]} {year}</span>
+                   
+                   {/* Month Picker Dropdown Trigger */}
+                   <div className="relative z-30">
+                      <button 
+                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                        className="flex items-center justify-center gap-2 font-semibold text-white min-w-[160px] text-center uppercase tracking-wide hover:bg-slate-800 py-1 px-2 rounded transition-colors"
+                      >
+                        {monthNames[month]} {year}
+                        <ChevronDown size={14} className={`transition-transform ${isMonthPickerOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {isMonthPickerOpen && (
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 animate-fade-in z-50">
+                           {/* Year Control */}
+                           <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+                              <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year - 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={16}/></button>
+                              <span className="font-bold text-white text-lg">{year}</span>
+                              <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year + 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={16}/></button>
+                           </div>
+                           {/* Month Grid */}
+                           <div className="grid grid-cols-3 gap-2">
+                              {monthNames.map((mName, idx) => (
+                                <button
+                                  key={mName}
+                                  onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year, idx, 1)); setIsMonthPickerOpen(false); }}
+                                  className={`text-xs py-2 rounded font-medium transition-colors ${idx === month ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                                >
+                                  {mName.substring(0, 3)}
+                                </button>
+                              ))}
+                           </div>
+                        </div>
+                      )}
+                   </div>
+
                    <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
                  </div>
                )}
