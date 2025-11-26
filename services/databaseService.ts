@@ -96,17 +96,12 @@ const sanitizeEvent = (data: any, id: string): Event => {
   }
 
   // Handle createdAt stability for legacy data
-  // If data.createdAt is missing, use data.date (Event Date) as fallback instead of new Date()
-  // This ensures old events don't jump to the top of "Latest Updates" every time the page refreshes.
+  // If createdAt is missing, assign a very old, stable date (Unix epoch).
+  // This ensures legacy data consistently appears at the bottom of "Latest Updates"
+  // and does not get incorrectly sorted by its event date.
   let safeCreatedAt = data?.createdAt;
   if (!safeCreatedAt) {
-      if (data?.date) {
-          // Use event date as creation date for legacy items
-          safeCreatedAt = new Date(data.date).toISOString(); 
-      } else {
-          // Fallback to now only if absolutely no data exists
-          safeCreatedAt = new Date().toISOString();
-      }
+      safeCreatedAt = new Date(0).toISOString(); // '1970-01-01T00:00:00.000Z'
   }
 
   return {
