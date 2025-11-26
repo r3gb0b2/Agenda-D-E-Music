@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Component, ReactNode, ErrorInfo } from 'react';
+import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -30,7 +30,8 @@ import {
   Calendar as CalendarIcon,
   User as UserIcon,
   ZoomIn,
-  ZoomOut
+  ZoomOut,
+  X
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -45,7 +46,7 @@ const StatusBadge = ({ status, minimal = false }: { status: EventStatus, minimal
 
   if (minimal) {
     return (
-       <div className={`w-2 h-2 rounded-full ${styles[status].replace('bg-', 'bg-').split(' ')[0]}`} title={status} />
+       <div className={`w-2.5 h-2.5 rounded-full ${styles[status].replace('bg-', 'bg-').split(' ')[0]} border border-white/10`} title={status} />
     );
   }
 
@@ -66,14 +67,11 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null
-    };
-  }
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -132,6 +130,13 @@ const AppContent: React.FC = () => {
 
   // Agenda / Calendar specific state
   const [newEventDate, setNewEventDate] = useState<string>('');
+  const [selectedDateDetails, setSelectedDateDetails] = useState<string | null>(null);
+  
+  // Hoisted Agenda State (to prevent reset on re-renders)
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  // 0: Compact, 1: Normal, 2: Detailed
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const [isLoading, setIsLoading] = useState(true);
   
@@ -431,12 +436,96 @@ const AppContent: React.FC = () => {
     );
   };
 
-  const AgendaView = () => {
-    const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
-    const [currentMonth, setCurrentMonth] = useState(new Date());
-    // 0: Compact, 1: Normal, 2: Detailed
-    const [zoomLevel, setZoomLevel] = useState(1); 
+  const DayDetailsModal = () => {
+    if (!selectedDateDetails) return null;
+    
+    // Parse date safely
+    const [y, m, d] = selectedDateDetails.split('-');
+    const dateObj = new Date(Number(y), Number(m)-1, Number(d));
+    
+    // Filter events for this day from all accessible events
+    const dayEvents = getVisibleEvents().filter(e => {
+       if (!e.date) return false;
+       return e.date.split('T')[0] === selectedDateDetails;
+    }).sort((a, b) => a.time.localeCompare(b.time));
 
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setSelectedDateDetails(null)}>
+        <div className="bg-slate-900 w-full max-w-md rounded-xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[80vh] relative" onClick={e => e.stopPropagation()}>
+             {/* Header */}
+             <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
+               <div>
+                  <h3 className="text-white font-bold text-lg capitalize">{dateObj.toLocaleDateString('pt-BR', { weekday: 'long' })}</h3>
+                  <p className="text-slate-400 text-sm">{dateObj.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+               </div>
+               <button onClick={() => setSelectedDateDetails(null)} className="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition-colors">
+                 <X size={20} />
+               </button>
+             </div>
+
+             {/* Body */}
+             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                {dayEvents.length === 0 && (
+                   <div className="text-center py-8">
+                      <div className="bg-slate-800/50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3">
+                         <CalendarIcon size={24} className="text-slate-600" />
+                      </div>
+                      <p className="text-slate-400">Nenhum evento agendado.</p>
+                      <p className="text-slate-600 text-xs mt-1">Toque em adicionar para criar um novo.</p>
+                   </div>
+                )}
+                
+                {dayEvents.map(event => {
+                   const band = bands.find(b => b.id === event.bandId);
+                   return (
+                      <div 
+                        key={event.id}
+                        onClick={() => { setSelectedDateDetails(null); openEditEvent(event); }}
+                        className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg p-3 transition-all cursor-pointer group"
+                      >
+                         <div className="flex justify-between items-start mb-2">
+                            <span className="text-xs font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 flex items-center gap-1">
+                               <Clock size={10} /> {event.time}
+                            </span>
+                            <StatusBadge status={event.status} minimal />
+                         </div>
+                         <h4 className="text-white font-bold text-base mb-1">{band?.name || 'Banda Desconhecida'}</h4>
+                         <p className="text-slate-300 text-sm mb-2">{event.name}</p>
+                         
+                         {(event.venue || event.city) && (
+                           <div className="flex items-center gap-2 text-xs text-slate-500 bg-black/20 p-1.5 rounded">
+                              <MapPin size={12} /> {event.venue ? `${event.venue}, ` : ''}{event.city}
+                           </div>
+                         )}
+                         
+                         <div className="mt-2 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span className="text-xs text-primary-400 flex items-center gap-1">Editar <Edit2 size={10}/></span>
+                         </div>
+                      </div>
+                   )
+                })}
+             </div>
+
+             {/* Footer */}
+             <div className="p-4 border-t border-slate-800 bg-slate-950">
+                <button 
+                  onClick={() => {
+                     setNewEventDate(selectedDateDetails);
+                     setSelectedDateDetails(null);
+                     setEditingEvent(null);
+                     setIsFormOpen(true);
+                  }}
+                  className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all"
+                >
+                  <Plus size={18} /> Novo Evento
+                </button>
+             </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAgendaView = () => {
     let visibleEvents = getVisibleEvents();
     
     // Aplicar Filtro de Banda (se houver)
@@ -469,15 +558,13 @@ const AppContent: React.FC = () => {
     const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
     const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
 
-    // Improved Date Click
     const handleDayClick = (dayNum: number) => {
       const d = String(dayNum).padStart(2, '0');
       const m = String(month + 1).padStart(2, '0');
       const dateStr = `${year}-${m}-${d}`;
 
-      setNewEventDate(dateStr);
-      setEditingEvent(null);
-      setIsFormOpen(true);
+      // Open Day Details Modal instead of Create Form directly
+      setSelectedDateDetails(dateStr);
     };
 
     return (
@@ -992,12 +1079,14 @@ const AppContent: React.FC = () => {
     >
       <div className="max-w-7xl mx-auto h-full">
         {currentView === 'dashboard' && <DashboardView />}
-        {currentView === 'agenda' && <AgendaView />}
+        {currentView === 'agenda' && renderAgendaView()}
         {currentView === 'contractors' && <ContractorsView />}
         {currentView === 'bands' && <BandManagerView />}
       </div>
 
       {/* Modals */}
+      {selectedDateDetails && <DayDetailsModal />}
+      
       {isFormOpen && (
         <EventForm 
           bands={getVisibleBands()} 
