@@ -179,6 +179,7 @@ export const db = {
   login: async (loginInput: string, passwordInput: string): Promise<User | null> => {
     // Normalização para minúsculo (Case Insensitive)
     const normalizedLogin = loginInput.trim().toLowerCase();
+    const cleanPassword = passwordInput.trim(); // Ensure no trailing spaces from copy/paste
 
     // 1. Check Special Super Admin Hardcoded
     if (normalizedLogin === 'admin' && passwordInput === 'admin') {
@@ -189,7 +190,7 @@ export const db = {
     const localUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
     const localMatch = localUsers.find((u: User) => 
       (u.email.toLowerCase() === normalizedLogin || (normalizedLogin === 'admin' && u.email.toLowerCase() === 'admin')) && 
-      u.password === passwordInput
+      (u.password === passwordInput || u.password === cleanPassword)
     );
     
     if (localMatch) {
@@ -232,7 +233,7 @@ export const db = {
           // Note: In production, passwords should be hashed. This is a demo/internal tool approach.
           const userDoc = querySnapshot.docs.find(doc => {
             const data = doc.data();
-            return data.password === passwordInput;
+            return data.password === passwordInput || data.password === cleanPassword;
           });
 
           if (userDoc) {
@@ -290,7 +291,9 @@ export const db = {
     // Ensure email is always lowercase when saving
     const normalizedUser = {
       ...user,
-      email: user.email.trim().toLowerCase()
+      email: user.email.trim().toLowerCase(),
+      // Optional: trim password here too if you want strict saving
+      password: user.password?.trim() || ''
     };
 
     // Local save
