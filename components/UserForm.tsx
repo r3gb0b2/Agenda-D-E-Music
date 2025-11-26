@@ -65,6 +65,11 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
     // Create a copy to modify for save
     const finalUser = { ...formData };
     
+    // Security check: Contract Managers can ONLY create VIEWERS
+    if (isContractManager) {
+        finalUser.role = UserRole.VIEWER;
+    }
+    
     if (existingUser && !finalUser.password) {
       finalUser.password = existingUser.password;
     }
@@ -148,8 +153,12 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
               </label>
               
               {isContractManager ? (
-                 <div className="p-3 bg-slate-800 rounded border border-slate-700 text-slate-300 text-sm">
-                    Acesso restrito: Você só pode criar usuários <strong>Visualizadores</strong>.
+                 <div className="p-3 bg-slate-800 rounded border border-slate-700 text-slate-300 text-sm flex items-center gap-2">
+                    <Shield size={16} className="text-primary-500"/>
+                    <div>
+                        <span className="block font-bold text-white">Visualizador</span>
+                        <span className="text-xs text-slate-500">Seu perfil permite criar apenas contas de visualização.</span>
+                    </div>
                  </div>
               ) : (
                 <select
