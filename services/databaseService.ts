@@ -95,6 +95,20 @@ const sanitizeEvent = (data: any, id: string): Event => {
      safeFinancials.netValue = 0;
   }
 
+  // Handle createdAt stability for legacy data
+  // If data.createdAt is missing, use data.date (Event Date) as fallback instead of new Date()
+  // This ensures old events don't jump to the top of "Latest Updates" every time the page refreshes.
+  let safeCreatedAt = data?.createdAt;
+  if (!safeCreatedAt) {
+      if (data?.date) {
+          // Use event date as creation date for legacy items
+          safeCreatedAt = new Date(data.date).toISOString(); 
+      } else {
+          // Fallback to now only if absolutely no data exists
+          safeCreatedAt = new Date().toISOString();
+      }
+  }
+
   return {
     id: id,
     bandId: data?.bandId || '',
@@ -111,8 +125,8 @@ const sanitizeEvent = (data: any, id: string): Event => {
     financials: safeFinancials,
     // New fields defaults
     createdBy: data?.createdBy || 'Sistema',
-    createdAt: data?.createdAt || new Date().toISOString(),
-    hasContract: data?.hasContract !== undefined ? data.hasContract : true // Default to true for old events to avoid mass warnings, or false if strict
+    createdAt: safeCreatedAt,
+    hasContract: data?.hasContract !== undefined ? data.hasContract : true // Default to true for old events to avoid mass warnings
   } as Event;
 };
 
