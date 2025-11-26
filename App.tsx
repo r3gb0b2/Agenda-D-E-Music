@@ -1,4 +1,5 @@
-import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
+
+import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -36,7 +37,9 @@ import {
   Ban,
   FileWarning,
   FileCheck,
-  EyeOff
+  EyeOff,
+  FileText,
+  Download
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -82,7 +85,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -900,6 +903,104 @@ const AppContent: React.FC = () => {
     );
   };
 
+  const ContractsLibraryView = () => {
+    // Restricted Access Check
+    if (!isAdmin && !isContracts) {
+       return (
+          <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
+             <Ban size={48} className="mb-4 text-slate-700"/>
+             <p>Acesso restrito a gestores de contratos.</p>
+          </div>
+       )
+    }
+
+    const eventsWithContracts = events.filter(e => 
+      e.contractUrl && e.contractUrl.trim() !== '' &&
+      (e.name.toLowerCase().includes(filterText.toLowerCase()) || 
+       e.contractor.toLowerCase().includes(filterText.toLowerCase()))
+    );
+
+    const handleDownload = (filename: string) => {
+      // Simulation of download since we don't have a real backend storage URL in this demo
+      alert(`Simulando download do arquivo: ${filename}`);
+    };
+
+    return (
+      <div className="space-y-6 pb-20 md:pb-0">
+        <div className="flex justify-between items-center mb-6">
+           <h2 className="text-xl font-bold text-white flex items-center gap-2">
+             <FileText className="text-primary-500" /> Contratos Enviados
+           </h2>
+           <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+              <input 
+                type="text" 
+                placeholder="Buscar contrato..." 
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
+              />
+           </div>
+        </div>
+
+        <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+           <div className="overflow-x-auto">
+             <table className="w-full text-left border-collapse">
+               <thead>
+                 <tr className="bg-slate-900 border-b border-slate-800">
+                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
+                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Contratante</th>
+                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Arquivo</th>
+                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ação</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-slate-800">
+                 {eventsWithContracts.length === 0 ? (
+                   <tr>
+                     <td colSpan={4} className="p-12 text-center">
+                        <div className="flex flex-col items-center text-slate-500">
+                           <FileText size={32} className="mb-2 opacity-50"/>
+                           <p>Nenhum contrato encontrado com os filtros atuais.</p>
+                        </div>
+                     </td>
+                   </tr>
+                 ) : (
+                   eventsWithContracts.map(event => (
+                     <tr key={event.id} className="hover:bg-slate-900 transition-colors">
+                       <td className="p-4">
+                         <div className="text-white font-medium">{event.name}</div>
+                         <div className="text-xs text-slate-500">
+                           {new Date(event.date).toLocaleDateString()} • {event.city}
+                         </div>
+                       </td>
+                       <td className="p-4 text-slate-400">
+                         {event.contractor || 'Não informado'}
+                       </td>
+                       <td className="p-4">
+                          <div className="flex items-center gap-2 text-sm text-primary-400 bg-primary-900/10 px-3 py-1 rounded-full w-fit">
+                             <FileCheck size={14} />
+                             <span className="truncate max-w-[200px]">{event.contractUrl}</span>
+                          </div>
+                       </td>
+                       <td className="p-4 text-right">
+                          <button 
+                            onClick={() => handleDownload(event.contractUrl!)}
+                            className="text-sm bg-slate-800 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ml-auto"
+                          >
+                             <Download size={16} /> Baixar
+                          </button>
+                       </td>
+                     </tr>
+                   ))
+                 )}
+               </tbody>
+             </table>
+           </div>
+        </div>
+      </div>
+    );
+  };
+
   const ContractorsView = () => {
      // Access Check
      if (isViewer || isSales) {
@@ -1159,6 +1260,7 @@ const AppContent: React.FC = () => {
         {currentView === 'agenda' && renderAgendaView()}
         {currentView === 'contractors' && <ContractorsView />}
         {currentView === 'bands' && <BandManagerView />}
+        {currentView === 'contracts_library' && <ContractsLibraryView />}
       </div>
 
       {/* Modals */}
