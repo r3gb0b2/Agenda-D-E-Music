@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactNode, Component, ErrorInfo } from 'react';
+import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -58,11 +58,14 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -545,7 +548,7 @@ const AppContent: React.FC = () => {
             <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px overflow-y-auto custom-scrollbar">
               {/* Empty cells for previous month */}
               {Array.from({ length: firstDay }).map((_, i) => (
-                <div key={`empty-${i}`} className="bg-slate-950/50 min-h-[140px]"></div>
+                <div key={`empty-${i}`} className="bg-slate-950/50 min-h-[120px]"></div>
               ))}
 
               {/* Days of current month */}
@@ -569,13 +572,13 @@ const AppContent: React.FC = () => {
                   <div 
                     key={dayNum} 
                     onClick={() => handleDayClick(dayNum)}
-                    className={`bg-slate-950 min-h-[140px] h-full p-2 border-r border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer relative group flex flex-col gap-1`}
+                    className={`bg-slate-950 min-h-[120px] h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
                   >
                     <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
                       {dayNum} {isToday && '(Hoje)'}
                     </span>
                     
-                    <div className="flex flex-col gap-1.5 w-full">
+                    <div className="flex flex-col gap-1.5 w-full min-w-0">
                       {dayEvents.map(event => {
                          const band = bands.find(b => b.id === event.bandId);
                          
@@ -589,16 +592,15 @@ const AppContent: React.FC = () => {
                           <div 
                             key={event.id}
                             onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                            className={`p-2 rounded text-xs border shadow-sm cursor-pointer hover:scale-[1.02] transition-transform ${statusColor} text-white w-full h-auto`}
+                            className={`p-1.5 rounded text-xs border shadow-sm cursor-pointer hover:scale-[1.02] transition-transform ${statusColor} text-white w-full h-auto relative block break-words whitespace-normal overflow-hidden`}
                             title={`${event.time} - ${event.name}`}
                           >
                              <div className="font-bold flex justify-between mb-0.5">
                                <span>{event.time}</span>
                              </div>
-                             {/* Added whitespace-normal and break-words to ensure text wraps and container expands */}
                              <div className="font-semibold text-xs leading-tight mb-0.5 break-words whitespace-normal">{event.name}</div>
                              <div className="text-[10px] opacity-90 break-words whitespace-normal leading-tight">{event.city}</div>
-                             <div className="text-[10px] opacity-75 italic mt-1 break-words">{band?.name}</div>
+                             <div className="text-[10px] opacity-75 italic mt-1 break-words whitespace-normal">{band?.name}</div>
                           </div>
                          )
                       })}
