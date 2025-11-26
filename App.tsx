@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
+import React, { useState, useEffect, Component, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -28,18 +28,26 @@ import {
   ChevronLeft,
   List,
   Calendar as CalendarIcon,
-  User as UserIcon
+  User as UserIcon,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 
 // --- Helper Components ---
 
-const StatusBadge = ({ status }: { status: EventStatus }) => {
+const StatusBadge = ({ status, minimal = false }: { status: EventStatus, minimal?: boolean }) => {
   const styles = {
     [EventStatus.CONFIRMED]: 'bg-green-500/10 text-green-400 border-green-500/20',
     [EventStatus.RESERVED]: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
     [EventStatus.CANCELED]: 'bg-red-500/10 text-red-400 border-red-500/20',
     [EventStatus.COMPLETED]: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   };
+
+  if (minimal) {
+    return (
+       <div className={`w-2 h-2 rounded-full ${styles[status].replace('bg-', 'bg-').split(' ')[0]}`} title={status} />
+    );
+  }
 
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status]}`}>
@@ -58,7 +66,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = {
@@ -426,6 +434,8 @@ const AppContent: React.FC = () => {
   const AgendaView = () => {
     const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    // 0: Compact, 1: Normal, 2: Detailed
+    const [zoomLevel, setZoomLevel] = useState(1); 
 
     let visibleEvents = getVisibleEvents();
     
@@ -477,8 +487,8 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col gap-4 shrink-0">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
-            {/* Controles de Visualização e Mês */}
-            <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+            {/* Controles de Visualização, Zoom e Mês */}
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
                   <button 
                     onClick={() => setViewMode('calendar')}
@@ -494,8 +504,35 @@ const AppContent: React.FC = () => {
                   </button>
                </div>
 
+               {/* Zoom Controls */}
                {viewMode === 'calendar' && (
-                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
+                <div className="flex items-center gap-1 bg-slate-900 rounded-lg p-1 border border-slate-800 ml-0 md:ml-2">
+                    <button 
+                      onClick={() => setZoomLevel(prev => Math.max(0, prev - 1))} 
+                      disabled={zoomLevel === 0}
+                      className={`p-2 rounded transition-all ${zoomLevel === 0 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                      title="Menos Detalhes"
+                    >
+                      <ZoomOut size={18} />
+                    </button>
+                    <div className="flex gap-0.5 px-1">
+                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 0 ? 'bg-primary-500' : 'bg-slate-700'}`} />
+                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 1 ? 'bg-primary-500' : 'bg-slate-700'}`} />
+                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 2 ? 'bg-primary-500' : 'bg-slate-700'}`} />
+                    </div>
+                    <button 
+                      onClick={() => setZoomLevel(prev => Math.min(2, prev + 1))} 
+                      disabled={zoomLevel === 2}
+                      className={`p-2 rounded transition-all ${zoomLevel === 2 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                      title="Mais Detalhes"
+                    >
+                      <ZoomIn size={18} />
+                    </button>
+                </div>
+               )}
+
+               {viewMode === 'calendar' && (
+                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2">
                    <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
                    <span className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide">{monthNames[month]} {year}</span>
                    <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
@@ -548,7 +585,7 @@ const AppContent: React.FC = () => {
             <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px overflow-y-auto custom-scrollbar">
               {/* Empty cells for previous month */}
               {Array.from({ length: firstDay }).map((_, i) => (
-                <div key={`empty-${i}`} className="bg-slate-950/50 min-h-[120px]"></div>
+                <div key={`empty-${i}`} className={`bg-slate-950/50 ${zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]'} transition-all duration-300`}></div>
               ))}
 
               {/* Days of current month */}
@@ -568,17 +605,42 @@ const AppContent: React.FC = () => {
 
                 const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
+                // Define zoom-dependent classes
+                let cellMinHeight = 'min-h-[120px]';
+                let cardPadding = 'p-1.5';
+                let cardGap = 'gap-0.5';
+                let showDetails = true;
+                let showExtras = false;
+                let titleClass = 'text-xs font-semibold';
+                let timeClass = 'text-xs font-bold';
+                
+                if (zoomLevel === 0) { // Compact
+                   cellMinHeight = 'min-h-[80px]';
+                   cardPadding = 'p-0.5';
+                   cardGap = 'gap-1';
+                   showDetails = false;
+                   titleClass = 'text-[10px] leading-tight truncate';
+                   timeClass = 'text-[10px] font-bold';
+                } else if (zoomLevel === 2) { // Detailed
+                   cellMinHeight = 'min-h-[200px]';
+                   cardPadding = 'p-3';
+                   cardGap = 'gap-2';
+                   showExtras = true;
+                   titleClass = 'text-sm font-bold leading-tight whitespace-normal';
+                   timeClass = 'text-sm font-bold bg-black/20 px-1.5 py-0.5 rounded';
+                }
+
                 return (
                   <div 
                     key={dayNum} 
                     onClick={() => handleDayClick(dayNum)}
-                    className={`bg-slate-950 min-h-[120px] h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
+                    className={`bg-slate-950 ${cellMinHeight} h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
                   >
                     <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
                       {dayNum} {isToday && '(Hoje)'}
                     </span>
                     
-                    <div className="flex flex-col gap-1.5 w-full min-w-0">
+                    <div className="flex flex-col gap-1 w-full min-w-0">
                       {dayEvents.map(event => {
                          const band = bands.find(b => b.id === event.bandId);
                          
@@ -592,15 +654,50 @@ const AppContent: React.FC = () => {
                           <div 
                             key={event.id}
                             onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                            className={`p-1.5 rounded text-xs border shadow-sm cursor-pointer hover:scale-[1.02] transition-transform ${statusColor} text-white w-full h-auto relative block break-words whitespace-normal overflow-hidden`}
+                            className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
                             title={`${event.time} - ${event.name}`}
                           >
-                             <div className="font-bold flex justify-between mb-0.5">
-                               <span>{event.time}</span>
+                             <div className={`flex ${zoomLevel === 0 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
+                               <div className={`${timeClass} whitespace-nowrap`}>
+                                 {event.time}
+                               </div>
+                               <div className={`${titleClass} break-words`}>
+                                 {event.name}
+                               </div>
                              </div>
-                             <div className="font-semibold text-xs leading-tight mb-0.5 break-words whitespace-normal">{event.name}</div>
-                             <div className="text-[10px] opacity-90 break-words whitespace-normal leading-tight">{event.city}</div>
-                             <div className="text-[10px] opacity-75 italic mt-1 break-words whitespace-normal">{band?.name}</div>
+
+                             {showDetails && (
+                               <div className={`mt-1 ${zoomLevel === 2 ? 'space-y-1' : ''}`}>
+                                 <div className={`text-[10px] opacity-90 leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs' : ''}`}>
+                                    {zoomLevel === 2 && <MapPin size={10} />}
+                                    {event.city}
+                                 </div>
+                                 <div className={`text-[10px] opacity-75 italic leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs not-italic' : ''}`}>
+                                    {zoomLevel === 2 && <Music size={10} />}
+                                    {band?.name}
+                                 </div>
+                               </div>
+                             )}
+
+                             {showExtras && (
+                               <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
+                                  {event.venue && (
+                                    <div className="text-[10px] bg-black/20 p-1 rounded flex items-start gap-1">
+                                       <MapPin size={10} className="mt-0.5 shrink-0" /> 
+                                       <span className="leading-tight">{event.venue}</span>
+                                    </div>
+                                  )}
+                                  {event.contractor && (
+                                     <div className="text-[10px] bg-black/20 p-1 rounded flex items-center gap-1">
+                                        <UserIcon size={10} className="shrink-0" />
+                                        <span className="truncate">{event.contractor}</span>
+                                     </div>
+                                  )}
+                                  <div className="flex justify-end">
+                                     <StatusBadge status={event.status} />
+                                  </div>
+                               </div>
+                             )}
                           </div>
                          )
                       })}
