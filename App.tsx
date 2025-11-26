@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
+import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -57,15 +56,18 @@ const StatusBadge = ({ status, minimal = false }: { status: EventStatus, minimal
     [EventStatus.COMPLETED]: 'Realizado',
   };
 
+  const style = styles[status] || styles[EventStatus.RESERVED];
+  const label = labels[status] || 'Desconhecido';
+
   if (minimal) {
     return (
-       <div className={`w-2.5 h-2.5 rounded-full ${styles[status].replace('bg-', 'bg-').split(' ')[0]} border border-white/10`} title={labels[status]} />
+       <div className={`w-2.5 h-2.5 rounded-full ${style.replace('bg-', 'bg-').split(' ')[0]} border border-white/10`} title={label} />
     );
   }
 
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status]}`}>
-      {labels[status]}
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${style}`}>
+      {label}
     </span>
   );
 };
@@ -80,7 +82,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState;
 
   constructor(props: ErrorBoundaryProps) {
@@ -1035,23 +1037,35 @@ const AppContent: React.FC = () => {
                </button>
             </div>
             <div className="space-y-3">
-               {users.map(u => (
+               {users.map(u => {
+                 const isSelf = currentUser?.id === u.id;
+                 const isSuperAdmin = u.email === 'admin';
+                 // Permissions: Admin can edit all. Contracts can only edit Viewers.
+                 const canEdit = isAdmin || (isContracts && u.role === UserRole.VIEWER);
+                 
+                 return (
                  <div key={u.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800 group">
                     <div>
                        <div className="text-white font-medium flex items-center gap-2">
                          {u.name}
-                         <span className="text-[10px] bg-slate-800 text-slate-400 px-1 rounded uppercase">{u.role}</span>
+                         <span className={`text-[10px] px-1 rounded uppercase ${u.role === UserRole.ADMIN ? 'bg-primary-900/50 text-primary-400' : 'bg-slate-800 text-slate-400'}`}>
+                           {u.role}
+                         </span>
                        </div>
                        <div className="text-xs text-slate-500">{u.email}</div>
                     </div>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => openEditUser(u)} className="p-1 text-slate-400 hover:text-white"><Edit2 size={14}/></button>
-                       {u.email !== 'admin' && (
-                         <button onClick={() => handleDeleteUser(u.id)} className="p-1 text-slate-400 hover:text-red-400"><Trash2 size={14}/></button>
-                       )}
-                    </div>
+                    
+                    {canEdit && (
+                        <div className="flex gap-2">
+                           <button onClick={() => openEditUser(u)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-white transition-colors" title="Editar"><Edit2 size={14}/></button>
+                           {!isSuperAdmin && !isSelf && (
+                             <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-red-400 transition-colors" title="Excluir"><Trash2 size={14}/></button>
+                           )}
+                        </div>
+                    )}
                  </div>
-               ))}
+                 );
+               })}
             </div>
           </div>
 
