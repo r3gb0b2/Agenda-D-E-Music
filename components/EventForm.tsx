@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Band, Event, EventStatus, Contractor, User, UserRole } from '../types';
-import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag, Upload, FileText } from 'lucide-react';
+import { Band, Event, EventStatus, Contractor, User, UserRole, ContractFile } from '../types';
+import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag, Upload, FileText, Trash2, Plus } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
 import { db } from '../services/databaseService';
 
@@ -15,6 +15,22 @@ interface EventFormProps {
   onSave: (event: Event) => void;
   onClose: () => void;
 }
+
+// Currency Formatter Helpers
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value);
+};
+
+// Input Parser: converts "R$ 1.500,00" -> 1500.00
+const parseCurrencyInput = (inputValue: string) => {
+  // Remove non-digits
+  const digits = inputValue.replace(/\D/g, '');
+  // Treat as cents (divide by 100)
+  return parseFloat(digits) / 100;
+};
 
 const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, currentUser, initialDate, initialBandId, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'financials' | 'ai'>('details');
@@ -30,9 +46,13 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   const [selectedContractorInfo, setSelectedContractorInfo] = useState<Contractor | undefined>(undefined);
 
   // Access Control logic
-  const canSeeFinancials = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.MANAGER || currentUser?.role === UserRole.CONTRACTS;
+  // Added UserRole.SALES to permissions list
+  const canSeeFinancials = currentUser?.role === UserRole.ADMIN || 
+                           currentUser?.role === UserRole.MANAGER || 
+                           currentUser?.role === UserRole.CONTRACTS ||
+                           currentUser?.role === UserRole.SALES;
+                           
   const canEditContracts = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.CONTRACTS;
-  const isComercial = currentUser?.role === UserRole.SALES;
 
   const [formData, setFormData] = useState<Event>({
     id: existingEvent?.id || crypto.randomUUID(),
@@ -55,14 +75,16 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
       commissionValue: 10,
       taxes: 0,
       netValue: 0,
-      currency: 'BRL'
+      currency: 'BRL',
+      notes: ''
     },
     // Keep existing createdBy or set new
     createdBy: existingEvent?.createdBy || currentUser?.name || 'Sistema',
     createdAt: existingEvent?.createdAt || new Date().toISOString(),
     // Keep existing or default to false (pending contract) for new events
     hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false,
-    contractUrl: existingEvent?.contractUrl || ''
+    contractUrl: existingEvent?.contractUrl || '',
+    contractFiles: existingEvent?.contractFiles || []
   });
 
   // Load Suggestions on Mount
@@ -135,14 +157,32 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     }
   };
 
-  // Mock file upload handler
+  // Mock file upload handler for multiple files
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      // In a real app, this would upload to Firebase Storage
-      // Here we just mock it by using the file name
-      handleChange('contractUrl', e.target.files[0].name);
-      handleChange('hasContract', true); // Auto check "received" if file uploaded
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles: ContractFile[] = Array.from(e.target.files).map((file: any) => ({
+        name: file.name,
+        url: file.name, // Mock URL
+        uploadedAt: new Date().toISOString()
+      }));
+
+      setFormData(prev => ({
+        ...prev,
+        contractFiles: [...(prev.contractFiles || []), ...newFiles],
+        hasContract: true // Auto check "received" if file uploaded
+      }));
     }
+  };
+
+  const removeFile = (indexToRemove: number) => {
+    setFormData(prev => {
+        const updatedFiles = prev.contractFiles.filter((_, index) => index !== indexToRemove);
+        return {
+            ...prev,
+            contractFiles: updatedFiles,
+            hasContract: updatedFiles.length > 0 // Uncheck if no files left? Optional.
+        };
+    });
   };
 
   const handleFinancialChange = (field: keyof typeof formData.financials, value: any) => {
@@ -150,6 +190,12 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
       ...prev,
       financials: { ...prev.financials, [field]: value }
     }));
+  };
+
+  // Handler specifically for currency masked inputs
+  const handleCurrencyChange = (field: keyof typeof formData.financials, inputValue: string) => {
+     const numberValue = parseCurrencyInput(inputValue);
+     handleFinancialChange(field, numberValue);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -370,21 +416,37 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                           </div>
                         </div>
 
-                        {/* File Upload Mock */}
-                        <div className="flex items-center gap-2">
+                        {/* File Upload Mock (Multi-file) */}
+                        <div className="flex flex-col gap-2">
                            <label className="flex-1 cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-600 border-dashed rounded px-3 py-2 text-center transition-colors">
                               <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
-                                <Upload size={14}/> {formData.contractUrl ? 'Substituir Arquivo' : 'Enviar Contrato (PDF)'}
+                                <Plus size={14}/> {formData.contractFiles.length > 0 ? 'Adicionar Outro Arquivo' : 'Enviar Contrato (PDF)'}
                               </span>
-                              <input type="file" className="hidden" accept=".pdf,.doc,.docx" onChange={handleFileUpload} />
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx" multiple onChange={handleFileUpload} />
                            </label>
-                           {formData.contractUrl && (
-                             <div className="text-green-400" title="Arquivo anexado">
-                               <FileText size={18} />
+                           
+                           {/* File List */}
+                           {formData.contractFiles.length > 0 && (
+                             <div className="space-y-1 mt-1">
+                               {formData.contractFiles.map((file, idx) => (
+                                 <div key={idx} className="flex justify-between items-center bg-slate-800 px-2 py-1 rounded text-xs">
+                                    <div className="flex items-center gap-2 text-green-400 truncate">
+                                      <FileText size={12} />
+                                      <span className="truncate max-w-[150px]">{file.name}</span>
+                                    </div>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => removeFile(idx)}
+                                      className="text-slate-500 hover:text-red-400 p-1"
+                                      title="Remover arquivo"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                 </div>
+                               ))}
                              </div>
                            )}
                         </div>
-                        {formData.contractUrl && <p className="text-[10px] text-slate-500 mt-1 truncate">Arquivo: {formData.contractUrl}</p>}
                       </div>
                     )}
                   </div>
@@ -436,19 +498,21 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Valor Bruto (R$)</label>
                     <input
-                      type="number"
-                      value={formData.financials.grossValue}
-                      onChange={(e) => handleFinancialChange('grossValue', parseFloat(e.target.value))}
+                      type="text"
+                      value={formatCurrency(formData.financials.grossValue)}
+                      onChange={(e) => handleCurrencyChange('grossValue', e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-lg font-semibold outline-none"
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Impostos/Taxas (R$)</label>
                     <input
-                      type="number"
-                      value={formData.financials.taxes}
-                      onChange={(e) => handleFinancialChange('taxes', parseFloat(e.target.value))}
+                      type="text"
+                      value={formatCurrency(formData.financials.taxes)}
+                      onChange={(e) => handleCurrencyChange('taxes', e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                      placeholder="R$ 0,00"
                     />
                   </div>
                 </div>
@@ -477,33 +541,55 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                      <label className="block text-sm font-medium text-slate-400 mb-1">
                        {formData.financials.commissionType === 'PERCENTAGE' ? 'Porcentagem (%)' : 'Valor (R$)'}
                      </label>
-                     <input
-                      type="number"
-                      value={formData.financials.commissionValue}
-                      onChange={(e) => handleFinancialChange('commissionValue', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
-                    />
+                     {formData.financials.commissionType === 'PERCENTAGE' ? (
+                       <input
+                        type="number"
+                        value={formData.financials.commissionValue}
+                        onChange={(e) => handleFinancialChange('commissionValue', parseFloat(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                       />
+                     ) : (
+                       <input
+                        type="text"
+                        value={formatCurrency(formData.financials.commissionValue)}
+                        onChange={(e) => handleCurrencyChange('commissionValue', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                        placeholder="R$ 0,00"
+                       />
+                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Informações Adicionais (New Field) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Informações Adicionais (Financeiro)</label>
+                <textarea
+                  rows={3}
+                  value={formData.financials.notes || ''}
+                  onChange={(e) => handleFinancialChange('notes', e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none resize-none"
+                  placeholder="Detalhes sobre pagamentos, parcelas, contas bancárias..."
+                ></textarea>
               </div>
 
               <div className="flex justify-end">
                 <div className="bg-slate-950 p-6 rounded-xl border border-slate-700 w-full md:w-1/2">
                    <div className="flex justify-between items-center mb-2">
                      <span className="text-slate-400">Bruto</span>
-                     <span className="text-white font-medium">R$ {formData.financials.grossValue.toLocaleString('pt-BR')}</span>
+                     <span className="text-white font-medium">{formatCurrency(formData.financials.grossValue)}</span>
                    </div>
                    <div className="flex justify-between items-center mb-2">
                      <span className="text-red-400">Comissão</span>
-                     <span className="text-red-400 font-medium">- R$ {(formData.financials.commissionType === 'PERCENTAGE' ? (formData.financials.grossValue * formData.financials.commissionValue / 100) : formData.financials.commissionValue).toLocaleString('pt-BR')}</span>
+                     <span className="text-red-400 font-medium">- {formatCurrency(formData.financials.commissionType === 'PERCENTAGE' ? (formData.financials.grossValue * formData.financials.commissionValue / 100) : formData.financials.commissionValue)}</span>
                    </div>
                    <div className="flex justify-between items-center mb-4">
                      <span className="text-red-400">Impostos</span>
-                     <span className="text-red-400 font-medium">- R$ {formData.financials.taxes.toLocaleString('pt-BR')}</span>
+                     <span className="text-red-400 font-medium">- {formatCurrency(formData.financials.taxes)}</span>
                    </div>
                    <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
                      <span className="text-slate-300 text-lg">Líquido</span>
-                     <span className="text-green-400 text-2xl font-bold">R$ {formData.financials.netValue.toLocaleString('pt-BR')}</span>
+                     <span className="text-green-400 text-2xl font-bold">{formatCurrency(formData.financials.netValue)}</span>
                    </div>
                 </div>
               </div>

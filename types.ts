@@ -43,6 +43,13 @@ export interface Financials {
   taxes: number; // Absolute value
   netValue: number;
   currency: string;
+  notes?: string; // New field: Informações Adicionais do Financeiro
+}
+
+export interface ContractFile {
+  name: string;
+  url: string; // In mock, this is the filename. In real app, the download URL.
+  uploadedAt: string;
 }
 
 export interface Event {
@@ -63,7 +70,8 @@ export interface Event {
   createdBy: string; // Name of the user who created
   createdAt: string; // ISO String of creation timestamp
   hasContract: boolean; // If false, shows warning that contract is missing
-  contractUrl?: string; // Link/Name of the uploaded contract file
+  contractUrl?: string; // Legacy field (kept for safety)
+  contractFiles: ContractFile[]; // Support multiple files
 }
 
 export interface Contractor {

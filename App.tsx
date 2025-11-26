@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
+import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
-import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
+import { Event, Band, User, EventStatus, UserRole, Contractor, ContractFile } from './types';
 import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import ContractorForm from './components/ContractorForm';
@@ -43,7 +43,8 @@ import {
   Share2,
   MessageCircle,
   Mail,
-  Send
+  Send,
+  FolderOpen
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -89,11 +90,14 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -140,13 +144,20 @@ const SendContractModal = ({
   const [method, setMethod] = useState<'email' | 'whatsapp'>('email');
 
   const handleSend = () => {
+    // List all files in the message body
+    const fileList = event.contractFiles && event.contractFiles.length > 0 
+        ? event.contractFiles.map(f => `- ${f.name}`).join('\n') 
+        : (event.contractUrl ? `- ${event.contractUrl}` : 'Sem arquivos anexados');
+
+    const messageBase = `Segue em anexo os documentos referentes ao evento ${event.name} do dia ${new Date(event.date).toLocaleDateString()}.\n\nArquivos:\n${fileList}`;
+
     if (method === 'email') {
-      const subject = `Contrato: ${event.name}`;
-      const body = `Olá ${contractor?.responsibleName || 'Responsável'},\n\nSegue em anexo o contrato referente ao evento ${event.name} que ocorrerá no dia ${new Date(event.date).toLocaleDateString()}.\n\nAtenciosamente,\n${event.createdBy}`;
+      const subject = `Documentos: ${event.name}`;
+      const body = `Olá ${contractor?.responsibleName || 'Responsável'},\n\n${messageBase}\n\nAtenciosamente,\n${event.createdBy}`;
       const mailtoLink = `mailto:${contractor?.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       window.open(mailtoLink, '_blank');
     } else {
-      const text = `Olá ${contractor?.responsibleName || ''}, segue o contrato do evento *${event.name}* (${new Date(event.date).toLocaleDateString()}). Por favor, verifique.`;
+      const text = `Olá ${contractor?.responsibleName || ''}, ${messageBase}`;
       const phone = contractor?.whatsapp?.replace(/\D/g, '') || contractor?.phone?.replace(/\D/g, '') || '';
       const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
       window.open(waLink, '_blank');
@@ -166,9 +177,16 @@ const SendContractModal = ({
         </div>
         <div className="p-6 space-y-4">
            <p className="text-sm text-slate-400">
-             Selecione como deseja enviar o contrato de <strong>{event.name}</strong> para o contratante.
+             Selecione como deseja enviar os documentos de <strong>{event.name}</strong> para o contratante.
            </p>
            
+           <div className="bg-slate-950 p-3 rounded border border-slate-800 text-xs text-slate-500 mb-2">
+              <strong>Arquivos incluídos:</strong>
+              <ul className="list-disc pl-4 mt-1">
+                  {event.contractFiles.map((f, i) => <li key={i}>{f.name}</li>)}
+              </ul>
+           </div>
+
            <div className="flex flex-col gap-3">
              <button 
                onClick={() => setMethod('email')}
@@ -1006,23 +1024,22 @@ const AppContent: React.FC = () => {
        )
     }
 
+    // Filter events containing contracts (checking files array or legacy string)
     const eventsWithContracts = events.filter(e => 
-      e.contractUrl && e.contractUrl.trim() !== '' &&
+      ((e.contractFiles && e.contractFiles.length > 0) || (e.contractUrl && e.contractUrl.trim() !== '')) &&
       (e.name.toLowerCase().includes(filterText.toLowerCase()) || 
        e.contractor.toLowerCase().includes(filterText.toLowerCase()))
     );
 
-    const handleDownload = (event: Event) => {
+    const handleDownload = (event: Event, file: ContractFile) => {
       // Create a blob to simulate a real file download
-      // Since we don't store the actual PDF binary in this frontend-only demo,
-      // we generate a text file acting as the contract proof.
-      const content = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS\n\nEvento: ${event.name}\nData: ${new Date(event.date).toLocaleDateString()}\nContratante: ${event.contractor}\nLocal: ${event.venue || event.city}\n\nArquivo Original Referenciado: ${event.contractUrl}\n\n(Este arquivo foi gerado automaticamente pelo sistema)`;
+      const content = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS\n\nEvento: ${event.name}\nData: ${new Date(event.date).toLocaleDateString()}\nContratante: ${event.contractor}\nLocal: ${event.venue || event.city}\n\nArquivo Original Referenciado: ${file.name}\nData Upload: ${new Date(file.uploadedAt).toLocaleString()}\n\n(Este arquivo foi gerado automaticamente pelo sistema)`;
       const blob = new Blob([content], { type: 'text/plain' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       // Use the stored filename if possible, else default
-      link.download = event.contractUrl || `Contrato_${event.name.replace(/\s+/g, '_')}.txt`;
+      link.download = file.name || `Contrato_${event.name.replace(/\s+/g, '_')}.txt`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1033,6 +1050,11 @@ const AppContent: React.FC = () => {
       setSelectedEventForSend(event);
       setIsSendModalOpen(true);
     };
+
+    // Get Bands that have contracts
+    const bandsWithContracts = bands.filter(band => 
+        eventsWithContracts.some(e => e.bandId === band.id)
+    );
 
     return (
       <div className="space-y-6 pb-20 md:pb-0">
@@ -1052,70 +1074,85 @@ const AppContent: React.FC = () => {
            </div>
         </div>
 
-        <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-           <div className="overflow-x-auto">
-             <table className="w-full text-left border-collapse">
-               <thead>
-                 <tr className="bg-slate-900 border-b border-slate-800">
-                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
-                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Contratante</th>
-                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Arquivo</th>
-                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>
-                 </tr>
-               </thead>
-               <tbody className="divide-y divide-slate-800">
-                 {eventsWithContracts.length === 0 ? (
-                   <tr>
-                     <td colSpan={4} className="p-12 text-center">
-                        <div className="flex flex-col items-center text-slate-500">
-                           <FileText size={32} className="mb-2 opacity-50"/>
-                           <p>Nenhum contrato encontrado com os filtros atuais.</p>
+        {eventsWithContracts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center p-12 bg-slate-950 border border-slate-800 rounded-xl text-slate-500">
+                <FileText size={32} className="mb-2 opacity-50"/>
+                <p>Nenhum contrato encontrado com os filtros atuais.</p>
+            </div>
+        ) : (
+            <div className="space-y-8">
+                {bandsWithContracts.map(band => {
+                    const bandEvents = eventsWithContracts.filter(e => e.bandId === band.id);
+                    if (bandEvents.length === 0) return null;
+
+                    return (
+                        <div key={band.id} className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg animate-fade-in">
+                           {/* Band Header */}
+                           <div className="bg-slate-900 px-6 py-4 border-b border-slate-800 flex items-center gap-2">
+                               <Music className="text-accent-500" size={20} />
+                               <h3 className="text-white font-bold text-lg">{band.name}</h3>
+                               <span className="text-slate-500 text-sm ml-2">({bandEvents.length} contratos)</span>
+                           </div>
+
+                           <div className="overflow-x-auto">
+                             <table className="w-full text-left border-collapse">
+                               <thead>
+                                 <tr className="bg-slate-900/50 border-b border-slate-800">
+                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
+                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Contratante</th>
+                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Arquivos</th>
+                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>
+                                 </tr>
+                               </thead>
+                               <tbody className="divide-y divide-slate-800">
+                                   {bandEvents.map(event => (
+                                     <tr key={event.id} className="hover:bg-slate-900 transition-colors">
+                                       <td className="p-4 align-top">
+                                         <div className="text-white font-medium">{event.name}</div>
+                                         <div className="text-xs text-slate-500">
+                                           {new Date(event.date).toLocaleDateString()} • {event.city}
+                                         </div>
+                                       </td>
+                                       <td className="p-4 align-top text-slate-400">
+                                         {event.contractor || 'Não informado'}
+                                       </td>
+                                       <td className="p-4 align-top">
+                                          <div className="flex flex-col gap-2">
+                                             {event.contractFiles.map((file, idx) => (
+                                                <button 
+                                                    key={idx}
+                                                    onClick={() => handleDownload(event, file)}
+                                                    className="flex items-center gap-2 text-sm text-primary-400 bg-primary-900/10 px-3 py-1 rounded-full w-fit hover:bg-primary-900/20 transition-colors text-left"
+                                                    title="Clique para baixar"
+                                                >
+                                                    <FileText size={14} className="shrink-0"/>
+                                                    <span className="truncate max-w-[200px]">{file.name}</span>
+                                                    <Download size={12} className="ml-1 opacity-50"/>
+                                                </button>
+                                             ))}
+                                          </div>
+                                       </td>
+                                       <td className="p-4 align-top text-right">
+                                          <div className="flex items-center justify-end">
+                                             <button 
+                                               onClick={() => openSendModal(event)}
+                                               className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
+                                               title="Enviar via Plataforma"
+                                             >
+                                                <Share2 size={16} /> <span className="hidden md:inline">Enviar</span>
+                                             </button>
+                                          </div>
+                                       </td>
+                                     </tr>
+                                   ))}
+                               </tbody>
+                             </table>
+                           </div>
                         </div>
-                     </td>
-                   </tr>
-                 ) : (
-                   eventsWithContracts.map(event => (
-                     <tr key={event.id} className="hover:bg-slate-900 transition-colors">
-                       <td className="p-4">
-                         <div className="text-white font-medium">{event.name}</div>
-                         <div className="text-xs text-slate-500">
-                           {new Date(event.date).toLocaleDateString()} • {event.city}
-                         </div>
-                       </td>
-                       <td className="p-4 text-slate-400">
-                         {event.contractor || 'Não informado'}
-                       </td>
-                       <td className="p-4">
-                          <div className="flex items-center gap-2 text-sm text-primary-400 bg-primary-900/10 px-3 py-1 rounded-full w-fit">
-                             <FileCheck size={14} />
-                             <span className="truncate max-w-[200px]">{event.contractUrl}</span>
-                          </div>
-                       </td>
-                       <td className="p-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                             <button 
-                               onClick={() => openSendModal(event)}
-                               className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
-                               title="Enviar via Plataforma"
-                             >
-                                <Share2 size={16} /> <span className="hidden md:inline">Enviar</span>
-                             </button>
-                             <button 
-                               onClick={() => handleDownload(event)}
-                               className="text-sm bg-primary-600 hover:bg-primary-500 text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-primary-600/20"
-                               title="Baixar Arquivo"
-                             >
-                                <Download size={16} /> <span className="hidden md:inline">Baixar</span>
-                             </button>
-                          </div>
-                       </td>
-                     </tr>
-                   ))
-                 )}
-               </tbody>
-             </table>
-           </div>
-        </div>
+                    );
+                })}
+            </div>
+        )}
       </div>
     );
   };

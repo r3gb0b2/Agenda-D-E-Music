@@ -1,5 +1,5 @@
 
-import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType } from '../types';
+import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, ContractFile } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from "firebase/auth";
@@ -82,13 +82,17 @@ const sanitizeEvent = (data: any, id: string): Event => {
     commissionValue: 0,
     taxes: 0,
     netValue: 0,
-    currency: 'BRL'
+    currency: 'BRL',
+    notes: '' // New field default
   };
 
   const safeFinancials = {
     ...defaultFinancials,
     ...(data?.financials || {})
   };
+  
+  // Ensure notes is defined
+  if (safeFinancials.notes === undefined) safeFinancials.notes = '';
 
   // Ensure netValue is a number
   if (typeof safeFinancials.netValue !== 'number') {
@@ -99,6 +103,18 @@ const sanitizeEvent = (data: any, id: string): Event => {
   let safeCreatedAt = data?.createdAt;
   if (!safeCreatedAt) {
       safeCreatedAt = new Date(0).toISOString(); // '1970-01-01T00:00:00.000Z'
+  }
+  
+  // Handle Contract Files Migration
+  let safeContractFiles: ContractFile[] = data?.contractFiles || [];
+  
+  // Backward compatibility: If we have a single URL but empty array, migrate it
+  if (safeContractFiles.length === 0 && data?.contractUrl) {
+    safeContractFiles.push({
+      name: data.contractUrl,
+      url: data.contractUrl,
+      uploadedAt: safeCreatedAt
+    });
   }
 
   return {
@@ -119,7 +135,8 @@ const sanitizeEvent = (data: any, id: string): Event => {
     createdBy: data?.createdBy || 'Sistema',
     createdAt: safeCreatedAt,
     hasContract: data?.hasContract !== undefined ? data.hasContract : true,
-    contractUrl: data?.contractUrl || ''
+    contractUrl: data?.contractUrl || '',
+    contractFiles: safeContractFiles
   } as Event;
 };
 
