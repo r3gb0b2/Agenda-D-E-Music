@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
+import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -39,7 +39,11 @@ import {
   FileCheck,
   EyeOff,
   FileText,
-  Download
+  Download,
+  Share2,
+  MessageCircle,
+  Mail,
+  Send
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -85,7 +89,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -122,6 +126,90 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
+// --- Send Modal Component ---
+
+const SendContractModal = ({ 
+  event, 
+  contractor, 
+  onClose 
+}: { 
+  event: Event, 
+  contractor?: Contractor, 
+  onClose: () => void 
+}) => {
+  const [method, setMethod] = useState<'email' | 'whatsapp'>('email');
+
+  const handleSend = () => {
+    if (method === 'email') {
+      const subject = `Contrato: ${event.name}`;
+      const body = `Olá ${contractor?.responsibleName || 'Responsável'},\n\nSegue em anexo o contrato referente ao evento ${event.name} que ocorrerá no dia ${new Date(event.date).toLocaleDateString()}.\n\nAtenciosamente,\n${event.createdBy}`;
+      const mailtoLink = `mailto:${contractor?.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.open(mailtoLink, '_blank');
+    } else {
+      const text = `Olá ${contractor?.responsibleName || ''}, segue o contrato do evento *${event.name}* (${new Date(event.date).toLocaleDateString()}). Por favor, verifique.`;
+      const phone = contractor?.whatsapp?.replace(/\D/g, '') || contractor?.phone?.replace(/\D/g, '') || '';
+      const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+      window.open(waLink, '_blank');
+    }
+    onClose();
+    alert('Ação de envio iniciada na plataforma externa!');
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-slate-900 w-full max-w-md rounded-xl border border-slate-700 shadow-2xl overflow-hidden">
+        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
+           <h3 className="text-white font-bold text-lg flex items-center gap-2">
+             <Share2 size={18} className="text-primary-500"/> Enviar Contrato
+           </h3>
+           <button onClick={onClose}><X size={20} className="text-slate-400 hover:text-white"/></button>
+        </div>
+        <div className="p-6 space-y-4">
+           <p className="text-sm text-slate-400">
+             Selecione como deseja enviar o contrato de <strong>{event.name}</strong> para o contratante.
+           </p>
+           
+           <div className="flex flex-col gap-3">
+             <button 
+               onClick={() => setMethod('email')}
+               className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${method === 'email' ? 'bg-primary-900/20 border-primary-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
+             >
+               <div className={`p-2 rounded-full ${method === 'email' ? 'bg-primary-500 text-white' : 'bg-slate-700'}`}>
+                 <Mail size={18} />
+               </div>
+               <div className="text-left">
+                 <div className="font-medium">E-mail</div>
+                 <div className="text-xs opacity-70">{contractor?.email || 'Email não cadastrado'}</div>
+               </div>
+             </button>
+
+             <button 
+               onClick={() => setMethod('whatsapp')}
+               className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${method === 'whatsapp' ? 'bg-green-900/20 border-green-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
+             >
+               <div className={`p-2 rounded-full ${method === 'whatsapp' ? 'bg-green-500 text-white' : 'bg-slate-700'}`}>
+                 <MessageCircle size={18} />
+               </div>
+               <div className="text-left">
+                 <div className="font-medium">WhatsApp</div>
+                 <div className="text-xs opacity-70">{contractor?.whatsapp || contractor?.phone || 'Telefone não cadastrado'}</div>
+               </div>
+             </button>
+           </div>
+        </div>
+        <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
+           <button 
+             onClick={handleSend}
+             className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
+           >
+             <Send size={16} /> Enviar Agora
+           </button>
+        </div>
+      </div>
+    </div>
+  )
+};
+
 // --- Main App Component ---
 
 const AppContent: React.FC = () => {
@@ -138,6 +226,10 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  
+  // Send Modal State
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [selectedEventForSend, setSelectedEventForSend] = useState<Event | null>(null);
   
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
@@ -920,9 +1012,26 @@ const AppContent: React.FC = () => {
        e.contractor.toLowerCase().includes(filterText.toLowerCase()))
     );
 
-    const handleDownload = (filename: string) => {
-      // Simulation of download since we don't have a real backend storage URL in this demo
-      alert(`Simulando download do arquivo: ${filename}`);
+    const handleDownload = (event: Event) => {
+      // Create a blob to simulate a real file download
+      // Since we don't store the actual PDF binary in this frontend-only demo,
+      // we generate a text file acting as the contract proof.
+      const content = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS\n\nEvento: ${event.name}\nData: ${new Date(event.date).toLocaleDateString()}\nContratante: ${event.contractor}\nLocal: ${event.venue || event.city}\n\nArquivo Original Referenciado: ${event.contractUrl}\n\n(Este arquivo foi gerado automaticamente pelo sistema)`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      // Use the stored filename if possible, else default
+      link.download = event.contractUrl || `Contrato_${event.name.replace(/\s+/g, '_')}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    };
+
+    const openSendModal = (event: Event) => {
+      setSelectedEventForSend(event);
+      setIsSendModalOpen(true);
     };
 
     return (
@@ -951,7 +1060,7 @@ const AppContent: React.FC = () => {
                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Contratante</th>
                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Arquivo</th>
-                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ação</th>
+                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>
                  </tr>
                </thead>
                <tbody className="divide-y divide-slate-800">
@@ -983,12 +1092,22 @@ const AppContent: React.FC = () => {
                           </div>
                        </td>
                        <td className="p-4 text-right">
-                          <button 
-                            onClick={() => handleDownload(event.contractUrl!)}
-                            className="text-sm bg-slate-800 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ml-auto"
-                          >
-                             <Download size={16} /> Baixar
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                             <button 
+                               onClick={() => openSendModal(event)}
+                               className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
+                               title="Enviar via Plataforma"
+                             >
+                                <Share2 size={16} /> <span className="hidden md:inline">Enviar</span>
+                             </button>
+                             <button 
+                               onClick={() => handleDownload(event)}
+                               className="text-sm bg-primary-600 hover:bg-primary-500 text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-primary-600/20"
+                               title="Baixar Arquivo"
+                             >
+                                <Download size={16} /> <span className="hidden md:inline">Baixar</span>
+                             </button>
+                          </div>
                        </td>
                      </tr>
                    ))
@@ -1265,6 +1384,14 @@ const AppContent: React.FC = () => {
 
       {/* Modals */}
       {selectedDateDetails && <DayDetailsModal />}
+      
+      {isSendModalOpen && selectedEventForSend && (
+        <SendContractModal 
+          event={selectedEventForSend}
+          contractor={contractors.find(c => c.name === selectedEventForSend.contractor)}
+          onClose={() => setIsSendModalOpen(false)}
+        />
+      )}
       
       {isFormOpen && (
         <EventForm 
