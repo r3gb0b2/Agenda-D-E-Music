@@ -1,3 +1,4 @@
+
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
@@ -98,6 +99,7 @@ const sanitizeEvent = (data: any, id: string): Event => {
     id: id,
     bandId: data?.bandId || '',
     name: data?.name || 'Evento Sem Nome',
+    eventType: data?.eventType || 'Geral', // Default value
     date: data?.date || new Date().toISOString(),
     time: data?.time || '00:00',
     durationHours: data?.durationHours || 0,
@@ -250,6 +252,39 @@ export const db = {
     }
 
     return null;
+  },
+
+  // --- SUGGESTIONS (Auto-Save/Learning) ---
+  getUniqueValues: async (field: 'eventType' | 'venue' | 'city' | 'contractor'): Promise<string[]> => {
+    // Basic defaults to start with
+    const defaults = {
+        eventType: ['Casamento', 'Corporativo', 'Formatura', 'Aniversário', 'Show Público', 'Bar/Restaurante', 'Bodas'],
+        city: [],
+        venue: [],
+        contractor: []
+    };
+
+    let values = new Set<string>(defaults[field]);
+    
+    // Get from Events
+    const events = await db.getEvents();
+    events.forEach(e => {
+        if (field === 'eventType' && e.eventType) values.add(e.eventType);
+        if (field === 'city' && e.city) values.add(e.city);
+        if (field === 'venue' && e.venue) values.add(e.venue);
+        if (field === 'contractor' && e.contractor) values.add(e.contractor);
+    });
+    
+    // Get Contractors for specific fields
+    if (field === 'contractor' || field === 'city') {
+        const contractors = await db.getContractors();
+        contractors.forEach(c => {
+            if (field === 'contractor') values.add(c.name);
+            if (field === 'city' && c.address.city) values.add(c.address.city);
+        });
+    }
+
+    return Array.from(values).sort();
   },
 
   // --- BANDS ---

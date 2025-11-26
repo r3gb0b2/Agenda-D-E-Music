@@ -1,4 +1,4 @@
-import React, { Component, useState, useEffect, ReactNode, ErrorInfo } from 'react';
+import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -78,7 +78,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -326,22 +326,65 @@ const AppContent: React.FC = () => {
     
     const confirmedCount = visibleEvents.filter(e => e.status === EventStatus.CONFIRMED).length;
     const reservedCount = visibleEvents.filter(e => e.status === EventStatus.RESERVED).length;
+    const canceledCount = visibleEvents.filter(e => e.status === EventStatus.CANCELED).length;
 
     // Logic for "Latest Updates"
     const latestEvents = [...visibleEvents]
        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
        .slice(0, 5);
 
-    // Logic for "Canceled Events"
-    const canceledEvents = visibleEvents.filter(e => e.status === EventStatus.CANCELED)
-       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    // Logic for "Upcoming Events" (Replaces Canceled List)
+    const today = new Date().toISOString().split('T')[0];
+    const upcomingEvents = visibleEvents
+       .filter(e => e.date >= today && e.status !== EventStatus.CANCELED)
+       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
        .slice(0, 5);
 
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
         
+        {/* Bandas Section (MOVED TO TOP) */}
+        <div>
+           <div className="flex justify-between items-center mb-4">
+             <h2 className="text-xl font-bold text-white flex items-center gap-2">
+               <Music className="text-primary-500" /> Minhas Bandas
+             </h2>
+             {currentUser?.role === UserRole.ADMIN && (
+               <button onClick={handleAddBand} className="text-sm text-primary-400 hover:text-white flex items-center gap-1">
+                 <Plus size={14} /> Nova Banda
+               </button>
+             )}
+           </div>
+           
+           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+             <div className="divide-y divide-slate-800">
+               {visibleBands.map(band => (
+                 <div 
+                   key={band.id} 
+                   onClick={() => handleBandClick(band.id)}
+                   className="flex items-center justify-between p-4 hover:bg-slate-900 transition-colors cursor-pointer group"
+                 >
+                   <div className="flex items-center gap-3">
+                     <span className="font-medium text-white text-lg">{band.name}</span>
+                   </div>
+                   <div className="flex items-center gap-2 text-slate-500 group-hover:text-primary-400 transition-colors">
+                     <span className="text-xs uppercase tracking-wider hidden md:inline">Ver Agenda</span>
+                     <ChevronRight size={18} />
+                   </div>
+                 </div>
+               ))}
+               
+               {visibleBands.length === 0 && (
+                 <p className="p-6 text-slate-500 text-center">
+                   {currentUser?.role === UserRole.ADMIN ? 'Nenhuma banda cadastrada.' : 'Você ainda não foi vinculado a nenhuma banda.'}
+                 </p>
+               )}
+             </div>
+           </div>
+        </div>
+
         {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-slate-500 text-xs uppercase font-semibold">Total de Shows</p>
              <p className="text-2xl font-bold text-white mt-1">{visibleEvents.length}</p>
@@ -353,6 +396,11 @@ const AppContent: React.FC = () => {
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-yellow-500/80 text-xs uppercase font-semibold">Reservados</p>
              <p className="text-2xl font-bold text-white mt-1">{reservedCount}</p>
+          </div>
+          {/* Nova Coluna: Cancelados */}
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-red-500/80 text-xs uppercase font-semibold">Cancelados</p>
+             <p className="text-2xl font-bold text-white mt-1">{canceledCount}</p>
           </div>
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-blue-500/80 text-xs uppercase font-semibold">Cidades</p>
@@ -393,25 +441,29 @@ const AppContent: React.FC = () => {
                </div>
             </div>
 
-            {/* Cancelados */}
+            {/* Próximos Shows (Replaces Canceled) */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                 <Ban className="text-red-400" size={20} /> Shows Cancelados Recentemente
+                 <CalendarDays className="text-green-400" size={20} /> Próximos Shows
                </h3>
                <div className="space-y-3">
-                 {canceledEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhum show cancelado.</p> : (
-                   canceledEvents.map(event => {
+                 {upcomingEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhum show próximo agendado.</p> : (
+                   upcomingEvents.map(event => {
                      const band = bands.find(b => b.id === event.bandId);
                      return (
-                       <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900/50 rounded border border-red-900/20 hover:border-red-900/50 cursor-pointer transition-colors">
+                       <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900/50 rounded border border-green-900/20 hover:border-green-900/50 cursor-pointer transition-colors">
                           <div className="flex justify-between items-center">
                              <div>
                                 <span className="text-xs text-slate-400">{band?.name}</span>
-                                <h4 className="text-slate-300 text-sm font-medium line-through">{event.name}</h4>
-                                <p className="text-xs text-slate-500">{new Date(event.date).toLocaleDateString()}</p>
+                                <h4 className="text-white text-sm font-medium">{event.name}</h4>
+                                <div className="flex gap-2 text-xs text-slate-500">
+                                   <span className="flex items-center gap-1"><Clock size={10}/> {event.time}</span>
+                                   <span>|</span>
+                                   <span>{new Date(event.date).toLocaleDateString()}</span>
+                                </div>
                              </div>
-                             <div className="text-xs text-red-500 font-bold uppercase border border-red-900/30 px-2 py-0.5 rounded">
-                                Cancelado
+                             <div className="text-right">
+                                <StatusBadge status={event.status} />
                              </div>
                           </div>
                        </div>
@@ -420,46 +472,6 @@ const AppContent: React.FC = () => {
                  )}
                </div>
             </div>
-        </div>
-
-        {/* Bandas Section */}
-        <div>
-           <div className="flex justify-between items-center mb-4">
-             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-               <Music className="text-primary-500" /> Minhas Bandas
-             </h2>
-             {currentUser?.role === UserRole.ADMIN && (
-               <button onClick={handleAddBand} className="text-sm text-primary-400 hover:text-white flex items-center gap-1">
-                 <Plus size={14} /> Nova Banda
-               </button>
-             )}
-           </div>
-           
-           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-             <div className="divide-y divide-slate-800">
-               {visibleBands.map(band => (
-                 <div 
-                   key={band.id} 
-                   onClick={() => handleBandClick(band.id)}
-                   className="flex items-center justify-between p-4 hover:bg-slate-900 transition-colors cursor-pointer group"
-                 >
-                   <div className="flex items-center gap-3">
-                     <span className="font-medium text-white text-lg">{band.name}</span>
-                   </div>
-                   <div className="flex items-center gap-2 text-slate-500 group-hover:text-primary-400 transition-colors">
-                     <span className="text-xs uppercase tracking-wider hidden md:inline">Ver Agenda</span>
-                     <ChevronRight size={18} />
-                   </div>
-                 </div>
-               ))}
-               
-               {visibleBands.length === 0 && (
-                 <p className="p-6 text-slate-500 text-center">
-                   {currentUser?.role === UserRole.ADMIN ? 'Nenhuma banda cadastrada.' : 'Você ainda não foi vinculado a nenhuma banda.'}
-                 </p>
-               )}
-             </div>
-           </div>
         </div>
       </div>
     );

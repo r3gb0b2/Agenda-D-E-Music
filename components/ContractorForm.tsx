@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Contractor, ContractorType } from '../types';
-import { X, Save, MapPin, User, FileText, Phone } from 'lucide-react';
+import { X, Save, MapPin, User, FileText, Phone, Loader2 } from 'lucide-react';
 
 interface ContractorFormProps {
   existingContractor?: Contractor | null;
@@ -36,6 +37,8 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
     }
   );
 
+  const [isLoadingCep, setIsLoadingCep] = useState(false);
+
   const handleChange = (field: keyof Contractor, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -45,6 +48,34 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
       ...prev,
       address: { ...prev.address, [field]: value }
     }));
+  };
+
+  const handleCepBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const cep = e.target.value.replace(/\D/g, '');
+    if (cep.length === 8) {
+      setIsLoadingCep(true);
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await response.json();
+        if (!data.erro) {
+           setFormData(prev => ({
+             ...prev,
+             address: {
+               ...prev.address,
+               street: data.logradouro,
+               neighborhood: data.bairro,
+               city: data.localidade,
+               state: data.uf,
+               country: 'Brasil'
+             }
+           }));
+        }
+      } catch (err) {
+        console.warn("Error fetching CEP", err);
+      } finally {
+        setIsLoadingCep(false);
+      }
+    }
   };
 
   const handleInfoChange = (field: keyof typeof formData.additionalInfo, value: string) => {
@@ -169,14 +200,17 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
               <MapPin size={18} className="text-green-500"/> Endereço
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-              <div className="md:col-span-1">
+              <div className="md:col-span-1 relative">
                  <label className="block text-sm font-medium text-slate-400 mb-1">CEP</label>
                  <input
                   type="text"
                   value={formData.address.zipCode}
                   onChange={(e) => handleAddressChange('zipCode', e.target.value)}
+                  onBlur={handleCepBlur}
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                  placeholder="00000-000"
                 />
+                {isLoadingCep && <div className="absolute right-3 top-9"><Loader2 className="animate-spin text-primary-500" size={16}/></div>}
               </div>
               <div className="md:col-span-4">
                  <label className="block text-sm font-medium text-slate-400 mb-1">Logradouro / Rua</label>

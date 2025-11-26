@@ -1,3 +1,4 @@
+
 export enum EventStatus {
   RESERVED = 'RESERVED',
   CONFIRMED = 'CONFIRMED',
@@ -45,6 +46,7 @@ export interface Event {
   id: string;
   bandId: string;
   name: string; // Event name e.g., "Wedding of X & Y"
+  eventType: string; // Tipo de evento (Casamento, Corporativo, etc.)
   date: string; // ISO String
   time: string;
   durationHours: number;

@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Band, Event, EventStatus, Contractor, User } from '../types';
-import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning } from 'lucide-react';
+import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
+import { db } from '../services/databaseService';
 
 interface EventFormProps {
   bands: Band[];
@@ -19,6 +21,11 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
   
+  // Suggestions State
+  const [typeSuggestions, setTypeSuggestions] = useState<string[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [venueSuggestions, setVenueSuggestions] = useState<string[]>([]);
+
   // Estado local para exibir detalhes do contratante selecionado
   const [selectedContractorInfo, setSelectedContractorInfo] = useState<Contractor | undefined>(undefined);
 
@@ -26,6 +33,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     id: existingEvent?.id || crypto.randomUUID(),
     bandId: existingEvent?.bandId || initialBandId || bands[0]?.id || '',
     name: existingEvent?.name || '',
+    eventType: existingEvent?.eventType || '',
     date: existingEvent?.date 
       ? new Date(existingEvent.date).toISOString().split('T')[0] 
       : (initialDate || new Date().toISOString().split('T')[0]),
@@ -50,6 +58,16 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     // Keep existing or default to false (pending contract) for new events
     hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false 
   });
+
+  // Load Suggestions on Mount
+  useEffect(() => {
+    const loadSuggestions = async () => {
+      setTypeSuggestions(await db.getUniqueValues('eventType'));
+      setCitySuggestions(await db.getUniqueValues('city'));
+      setVenueSuggestions(await db.getUniqueValues('venue'));
+    };
+    loadSuggestions();
+  }, []);
 
   // Atualiza infos do contratante se já houver um nome preenchido (edição)
   useEffect(() => {
@@ -169,7 +187,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
           {activeTab === 'details' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-400 mb-1">Nome do Evento</label>
                   <input
                     required
@@ -180,6 +198,25 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                     placeholder="Ex: Casamento João & Maria"
                   />
                 </div>
+                
+                {/* Tipo de Evento com Auto-Suggest */}
+                <div>
+                   <label className="block text-sm font-medium text-slate-400 mb-1 flex items-center gap-1">
+                     <Tag size={12}/> Tipo de Evento
+                   </label>
+                   <input
+                    type="text"
+                    list="eventTypes"
+                    value={formData.eventType}
+                    onChange={(e) => handleChange('eventType', e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                    placeholder="Ex: Casamento, Corporativo..."
+                   />
+                   <datalist id="eventTypes">
+                     {typeSuggestions.map((type, i) => <option key={i} value={type} />)}
+                   </datalist>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-400 mb-1">Banda</label>
                   <select
@@ -228,19 +265,27 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                   <label className="block text-sm font-medium text-slate-400 mb-1">Cidade/UF</label>
                   <input
                     type="text"
+                    list="cities"
                     value={formData.city}
                     onChange={(e) => handleChange('city', e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
                   />
+                  <datalist id="cities">
+                     {citySuggestions.map((c, i) => <option key={i} value={c} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-400 mb-1">Local do Evento (Venue)</label>
                   <input
                     type="text"
+                    list="venues"
                     value={formData.venue}
                     onChange={(e) => handleChange('venue', e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
                   />
+                   <datalist id="venues">
+                     {venueSuggestions.map((v, i) => <option key={i} value={v} />)}
+                   </datalist>
                 </div>
               </div>
 
