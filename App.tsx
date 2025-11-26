@@ -83,15 +83,10 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState;
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null
-    };
-  }
+  public state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -999,6 +994,13 @@ const AppContent: React.FC = () => {
         )
     }
 
+    // Filter users: Contracts role only sees Viewers (and maybe themselves in a real list, but here strict management is better)
+    const visibleUsers = users.filter(u => {
+        if (isAdmin) return true;
+        if (isContracts) return u.role === UserRole.VIEWER;
+        return false;
+    });
+
     return (
       <div className="space-y-8 pb-20 md:pb-0">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1037,7 +1039,7 @@ const AppContent: React.FC = () => {
                </button>
             </div>
             <div className="space-y-3">
-               {users.map(u => {
+               {visibleUsers.map(u => {
                  const isSelf = currentUser?.id === u.id;
                  const isSuperAdmin = u.email === 'admin';
                  // Permissions: Admin can edit all. Contracts can only edit Viewers.
@@ -1066,6 +1068,7 @@ const AppContent: React.FC = () => {
                  </div>
                  );
                })}
+               {visibleUsers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">Nenhum usuário encontrado.</p>}
             </div>
           </div>
 
