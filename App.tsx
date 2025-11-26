@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
+import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -67,7 +67,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -658,145 +658,153 @@ const AppContent: React.FC = () => {
 
         {/* MODO CALENDÁRIO */}
         {viewMode === 'calendar' && (
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0">
-            {/* Week Days Header */}
-            <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 shrink-0">
-              {weekDays.map(day => (
-                <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar Grid - SCROLLABLE with Dynamic Rows */}
-            <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px overflow-y-auto custom-scrollbar">
-              {/* Empty cells for previous month */}
-              {Array.from({ length: firstDay }).map((_, i) => (
-                <div key={`empty-${i}`} className={`bg-slate-950/50 ${zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]'} transition-all duration-300`}></div>
-              ))}
-
-              {/* Days of current month */}
-              {Array.from({ length: days }).map((_, i) => {
-                const dayNum = i + 1;
-                // Construct date string YYYY-MM-DD
-                const d = String(dayNum).padStart(2, '0');
-                const m = String(month + 1).padStart(2, '0');
-                const dateStr = `${year}-${m}-${d}`;
-
-                // Strict string comparison to find events
-                const dayEvents = filteredEvents.filter(e => {
-                   if (!e.date) return false;
-                   const eventDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
-                   return eventDate === dateStr;
-                });
-
-                const isToday = new Date().toISOString().split('T')[0] === dateStr;
-
-                // Define zoom-dependent classes
-                let cellMinHeight = 'min-h-[120px]';
-                let cardPadding = 'p-1.5';
-                let cardGap = 'gap-0.5';
-                let showDetails = true;
-                let showExtras = false;
-                let titleClass = 'text-xs font-semibold';
-                let timeClass = 'text-xs font-bold';
-                
-                if (zoomLevel === 0) { // Compact
-                   cellMinHeight = 'min-h-[80px]';
-                   cardPadding = 'p-0.5';
-                   cardGap = 'gap-1';
-                   showDetails = false;
-                   titleClass = 'text-[10px] leading-tight truncate';
-                   timeClass = 'text-[10px] font-bold';
-                } else if (zoomLevel === 2) { // Detailed
-                   cellMinHeight = 'min-h-[200px]';
-                   cardPadding = 'p-3';
-                   cardGap = 'gap-2';
-                   showExtras = true;
-                   titleClass = 'text-sm font-bold leading-tight whitespace-normal';
-                   timeClass = 'text-sm font-bold bg-black/20 px-1.5 py-0.5 rounded';
-                }
-
-                return (
-                  <div 
-                    key={dayNum} 
-                    onClick={() => handleDayClick(dayNum)}
-                    className={`bg-slate-950 ${cellMinHeight} h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
-                  >
-                    <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
-                      {dayNum} {isToday && '(Hoje)'}
-                    </span>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0 relative">
+            
+            {/* Scroll Container */}
+            <div className="flex-1 overflow-auto custom-scrollbar relative">
+                <div className={`flex flex-col min-h-full transition-all duration-300 ease-in-out ${zoomLevel === 2 ? 'min-w-[200vw] md:min-w-[150vw]' : 'w-full'}`}>
                     
-                    <div className="flex flex-col gap-1 w-full min-w-0">
-                      {dayEvents.map(event => {
-                         const band = bands.find(b => b.id === event.bandId);
-                         
-                         // Determine color based on status
-                         let statusColor = "bg-slate-700 border-slate-600";
-                         if (event.status === EventStatus.CONFIRMED) statusColor = "bg-green-600/90 border-green-500";
-                         if (event.status === EventStatus.RESERVED) statusColor = "bg-yellow-600/90 border-yellow-500";
-                         if (event.status === EventStatus.CANCELED) statusColor = "bg-red-600/90 border-red-500";
-                         
-                         return (
-                          <div 
-                            key={event.id}
-                            onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                            className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
-                            title={`${event.time} - ${event.name}`}
-                          >
-                             <div className={`flex ${zoomLevel === 0 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
-                               <div className={`${timeClass} whitespace-nowrap`}>
-                                 {event.time}
-                               </div>
-                               <div className={`${titleClass} break-words`}>
-                                 {event.name}
-                               </div>
-                             </div>
+                    {/* Week Days Header - Sticky */}
+                    <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 shrink-0 sticky top-0 z-20 shadow-md">
+                        {weekDays.map(day => (
+                            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-900">
+                                {day}
+                            </div>
+                        ))}
+                    </div>
 
-                             {showDetails && (
-                               <div className={`mt-1 ${zoomLevel === 2 ? 'space-y-1' : ''}`}>
-                                 <div className={`text-[10px] opacity-90 leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs' : ''}`}>
-                                    {zoomLevel === 2 && <MapPin size={10} />}
-                                    {event.city}
-                                 </div>
-                                 <div className={`text-[10px] opacity-75 italic leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs not-italic' : ''}`}>
-                                    {zoomLevel === 2 && <Music size={10} />}
-                                    {band?.name}
-                                 </div>
-                               </div>
-                             )}
+                    {/* Calendar Grid - SCROLLABLE with Dynamic Rows */}
+                    <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px">
+                    {/* Empty cells for previous month */}
+                    {Array.from({ length: firstDay }).map((_, i) => (
+                        <div key={`empty-${i}`} className={`bg-slate-950/50 ${zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]'} transition-all duration-300`}></div>
+                    ))}
 
-                             {showExtras && (
-                               <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
-                                  {event.venue && (
-                                    <div className="text-[10px] bg-black/20 p-1 rounded flex items-start gap-1">
-                                       <MapPin size={10} className="mt-0.5 shrink-0" /> 
-                                       <span className="leading-tight">{event.venue}</span>
+                    {/* Days of current month */}
+                    {Array.from({ length: days }).map((_, i) => {
+                        const dayNum = i + 1;
+                        // Construct date string YYYY-MM-DD
+                        const d = String(dayNum).padStart(2, '0');
+                        const m = String(month + 1).padStart(2, '0');
+                        const dateStr = `${year}-${m}-${d}`;
+
+                        // Strict string comparison to find events
+                        const dayEvents = filteredEvents.filter(e => {
+                        if (!e.date) return false;
+                        const eventDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
+                        return eventDate === dateStr;
+                        });
+
+                        const isToday = new Date().toISOString().split('T')[0] === dateStr;
+
+                        // Define zoom-dependent classes
+                        let cellMinHeight = 'min-h-[120px]';
+                        let cardPadding = 'p-1.5';
+                        let cardGap = 'gap-0.5';
+                        let showDetails = true;
+                        let showExtras = false;
+                        let titleClass = 'text-xs font-semibold';
+                        let timeClass = 'text-xs font-bold';
+                        
+                        if (zoomLevel === 0) { // Compact
+                            cellMinHeight = 'min-h-[80px]';
+                            cardPadding = 'p-0.5';
+                            cardGap = 'gap-1';
+                            showDetails = false;
+                            titleClass = 'text-[10px] leading-tight truncate';
+                            timeClass = 'text-[10px] font-bold';
+                        } else if (zoomLevel === 2) { // Detailed
+                            cellMinHeight = 'min-h-[200px]';
+                            cardPadding = 'p-3';
+                            cardGap = 'gap-2';
+                            showExtras = true;
+                            // Whitespace normal allows text wrapping when width is expanded
+                            titleClass = 'text-sm font-bold leading-tight whitespace-normal';
+                            timeClass = 'text-sm font-bold bg-black/20 px-1.5 py-0.5 rounded';
+                        }
+
+                        return (
+                        <div 
+                            key={dayNum} 
+                            onClick={() => handleDayClick(dayNum)}
+                            className={`bg-slate-950 ${cellMinHeight} h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
+                        >
+                            <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
+                            {dayNum} {isToday && '(Hoje)'}
+                            </span>
+                            
+                            <div className="flex flex-col gap-1 w-full min-w-0">
+                            {dayEvents.map(event => {
+                                const band = bands.find(b => b.id === event.bandId);
+                                
+                                // Determine color based on status
+                                let statusColor = "bg-slate-700 border-slate-600";
+                                if (event.status === EventStatus.CONFIRMED) statusColor = "bg-green-600/90 border-green-500";
+                                if (event.status === EventStatus.RESERVED) statusColor = "bg-yellow-600/90 border-yellow-500";
+                                if (event.status === EventStatus.CANCELED) statusColor = "bg-red-600/90 border-red-500";
+                                
+                                return (
+                                <div 
+                                    key={event.id}
+                                    onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
+                                    className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
+                                    title={`${event.time} - ${event.name}`}
+                                >
+                                    <div className={`flex ${zoomLevel === 0 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
+                                    <div className={`${timeClass} whitespace-nowrap`}>
+                                        {event.time}
                                     </div>
-                                  )}
-                                  {event.contractor && (
-                                     <div className="text-[10px] bg-black/20 p-1 rounded flex items-center gap-1">
-                                        <UserIcon size={10} className="shrink-0" />
-                                        <span className="truncate">{event.contractor}</span>
-                                     </div>
-                                  )}
-                                  <div className="flex justify-end">
-                                     <StatusBadge status={event.status} />
-                                  </div>
-                               </div>
-                             )}
-                          </div>
-                         )
-                      })}
-                    </div>
+                                    <div className={`${titleClass} break-words`}>
+                                        {event.name}
+                                    </div>
+                                    </div>
 
-                    {/* Add button on hover */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <Plus size={14} className="text-primary-500" />
+                                    {showDetails && (
+                                    <div className={`mt-1 ${zoomLevel === 2 ? 'space-y-1' : ''}`}>
+                                        <div className={`text-[10px] opacity-90 leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs' : ''}`}>
+                                            {zoomLevel === 2 && <MapPin size={10} />}
+                                            {event.city}
+                                        </div>
+                                        <div className={`text-[10px] opacity-75 italic leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs not-italic' : ''}`}>
+                                            {zoomLevel === 2 && <Music size={10} />}
+                                            {band?.name}
+                                        </div>
+                                    </div>
+                                    )}
+
+                                    {showExtras && (
+                                    <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
+                                        {event.venue && (
+                                            <div className="text-[10px] bg-black/20 p-1 rounded flex items-start gap-1">
+                                            <MapPin size={10} className="mt-0.5 shrink-0" /> 
+                                            <span className="leading-tight">{event.venue}</span>
+                                            </div>
+                                        )}
+                                        {event.contractor && (
+                                            <div className="text-[10px] bg-black/20 p-1 rounded flex items-center gap-1">
+                                                <UserIcon size={10} className="shrink-0" />
+                                                <span className="truncate">{event.contractor}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-end">
+                                            <StatusBadge status={event.status} />
+                                        </div>
+                                    </div>
+                                    )}
+                                </div>
+                                )
+                            })}
+                            </div>
+
+                            {/* Add button on hover */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Plus size={14} className="text-primary-500" />
+                            </div>
+                        </div>
+                        );
+                    })}
                     </div>
-                  </div>
-                );
-              })}
+                </div>
             </div>
           </div>
         )}
