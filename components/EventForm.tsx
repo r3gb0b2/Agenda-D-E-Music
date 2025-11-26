@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Band, Event, EventStatus, Contractor } from '../types';
-import { X, Calculator, Sparkles, User, Phone, MapPin, Mail } from 'lucide-react';
+import { Band, Event, EventStatus, Contractor, User } from '../types';
+import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
 
 interface EventFormProps {
   bands: Band[];
   contractors: Contractor[];
   existingEvent?: Event | null;
+  currentUser: User | null;
   initialDate?: string;
   initialBandId?: string;
   onSave: (event: Event) => void;
   onClose: () => void;
 }
 
-const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, initialDate, initialBandId, onSave, onClose }) => {
+const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, currentUser, initialDate, initialBandId, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'financials' | 'ai'>('details');
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
@@ -42,7 +43,12 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
       taxes: 0,
       netValue: 0,
       currency: 'BRL'
-    }
+    },
+    // Keep existing createdBy or set new
+    createdBy: existingEvent?.createdBy || currentUser?.name || 'Sistema',
+    createdAt: existingEvent?.createdAt || new Date().toISOString(),
+    // Keep existing or default to false (pending contract) for new events
+    hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false 
   });
 
   // Atualiza infos do contratante se já houver um nome preenchido (edição)
@@ -122,9 +128,14 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
       <div className="bg-slate-900 w-full max-w-3xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up">
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-950">
-          <h2 className="text-xl font-bold text-white">
-            {existingEvent ? 'Editar Evento' : 'Novo Evento'}
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold text-white">
+              {existingEvent ? 'Editar Evento' : 'Novo Evento'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Criado por: <span className="text-slate-300">{formData.createdBy}</span> em {new Date(formData.createdAt).toLocaleDateString()}
+            </p>
+          </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <X size={24} />
           </button>
@@ -260,15 +271,38 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Status</label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => handleChange('status', e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-400 mb-1">Status</label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => handleChange('status', e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                      >
+                        {Object.values(EventStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Checkbox de Contrato */}
+                    <div 
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${formData.hasContract ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/10 border-red-500/30'}`}
+                      onClick={() => handleChange('hasContract', !formData.hasContract)}
                     >
-                      {Object.values(EventStatus).map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                      <div className={`p-2 rounded-full ${formData.hasContract ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                        {formData.hasContract ? <FileCheck size={18} /> : <FileWarning size={18} />}
+                      </div>
+                      <div className="flex-1">
+                        <span className={`block font-medium ${formData.hasContract ? 'text-green-400' : 'text-red-400'}`}>
+                          {formData.hasContract ? 'Contrato Recebido' : 'Contrato Pendente'}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {formData.hasContract ? 'Documentação ok' : 'O contratante não enviou o contrato'}
+                        </span>
+                      </div>
+                      <div className={`w-10 h-6 rounded-full relative transition-colors ${formData.hasContract ? 'bg-green-500' : 'bg-slate-600'}`}>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.hasContract ? 'left-5' : 'left-1'}`} />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -276,7 +310,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                 {selectedContractorInfo && (
                   <div className="mt-4 p-3 bg-slate-900 rounded border border-slate-800 flex flex-col gap-2 animate-fade-in">
                     <div className="flex items-center gap-2 text-primary-400 font-medium text-sm">
-                      <User size={14} /> 
+                      <UserIcon size={14} /> 
                       <span>{selectedContractorInfo.responsibleName || 'Responsável não informado'}</span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-400">

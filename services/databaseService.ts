@@ -106,7 +106,11 @@ const sanitizeEvent = (data: any, id: string): Event => {
     contractor: data?.contractor || '',
     notes: data?.notes || '',
     status: data?.status || EventStatus.RESERVED,
-    financials: safeFinancials
+    financials: safeFinancials,
+    // New fields defaults
+    createdBy: data?.createdBy || 'Sistema',
+    createdAt: data?.createdAt || new Date().toISOString(),
+    hasContract: data?.hasContract !== undefined ? data.hasContract : true // Default to true for old events to avoid mass warnings, or false if strict
   } as Event;
 };
 

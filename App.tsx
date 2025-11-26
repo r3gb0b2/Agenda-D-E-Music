@@ -1,4 +1,4 @@
-import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
+import React, { Component, useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -31,7 +31,11 @@ import {
   User as UserIcon,
   ZoomIn,
   ZoomOut,
-  X
+  X,
+  History,
+  Ban,
+  FileWarning,
+  FileCheck
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -44,15 +48,22 @@ const StatusBadge = ({ status, minimal = false }: { status: EventStatus, minimal
     [EventStatus.COMPLETED]: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   };
 
+  const labels = {
+    [EventStatus.CONFIRMED]: 'Confirmado',
+    [EventStatus.RESERVED]: 'Reservado',
+    [EventStatus.CANCELED]: 'Cancelado',
+    [EventStatus.COMPLETED]: 'Realizado',
+  };
+
   if (minimal) {
     return (
-       <div className={`w-2.5 h-2.5 rounded-full ${styles[status].replace('bg-', 'bg-').split(' ')[0]} border border-white/10`} title={status} />
+       <div className={`w-2.5 h-2.5 rounded-full ${styles[status].replace('bg-', 'bg-').split(' ')[0]} border border-white/10`} title={labels[status]} />
     );
   }
 
   return (
     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status]}`}>
-      {status}
+      {labels[status]}
     </span>
   );
 };
@@ -67,7 +78,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null
@@ -316,10 +327,102 @@ const AppContent: React.FC = () => {
     const confirmedCount = visibleEvents.filter(e => e.status === EventStatus.CONFIRMED).length;
     const reservedCount = visibleEvents.filter(e => e.status === EventStatus.RESERVED).length;
 
+    // Logic for "Latest Updates"
+    const latestEvents = [...visibleEvents]
+       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+       .slice(0, 5);
+
+    // Logic for "Canceled Events"
+    const canceledEvents = visibleEvents.filter(e => e.status === EventStatus.CANCELED)
+       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+       .slice(0, 5);
+
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
         
-        {/* Bandas Section - Lista Simples */}
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-slate-500 text-xs uppercase font-semibold">Total de Shows</p>
+             <p className="text-2xl font-bold text-white mt-1">{visibleEvents.length}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-green-500/80 text-xs uppercase font-semibold">Confirmados</p>
+             <p className="text-2xl font-bold text-white mt-1">{confirmedCount}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-yellow-500/80 text-xs uppercase font-semibold">Reservados</p>
+             <p className="text-2xl font-bold text-white mt-1">{reservedCount}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-blue-500/80 text-xs uppercase font-semibold">Cidades</p>
+             <p className="text-2xl font-bold text-white mt-1">{new Set(visibleEvents.map(e => e.city)).size}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Últimas Adições */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+               <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                 <History className="text-primary-400" size={20} /> Últimas Atualizações
+               </h3>
+               <div className="space-y-3">
+                 {latestEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhuma atividade recente.</p> : (
+                   latestEvents.map(event => {
+                     const band = bands.find(b => b.id === event.bandId);
+                     return (
+                       <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900 rounded border border-slate-800 hover:border-slate-600 cursor-pointer transition-colors">
+                          <div className="flex justify-between items-start">
+                             <div>
+                                <span className="text-xs text-primary-400 font-bold uppercase">{band?.name}</span>
+                                <h4 className="text-white text-sm font-medium">{event.name}</h4>
+                                <p className="text-xs text-slate-500">{new Date(event.date).toLocaleDateString()} - {event.city}</p>
+                             </div>
+                             <div className="text-right">
+                                <StatusBadge status={event.status} minimal />
+                             </div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-slate-800 text-xs text-slate-500 flex justify-between items-center">
+                             <span>Adicionado por: <span className="text-slate-300">{event.createdBy}</span></span>
+                             <span>{new Date(event.createdAt).toLocaleDateString()}</span>
+                          </div>
+                       </div>
+                     )
+                   })
+                 )}
+               </div>
+            </div>
+
+            {/* Cancelados */}
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
+               <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                 <Ban className="text-red-400" size={20} /> Shows Cancelados Recentemente
+               </h3>
+               <div className="space-y-3">
+                 {canceledEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhum show cancelado.</p> : (
+                   canceledEvents.map(event => {
+                     const band = bands.find(b => b.id === event.bandId);
+                     return (
+                       <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900/50 rounded border border-red-900/20 hover:border-red-900/50 cursor-pointer transition-colors">
+                          <div className="flex justify-between items-center">
+                             <div>
+                                <span className="text-xs text-slate-400">{band?.name}</span>
+                                <h4 className="text-slate-300 text-sm font-medium line-through">{event.name}</h4>
+                                <p className="text-xs text-slate-500">{new Date(event.date).toLocaleDateString()}</p>
+                             </div>
+                             <div className="text-xs text-red-500 font-bold uppercase border border-red-900/30 px-2 py-0.5 rounded">
+                                Cancelado
+                             </div>
+                          </div>
+                       </div>
+                     )
+                   })
+                 )}
+               </div>
+            </div>
+        </div>
+
+        {/* Bandas Section */}
         <div>
            <div className="flex justify-between items-center mb-4">
              <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -350,86 +453,12 @@ const AppContent: React.FC = () => {
                  </div>
                ))}
                
-               {visibleBands.length === 0 && currentUser?.role !== UserRole.ADMIN && (
+               {visibleBands.length === 0 && (
                  <p className="p-6 text-slate-500 text-center">
-                   Você ainda não foi vinculado a nenhuma banda.
-                 </p>
-               )}
-                {visibleBands.length === 0 && currentUser?.role === UserRole.ADMIN && (
-                 <p className="p-6 text-slate-500 text-center">
-                   Nenhuma banda cadastrada.
+                   {currentUser?.role === UserRole.ADMIN ? 'Nenhuma banda cadastrada.' : 'Você ainda não foi vinculado a nenhuma banda.'}
                  </p>
                )}
              </div>
-           </div>
-        </div>
-
-        {/* Stats Row */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-             <p className="text-slate-500 text-xs uppercase font-semibold">Total de Shows</p>
-             <p className="text-2xl font-bold text-white mt-1">{visibleEvents.length}</p>
-          </div>
-          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-             <p className="text-green-500/80 text-xs uppercase font-semibold">Confirmados</p>
-             <p className="text-2xl font-bold text-white mt-1">{confirmedCount}</p>
-          </div>
-          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-             <p className="text-yellow-500/80 text-xs uppercase font-semibold">Reservados</p>
-             <p className="text-2xl font-bold text-white mt-1">{reservedCount}</p>
-          </div>
-          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-             <p className="text-blue-500/80 text-xs uppercase font-semibold">Cidades</p>
-             <p className="text-2xl font-bold text-white mt-1">{new Set(visibleEvents.map(e => e.city)).size}</p>
-          </div>
-        </div>
-
-        {/* Upcoming Events */}
-        <div>
-           <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <CalendarDays className="text-accent-500" /> Próximos Eventos
-              </h3>
-              <button onClick={() => setCurrentView('agenda')} className="text-sm text-slate-400 hover:text-white">
-                Ver Agenda Completa
-              </button>
-           </div>
-           
-           <div className="space-y-3">
-             {visibleEvents.length === 0 ? (
-               <div className="text-center py-12 bg-slate-950 border border-slate-800 rounded-xl">
-                  <CalendarDays size={48} className="mx-auto text-slate-700 mb-3" />
-                  <p className="text-slate-400">Nenhum evento agendado.</p>
-                  <button onClick={() => { setEditingEvent(null); setEditingContractor(null); setIsFormOpen(true); }} className="mt-4 text-primary-400 text-sm hover:underline">
-                    + Criar primeiro evento
-                  </button>
-               </div>
-             ) : (
-               visibleEvents.slice(0, 5).map(event => {
-                 const band = bands.find(b => b.id === event.bandId);
-                 return (
-                   <div key={event.id} onClick={() => openEditEvent(event)} className="flex items-center justify-between bg-slate-950 border border-slate-800 p-4 rounded-lg hover:border-slate-600 transition-all cursor-pointer group">
-                     <div className="flex items-center gap-4">
-                       <div className="bg-slate-900 w-14 h-14 rounded-lg flex flex-col items-center justify-center text-slate-400 border border-slate-800 group-hover:border-slate-600 group-hover:bg-slate-800 transition-colors">
-                         <span className="text-xs font-bold uppercase">{event.date ? new Date(event.date + 'T00:00:00').toLocaleString('pt-BR', { month: 'short' }) : '--'}</span>
-                         <span className="text-xl font-bold text-white">{event.date ? event.date.split('-')[2] : '--'}</span>
-                       </div>
-                       <div>
-                         <h4 className="text-white font-medium text-lg">{event.name}</h4>
-                         <div className="flex flex-col md:flex-row md:items-center md:gap-3 text-sm text-slate-500">
-                           <span className="flex items-center gap-1"><MapPin size={12}/> {event.city}</span>
-                           <span className="hidden md:inline">•</span>
-                           <span className="text-primary-400">{band?.name}</span>
-                         </div>
-                       </div>
-                     </div>
-                     <div className="flex items-center gap-4">
-                        <StatusBadge status={event.status} />
-                     </div>
-                   </div>
-                 );
-               })
-             )}
            </div>
         </div>
       </div>
@@ -492,14 +521,23 @@ const AppContent: React.FC = () => {
                          <h4 className="text-white font-bold text-base mb-1">{band?.name || 'Banda Desconhecida'}</h4>
                          <p className="text-slate-300 text-sm mb-2">{event.name}</p>
                          
-                         {(event.venue || event.city) && (
-                           <div className="flex items-center gap-2 text-xs text-slate-500 bg-black/20 p-1.5 rounded">
-                              <MapPin size={12} /> {event.venue ? `${event.venue}, ` : ''}{event.city}
-                           </div>
-                         )}
-                         
-                         <div className="mt-2 flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-xs text-primary-400 flex items-center gap-1">Editar <Edit2 size={10}/></span>
+                         <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                           {(event.venue || event.city) && (
+                             <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded">
+                                <MapPin size={12} /> {event.venue ? `${event.venue}, ` : ''}{event.city}
+                             </div>
+                           )}
+                           
+                           {!event.hasContract && event.status !== EventStatus.CANCELED && (
+                             <div className="flex items-center gap-1 bg-red-900/20 text-red-400 p-1.5 rounded border border-red-900/30">
+                               <FileWarning size={12} /> Sem contrato
+                             </div>
+                           )}
+                         </div>
+
+                         <div className="mt-3 pt-2 border-t border-white/5 text-[10px] text-slate-600 flex justify-between">
+                            <span>Add: {event.createdBy}</span>
+                            <span className="text-primary-400 group-hover:underline flex items-center gap-1">Editar <Edit2 size={10}/></span>
                          </div>
                       </div>
                    )
@@ -786,10 +824,22 @@ const AppContent: React.FC = () => {
                                                 <span className="truncate">{event.contractor}</span>
                                             </div>
                                         )}
-                                        <div className="flex justify-end">
+                                        <div className="flex justify-end gap-1">
+                                            {!event.hasContract && event.status !== EventStatus.CANCELED && (
+                                                <div title="Contrato não enviado" className="bg-red-500 text-white rounded-full p-0.5">
+                                                    <FileWarning size={10} />
+                                                </div>
+                                            )}
                                             <StatusBadge status={event.status} />
                                         </div>
                                     </div>
+                                    )}
+                                    
+                                    {/* Compact mode indicator for no contract */}
+                                    {zoomLevel !== 2 && !event.hasContract && event.status !== EventStatus.CANCELED && (
+                                        <div className="absolute top-0.5 right-0.5 text-red-300">
+                                            <FileWarning size={10} />
+                                        </div>
                                     )}
                                 </div>
                                 )
@@ -820,6 +870,7 @@ const AppContent: React.FC = () => {
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Local</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Banda</th>
+                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Contrato</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>
                   </tr>
@@ -827,7 +878,7 @@ const AppContent: React.FC = () => {
                 <tbody className="divide-y divide-slate-800">
                   {filteredEvents.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-500">
+                      <td colSpan={7} className="p-8 text-center text-slate-500">
                         Nenhum evento encontrado.
                       </td>
                     </tr>
@@ -840,12 +891,22 @@ const AppContent: React.FC = () => {
                              {event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('pt-BR') : '--'}
                              <div className="text-xs text-slate-600">{event.time}</div>
                           </td>
-                          <td className="p-4 text-white font-medium">{event.name}</td>
+                          <td className="p-4 text-white font-medium">
+                            {event.name}
+                            <div className="text-xs text-slate-600">Criado por: {event.createdBy}</div>
+                          </td>
                           <td className="p-4 text-slate-400">
                              {event.city}
                              <div className="text-xs text-slate-600">{event.venue}</div>
                           </td>
                           <td className="p-4 text-primary-400 text-sm">{band?.name}</td>
+                          <td className="p-4 text-center">
+                             {!event.hasContract ? (
+                               <span title="Pendente" className="text-red-400 flex justify-center"><FileWarning size={16} /></span>
+                             ) : (
+                               <span title="Ok" className="text-green-500/50 flex justify-center"><FileCheck size={16} /></span>
+                             )}
+                          </td>
                           <td className="p-4 text-center">
                             <StatusBadge status={event.status} />
                           </td>
@@ -1100,6 +1161,7 @@ const AppContent: React.FC = () => {
           bands={getVisibleBands()} 
           contractors={contractors}
           existingEvent={editingEvent}
+          currentUser={currentUser}
           initialDate={newEventDate} // Pass calendar click date
           initialBandId={selectedBandFilter || undefined} // Pass active filter band
           onSave={handleSaveEvent}

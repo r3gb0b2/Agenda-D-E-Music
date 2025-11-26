@@ -54,6 +54,10 @@ export interface Event {
   notes: string;
   status: EventStatus;
   financials: Financials;
+  // New fields
+  createdBy: string; // Name of the user who created
+  createdAt: string; // ISO String of creation timestamp
+  hasContract: boolean; // If false, shows warning that contract is missing
 }
 
 export interface Contractor {
