@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -76,10 +75,13 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -661,14 +663,14 @@ const AppContent: React.FC = () => {
                     <button 
                       onClick={() => setZoomLevel(1)}
                       className={`p-2 rounded transition-all ${zoomLevel === 1 ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
-                      title="Zoom Out (Visão Geral)"
+                      title="Zoom Normal"
                     >
                       <ZoomOut size={18} />
                     </button>
                     <button 
                       onClick={() => setZoomLevel(2)}
                       className={`p-2 rounded transition-all ${zoomLevel === 2 ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
-                      title="Zoom In (Detalhes)"
+                      title="Super Zoom (200%)"
                     >
                       <ZoomIn size={18} />
                     </button>
@@ -738,12 +740,13 @@ const AppContent: React.FC = () => {
         {viewMode === 'calendar' ? (
           <div className="flex-1 overflow-auto bg-slate-950 border border-slate-800 rounded-xl shadow-inner relative custom-scrollbar">
             {/* The Grid Container - Responsive based on Zoom Level */}
-            <div className={`${zoomLevel === 2 ? 'min-w-[1500px]' : 'w-full'}`}>
+            {/* ZOOM LEVEL 2: 200% WIDTH (Double Screen Width) */}
+            <div className={`${zoomLevel === 2 ? 'min-w-[200%]' : 'w-full'}`}>
               
               {/* Header Row (Days of Week) - Sticky */}
               <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
                  {weekDays.map(day => (
-                   <div key={day} className="py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-800 last:border-0">
+                   <div key={day} className={`py-2 text-center font-bold text-slate-500 uppercase tracking-wider border-r border-slate-800 last:border-0 ${zoomLevel === 2 ? 'text-sm' : 'text-xs'}`}>
                      {day}
                    </div>
                  ))}
@@ -753,7 +756,7 @@ const AppContent: React.FC = () => {
                <div className="grid grid-cols-7 auto-rows-fr">
                   {/* Empty cells for start of month */}
                   {Array.from({ length: firstDay }).map((_, i) => (
-                     <div key={`empty-${i}`} className={`bg-slate-900/30 border-b border-r border-slate-800/50 ${zoomLevel === 2 ? 'min-h-[160px]' : 'min-h-[100px]'}`} />
+                     <div key={`empty-${i}`} className={`bg-slate-900/30 border-b border-r border-slate-800/50 ${zoomLevel === 2 ? 'min-h-[250px]' : 'min-h-[100px]'}`} />
                   ))}
 
                   {/* Actual Days */}
@@ -770,10 +773,10 @@ const AppContent: React.FC = () => {
                           className={`
                             border-b border-r border-slate-800 relative p-2 transition-colors hover:bg-slate-900 cursor-pointer group 
                             ${isToday ? 'bg-primary-900/10' : ''}
-                            ${zoomLevel === 2 ? 'min-h-[160px]' : 'min-h-[100px]'}
+                            ${zoomLevel === 2 ? 'min-h-[250px]' : 'min-h-[100px]'}
                           `}
                         >
-                           <div className={`text-xs font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-500'}`}>
+                           <div className={`font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-500'} ${zoomLevel === 2 ? 'text-xl' : 'text-xs'}`}>
                               {dayNum} {isToday && '(Hoje)'}
                            </div>
                            
@@ -782,20 +785,26 @@ const AppContent: React.FC = () => {
                               {dayEvents.map(event => {
                                  const band = bands.find(b => b.id === event.bandId);
                                  return (
-                                    <div key={event.id} className="text-[10px] p-1.5 rounded border border-slate-700 bg-slate-800/50 hover:border-slate-500 transition-colors overflow-hidden">
+                                    <div 
+                                      key={event.id} 
+                                      className={`
+                                        rounded border border-slate-700 bg-slate-800/50 hover:border-slate-500 transition-colors overflow-hidden
+                                        ${zoomLevel === 2 ? 'text-sm p-2 mb-2 shadow-sm' : 'text-[10px] p-1.5'}
+                                      `}
+                                    >
                                        <div className="flex justify-between items-center gap-1">
                                           <span className="font-bold text-white truncate">{event.time} - {band?.name}</span>
                                        </div>
                                        
                                        {/* Extended details only if Zoom is Level 2 (High Res) */}
                                        {zoomLevel === 2 && (
-                                         <div className="mt-1 space-y-0.5">
+                                         <div className="mt-1 space-y-1">
                                             <div className="text-slate-400 truncate flex items-center gap-1">
-                                              <MapPin size={8}/> {event.venue || event.city}
+                                              <MapPin size={12}/> {event.venue || event.city}
                                             </div>
                                             {!event.hasContract && event.status !== EventStatus.CANCELED && (
-                                              <div className="text-red-400 text-[9px] flex items-center gap-1">
-                                                <FileWarning size={8}/> Sem Contrato
+                                              <div className="text-red-400 text-xs flex items-center gap-1 font-medium bg-red-950/30 p-1 rounded">
+                                                <FileWarning size={12}/> Sem Contrato
                                               </div>
                                             )}
                                          </div>
@@ -808,9 +817,9 @@ const AppContent: React.FC = () => {
                                     </div>
                                  )
                               })}
-                              {dayEvents.length > (zoomLevel === 2 ? 5 : 3) && (
-                                 <div className="text-[9px] text-center text-slate-500 font-medium">
-                                   + {dayEvents.length - (zoomLevel === 2 ? 5 : 3)} mais
+                              {dayEvents.length > (zoomLevel === 2 ? 6 : 3) && (
+                                 <div className={`text-slate-500 font-medium text-center ${zoomLevel === 2 ? 'text-xs mt-2' : 'text-[9px]'}`}>
+                                   + {dayEvents.length - (zoomLevel === 2 ? 6 : 3)} mais
                                  </div>
                               )}
                            </div>
@@ -823,9 +832,12 @@ const AppContent: React.FC = () => {
                                 setEditingEvent(null);
                                 setIsFormOpen(true);
                              }}
-                             className="absolute bottom-2 right-2 p-1 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg"
+                             className={`
+                               absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg
+                               ${zoomLevel === 2 ? 'p-3' : 'p-1'}
+                             `}
                            >
-                             <Plus size={14} />
+                             <Plus size={zoomLevel === 2 ? 20 : 14} />
                            </button>
                         </div>
                      );
