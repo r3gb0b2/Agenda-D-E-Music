@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase, FileText } from 'lucide-react';
+import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -57,13 +56,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
           <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem view="agenda" icon={Calendar} label="Agenda" />
           <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
-          
-          {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACTS) && (
-            <>
-              <div className="my-2 border-t border-slate-800/50"></div>
-              <NavItem view="contracts_library" icon={FileText} label="Contratos Enviados" />
-              <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
-            </>
+          {userRole === UserRole.ADMIN && (
+             <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
           )}
         </nav>
 
@@ -107,13 +101,8 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem view="agenda" icon={Calendar} label="Agenda" />
             <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
-            
-            {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACTS) && (
-              <>
-                <div className="my-2 border-t border-slate-800/50"></div>
-                <NavItem view="contracts_library" icon={FileText} label="Contratos Enviados" />
-                <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
-              </>
+            {userRole === UserRole.ADMIN && (
+               <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
             )}
             
             <div className="mt-8 border-t border-slate-800 pt-4">

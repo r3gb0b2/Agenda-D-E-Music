@@ -1,8 +1,6 @@
-
 import React, { useState } from 'react';
 import { User, UserRole, Band } from '../types';
 import { X, Save, User as UserIcon, Lock, Shield, Music, Eye, EyeOff } from 'lucide-react';
-import { db } from '../services/databaseService';
 
 interface UserFormProps {
   bands: Band[];
@@ -12,13 +10,8 @@ interface UserFormProps {
 }
 
 const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClose }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-
-  // Fetch current user to check permissions
-  React.useEffect(() => {
-     db.getCurrentUser().then(u => setCurrentUser(u));
-  }, []);
-
+  // If editing, we initialize the form with existing data BUT we keep the password field empty
+  // to avoid exposing the hash/password. Logic in handleSubmit handles keeping the old password if this stays empty.
   const [formData, setFormData] = useState<User>(() => {
     if (existingUser) {
       return { ...existingUser, password: '' };
@@ -34,15 +27,6 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
   });
 
   const [showPassword, setShowPassword] = useState(false);
-
-  const isContractManager = currentUser?.role === UserRole.CONTRACTS;
-
-  // If the user is a Contract Manager, enforce VIEWER role for new users
-  React.useEffect(() => {
-     if (isContractManager && !existingUser) {
-        setFormData(prev => ({...prev, role: UserRole.VIEWER}));
-     }
-  }, [isContractManager, existingUser]);
 
   const handleChange = (field: keyof User, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -65,20 +49,20 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
     // Create a copy to modify for save
     const finalUser = { ...formData };
     
-    // Security check: Contract Managers can ONLY create VIEWERS
-    if (isContractManager) {
-        finalUser.role = UserRole.VIEWER;
-    }
-    
+    // Logic for Password on Edit:
+    // If we are editing (existingUser exists) AND the password field is empty,
+    // we assume the user wants to KEEP the existing password.
     if (existingUser && !finalUser.password) {
       finalUser.password = existingUser.password;
     }
 
+    // Validation: New users MUST have a password
     if (!existingUser && !finalUser.password) {
       alert("Por favor, defina uma senha para o novo usuário.");
       return;
     }
 
+    // Sanitize: Trim password to avoid "space at the end" login errors
     if (finalUser.password) {
       finalUser.password = finalUser.password.trim();
     }
@@ -145,35 +129,24 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {existingUser ? "Preencha apenas se desejar alterar a senha." : "Evite espaços no início ou fim."}
+              </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-2 flex items-center gap-2">
                 <Shield size={14}/> Nível de Permissão
               </label>
-              
-              {isContractManager ? (
-                 <div className="p-3 bg-slate-800 rounded border border-slate-700 text-slate-300 text-sm flex items-center gap-2">
-                    <Shield size={16} className="text-primary-500"/>
-                    <div>
-                        <span className="block font-bold text-white">Visualizador</span>
-                        <span className="text-xs text-slate-500">Seu perfil permite criar apenas contas de visualização.</span>
-                    </div>
-                 </div>
-              ) : (
-                <select
-                   value={formData.role}
-                   onChange={(e) => handleChange('role', e.target.value)}
-                   className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
-                >
-                  <option value={UserRole.ADMIN}>Administrador (Acesso Total)</option>
-                  <option value={UserRole.MANAGER}>Gerente Geral</option>
-                  <option value={UserRole.CONTRACTS}>Contratos (Gere Contratos e Visualizadores)</option>
-                  <option value={UserRole.SALES}>Comercial (Cadastra Shows)</option>
-                  <option value={UserRole.MEMBER}>Membro / Músico</option>
-                  <option value={UserRole.VIEWER}>Visualizador (Apenas Disponibilidade)</option>
-                </select>
-              )}
+              <select
+                 value={formData.role}
+                 onChange={(e) => handleChange('role', e.target.value)}
+                 className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+              >
+                <option value={UserRole.MEMBER}>Membro / Músico (Apenas Visualizar)</option>
+                <option value={UserRole.MANAGER}>Gerente (Editar)</option>
+                <option value={UserRole.ADMIN}>Administrador (Acesso Total)</option>
+              </select>
             </div>
 
             <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">

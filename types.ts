@@ -8,11 +8,8 @@ export enum EventStatus {
 
 export enum UserRole {
   ADMIN = 'ADMIN',
-  MANAGER = 'MANAGER',   // Gerente Geral
-  SALES = 'SALES',       // Comercial (Cadastra datas)
-  CONTRACTS = 'CONTRACTS', // Contratos (Gere contratos e users visualizadores)
-  VIEWER = 'VIEWER',     // Visualizador (Só vê disponibilidade)
-  MEMBER = 'MEMBER'      // Músico (Visualização básica)
+  MANAGER = 'MANAGER', // Band Manager
+  MEMBER = 'MEMBER'    // Musician
 }
 
 export enum ContractorType {
@@ -43,13 +40,6 @@ export interface Financials {
   taxes: number; // Absolute value
   netValue: number;
   currency: string;
-  notes?: string; // New field: Informações Adicionais do Financeiro
-}
-
-export interface ContractFile {
-  name: string;
-  url: string; // In mock, this is the filename. In real app, the download URL.
-  uploadedAt: string;
 }
 
 export interface Event {
@@ -70,8 +60,6 @@ export interface Event {
   createdBy: string; // Name of the user who created
   createdAt: string; // ISO String of creation timestamp
   hasContract: boolean; // If false, shows warning that contract is missing
-  contractUrl?: string; // Legacy field (kept for safety)
-  contractFiles: ContractFile[]; // Support multiple files
 }
 
 export interface Contractor {

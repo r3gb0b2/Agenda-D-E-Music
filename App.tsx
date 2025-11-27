@@ -1,7 +1,6 @@
-
-import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
+import React, { Component, useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
-import { Event, Band, User, EventStatus, UserRole, Contractor, ContractFile } from './types';
+import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import ContractorForm from './components/ContractorForm';
@@ -36,16 +35,7 @@ import {
   History,
   Ban,
   FileWarning,
-  FileCheck,
-  EyeOff,
-  FileText,
-  Download,
-  Share2,
-  MessageCircle,
-  Mail,
-  Send,
-  FolderOpen,
-  ChevronDown
+  FileCheck
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -65,18 +55,15 @@ const StatusBadge = ({ status, minimal = false }: { status: EventStatus, minimal
     [EventStatus.COMPLETED]: 'Realizado',
   };
 
-  const style = styles[status] || styles[EventStatus.RESERVED];
-  const label = labels[status] || 'Desconhecido';
-
   if (minimal) {
     return (
-       <div className={`w-2.5 h-2.5 rounded-full ${style.replace('bg-', 'bg-').split(' ')[0]} border border-white/10`} title={label} />
+       <div className={`w-2.5 h-2.5 rounded-full ${styles[status].replace('bg-', 'bg-').split(' ')[0]} border border-white/10`} title={labels[status]} />
     );
   }
 
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${style}`}>
-      {label}
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${styles[status]}`}>
+      {labels[status]}
     </span>
   );
 };
@@ -92,15 +79,12 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public state: ErrorBoundaryState;
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null
-    };
-  }
+  // Fix: Initialize state as a class property. This is a more modern approach
+  // and resolves the TypeScript errors related to 'state' and 'props' not being found.
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -133,104 +117,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// --- Send Modal Component ---
-
-const SendContractModal = ({ 
-  event, 
-  contractor, 
-  onClose 
-}: { 
-  event: Event, 
-  contractor?: Contractor, 
-  onClose: () => void 
-}) => {
-  const [method, setMethod] = useState<'email' | 'whatsapp'>('email');
-
-  const handleSend = () => {
-    // List all files in the message body
-    const fileList = event.contractFiles && event.contractFiles.length > 0 
-        ? event.contractFiles.map(f => `- ${f.name}`).join('\n') 
-        : (event.contractUrl ? `- ${event.contractUrl}` : 'Sem arquivos anexados');
-
-    const messageBase = `Segue em anexo os documentos referentes ao evento ${event.name} do dia ${new Date(event.date).toLocaleDateString()}.\n\nArquivos:\n${fileList}`;
-
-    if (method === 'email') {
-      const subject = `Documentos: ${event.name}`;
-      const body = `Olá ${contractor?.responsibleName || 'Responsável'},\n\n${messageBase}\n\nAtenciosamente,\n${event.createdBy}`;
-      const mailtoLink = `mailto:${contractor?.email || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      window.open(mailtoLink, '_blank');
-    } else {
-      const text = `Olá ${contractor?.responsibleName || ''}, ${messageBase}`;
-      const phone = contractor?.whatsapp?.replace(/\D/g, '') || contractor?.phone?.replace(/\D/g, '') || '';
-      const waLink = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-      window.open(waLink, '_blank');
-    }
-    onClose();
-    alert('Ação de envio iniciada na plataforma externa!');
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 w-full max-w-md rounded-xl border border-slate-700 shadow-2xl overflow-hidden">
-        <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
-           <h3 className="text-white font-bold text-lg flex items-center gap-2">
-             <Share2 size={18} className="text-primary-500"/> Enviar Contrato
-           </h3>
-           <button onClick={onClose}><X size={20} className="text-slate-400 hover:text-white"/></button>
-        </div>
-        <div className="p-6 space-y-4">
-           <p className="text-sm text-slate-400">
-             Selecione como deseja enviar os documentos de <strong>{event.name}</strong> para o contratante.
-           </p>
-           
-           <div className="bg-slate-950 p-3 rounded border border-slate-800 text-xs text-slate-500 mb-2">
-              <strong>Arquivos incluídos:</strong>
-              <ul className="list-disc pl-4 mt-1">
-                  {event.contractFiles.map((f, i) => <li key={i}>{f.name}</li>)}
-              </ul>
-           </div>
-
-           <div className="flex flex-col gap-3">
-             <button 
-               onClick={() => setMethod('email')}
-               className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${method === 'email' ? 'bg-primary-900/20 border-primary-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
-             >
-               <div className={`p-2 rounded-full ${method === 'email' ? 'bg-primary-500 text-white' : 'bg-slate-700'}`}>
-                 <Mail size={18} />
-               </div>
-               <div className="text-left">
-                 <div className="font-medium">E-mail</div>
-                 <div className="text-xs opacity-70">{contractor?.email || 'Email não cadastrado'}</div>
-               </div>
-             </button>
-
-             <button 
-               onClick={() => setMethod('whatsapp')}
-               className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${method === 'whatsapp' ? 'bg-green-900/20 border-green-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
-             >
-               <div className={`p-2 rounded-full ${method === 'whatsapp' ? 'bg-green-500 text-white' : 'bg-slate-700'}`}>
-                 <MessageCircle size={18} />
-               </div>
-               <div className="text-left">
-                 <div className="font-medium">WhatsApp</div>
-                 <div className="text-xs opacity-70">{contractor?.whatsapp || contractor?.phone || 'Telefone não cadastrado'}</div>
-               </div>
-             </button>
-           </div>
-        </div>
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
-           <button 
-             onClick={handleSend}
-             className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
-           >
-             <Send size={16} /> Enviar Agora
-           </button>
-        </div>
-      </div>
-    </div>
-  )
-};
-
 // --- Main App Component ---
 
 const AppContent: React.FC = () => {
@@ -247,11 +133,6 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
-  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
-  
-  // Send Modal State
-  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
-  const [selectedEventForSend, setSelectedEventForSend] = useState<Event | null>(null);
   
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
@@ -264,9 +145,10 @@ const AppContent: React.FC = () => {
   const [newEventDate, setNewEventDate] = useState<string>('');
   const [selectedDateDetails, setSelectedDateDetails] = useState<string | null>(null);
   
-  // Hoisted Agenda State
+  // Hoisted Agenda State (to prevent reset on re-renders)
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  // 0: Compact, 1: Normal, 2: Detailed
   const [zoomLevel, setZoomLevel] = useState(1);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -276,13 +158,6 @@ const AppContent: React.FC = () => {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  // Role Checks
-  const isViewer = currentUser?.role === UserRole.VIEWER;
-  const isSales = currentUser?.role === UserRole.SALES;
-  const isAdmin = currentUser?.role === UserRole.ADMIN;
-  const isContracts = currentUser?.role === UserRole.CONTRACTS;
-  const canManageUsers = isAdmin || isContracts;
 
   // Initial Load & Session Check
   useEffect(() => {
@@ -332,7 +207,7 @@ const AppContent: React.FC = () => {
         setCurrentUser(user);
         setCurrentView('dashboard');
       } else {
-        setLoginError('Credenciais inválidas.');
+        setLoginError('Credenciais inválidas. Tente "admin" / "admin"');
       }
     } catch (err) {
       setLoginError('Erro ao conectar ao sistema.');
@@ -367,7 +242,6 @@ const AppContent: React.FC = () => {
   };
 
   const openEditEvent = (event: Event) => {
-    if (isViewer) return; // Viewers can't edit
     setEditingEvent(event);
     setNewEventDate('');
     setIsFormOpen(true);
@@ -436,7 +310,7 @@ const AppContent: React.FC = () => {
   // --- Filter Logic based on User Role ---
   const getVisibleBands = () => {
     if (!currentUser) return [];
-    if (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CONTRACTS) return bands;
+    if (currentUser.role === UserRole.ADMIN) return bands;
     return bands.filter(b => currentUser.bandIds.includes(b.id));
   };
 
@@ -461,26 +335,23 @@ const AppContent: React.FC = () => {
        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
        .slice(0, 5);
 
-    // Logic for "Upcoming Events"
+    // Logic for "Upcoming Events" (Replaces Canceled List)
     const today = new Date().toISOString().split('T')[0];
     const upcomingEvents = visibleEvents
        .filter(e => e.date >= today && e.status !== EventStatus.CANCELED)
        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
        .slice(0, 5);
 
-    // Stats visibility based on role
-    const showFinancialStats = !isViewer && !isSales;
-
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
         
-        {/* Bandas Section */}
+        {/* Bandas Section (MOVED TO TOP) */}
         <div>
            <div className="flex justify-between items-center mb-4">
              <h2 className="text-xl font-bold text-white flex items-center gap-2">
                <Music className="text-primary-500" /> Minhas Bandas
              </h2>
-             {isAdmin && (
+             {currentUser?.role === UserRole.ADMIN && (
                <button onClick={handleAddBand} className="text-sm text-primary-400 hover:text-white flex items-center gap-1">
                  <Plus size={14} /> Nova Banda
                </button>
@@ -507,7 +378,7 @@ const AppContent: React.FC = () => {
                
                {visibleBands.length === 0 && (
                  <p className="p-6 text-slate-500 text-center">
-                   Você ainda não foi vinculado a nenhuma banda.
+                   {currentUser?.role === UserRole.ADMIN ? 'Nenhuma banda cadastrada.' : 'Você ainda não foi vinculado a nenhuma banda.'}
                  </p>
                )}
              </div>
@@ -515,7 +386,7 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* Stats Row */}
-        <div className={`grid grid-cols-2 ${showFinancialStats ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-slate-500 text-xs uppercase font-semibold">Total de Shows</p>
              <p className="text-2xl font-bold text-white mt-1">{visibleEvents.length}</p>
@@ -524,12 +395,11 @@ const AppContent: React.FC = () => {
              <p className="text-green-500/80 text-xs uppercase font-semibold">Confirmados</p>
              <p className="text-2xl font-bold text-white mt-1">{confirmedCount}</p>
           </div>
-          {showFinancialStats && (
-            <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-               <p className="text-yellow-500/80 text-xs uppercase font-semibold">Reservados</p>
-               <p className="text-2xl font-bold text-white mt-1">{reservedCount}</p>
-            </div>
-          )}
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-yellow-500/80 text-xs uppercase font-semibold">Reservados</p>
+             <p className="text-2xl font-bold text-white mt-1">{reservedCount}</p>
+          </div>
+          {/* Nova Coluna: Cancelados */}
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-red-500/80 text-xs uppercase font-semibold">Cancelados</p>
              <p className="text-2xl font-bold text-white mt-1">{canceledCount}</p>
@@ -541,7 +411,7 @@ const AppContent: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Últimas Adições - For Viewers, hide sensitive info */}
+            {/* Últimas Adições */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                  <History className="text-primary-400" size={20} /> Últimas Atualizações
@@ -550,13 +420,12 @@ const AppContent: React.FC = () => {
                  {latestEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhuma atividade recente.</p> : (
                    latestEvents.map(event => {
                      const band = bands.find(b => b.id === event.bandId);
-                     const displayName = isViewer ? "Data Ocupada" : event.name;
                      return (
                        <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900 rounded border border-slate-800 hover:border-slate-600 cursor-pointer transition-colors">
                           <div className="flex justify-between items-start">
                              <div>
                                 <span className="text-xs text-primary-400 font-bold uppercase">{band?.name}</span>
-                                <h4 className="text-white text-sm font-medium">{displayName}</h4>
+                                <h4 className="text-white text-sm font-medium">{event.name}</h4>
                                 <p className="text-xs text-slate-500">{new Date(event.date).toLocaleDateString()} - {event.city}</p>
                              </div>
                              <div className="text-right">
@@ -574,7 +443,7 @@ const AppContent: React.FC = () => {
                </div>
             </div>
 
-            {/* Próximos Shows */}
+            {/* Próximos Shows (Replaces Canceled) */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                  <CalendarDays className="text-green-400" size={20} /> Próximos Shows
@@ -583,13 +452,12 @@ const AppContent: React.FC = () => {
                  {upcomingEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhum show próximo agendado.</p> : (
                    upcomingEvents.map(event => {
                      const band = bands.find(b => b.id === event.bandId);
-                     const displayName = isViewer ? "Data Ocupada" : event.name;
                      return (
                        <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900/50 rounded border border-green-900/20 hover:border-green-900/50 cursor-pointer transition-colors">
                           <div className="flex justify-between items-center">
                              <div>
                                 <span className="text-xs text-slate-400">{band?.name}</span>
-                                <h4 className="text-white text-sm font-medium">{displayName}</h4>
+                                <h4 className="text-white text-sm font-medium">{event.name}</h4>
                                 <div className="flex gap-2 text-xs text-slate-500">
                                    <span className="flex items-center gap-1"><Clock size={10}/> {event.time}</span>
                                    <span>|</span>
@@ -618,6 +486,7 @@ const AppContent: React.FC = () => {
     const [y, m, d] = selectedDateDetails.split('-');
     const dateObj = new Date(Number(y), Number(m)-1, Number(d));
     
+    // Filter events for this day from all accessible events
     const dayEvents = getVisibleEvents().filter(e => {
        if (!e.date) return false;
        return e.date.split('T')[0] === selectedDateDetails;
@@ -645,13 +514,12 @@ const AppContent: React.FC = () => {
                          <CalendarIcon size={24} className="text-slate-600" />
                       </div>
                       <p className="text-slate-400">Nenhum evento agendado.</p>
-                      {!isViewer && <p className="text-slate-600 text-xs mt-1">Toque em adicionar para criar um novo.</p>}
+                      <p className="text-slate-600 text-xs mt-1">Toque em adicionar para criar um novo.</p>
                    </div>
                 )}
                 
                 {dayEvents.map(event => {
                    const band = bands.find(b => b.id === event.bandId);
-                   const displayName = isViewer ? "Data Ocupada" : event.name;
                    return (
                       <div 
                         key={event.id}
@@ -664,51 +532,46 @@ const AppContent: React.FC = () => {
                             </span>
                             <StatusBadge status={event.status} minimal />
                          </div>
-                         <h4 className="text-white font-bold text-base mb-1">{band?.name || 'Banda'}</h4>
-                         <p className="text-slate-300 text-sm mb-2">{displayName}</p>
+                         <h4 className="text-white font-bold text-base mb-1">{band?.name || 'Banda Desconhecida'}</h4>
+                         <p className="text-slate-300 text-sm mb-2">{event.name}</p>
                          
                          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
                            {(event.venue || event.city) && (
                              <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded">
-                                <MapPin size={12} /> 
-                                {isViewer ? event.city : `${event.venue ? event.venue + ', ' : ''}${event.city}`}
+                                <MapPin size={12} /> {event.venue ? `${event.venue}, ` : ''}{event.city}
                              </div>
                            )}
                            
-                           {!isViewer && !event.hasContract && event.status !== EventStatus.CANCELED && (
+                           {!event.hasContract && event.status !== EventStatus.CANCELED && (
                              <div className="flex items-center gap-1 bg-red-900/20 text-red-400 p-1.5 rounded border border-red-900/30">
                                <FileWarning size={12} /> Sem contrato
                              </div>
                            )}
                          </div>
 
-                         {!isViewer && (
-                            <div className="mt-3 pt-2 border-t border-white/5 text-[10px] text-slate-600 flex justify-between">
-                                <span>Add: {event.createdBy}</span>
-                                <span className="text-primary-400 group-hover:underline flex items-center gap-1">Editar <Edit2 size={10}/></span>
-                            </div>
-                         )}
+                         <div className="mt-3 pt-2 border-t border-white/5 text-[10px] text-slate-600 flex justify-between">
+                            <span>Add: {event.createdBy}</span>
+                            <span className="text-primary-400 group-hover:underline flex items-center gap-1">Editar <Edit2 size={10}/></span>
+                         </div>
                       </div>
                    )
                 })}
              </div>
 
-             {/* Footer - Hide "New Event" for Viewer */}
-             {!isViewer && (
-                <div className="p-4 border-t border-slate-800 bg-slate-950">
-                    <button 
-                    onClick={() => {
-                        setNewEventDate(selectedDateDetails);
-                        setSelectedDateDetails(null);
-                        setEditingEvent(null);
-                        setIsFormOpen(true);
-                    }}
-                    className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all"
-                    >
-                    <Plus size={18} /> Novo Evento
-                    </button>
-                </div>
-             )}
+             {/* Footer */}
+             <div className="p-4 border-t border-slate-800 bg-slate-950">
+                <button 
+                  onClick={() => {
+                     setNewEventDate(selectedDateDetails);
+                     setSelectedDateDetails(null);
+                     setEditingEvent(null);
+                     setIsFormOpen(true);
+                  }}
+                  className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all"
+                >
+                  <Plus size={18} /> Novo Evento
+                </button>
+             </div>
         </div>
       </div>
     );
@@ -751,6 +614,8 @@ const AppContent: React.FC = () => {
       const d = String(dayNum).padStart(2, '0');
       const m = String(month + 1).padStart(2, '0');
       const dateStr = `${year}-${m}-${d}`;
+
+      // Open Day Details Modal instead of Create Form directly
       setSelectedDateDetails(dateStr);
     };
 
@@ -761,62 +626,54 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col gap-4 shrink-0">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
-            {/* Controles */}
+            {/* Controles de Visualização, Zoom e Mês */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
-                  <button onClick={() => setViewMode('calendar')} className={`p-2 rounded transition-all ${viewMode === 'calendar' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}><CalendarIcon size={18} /></button>
-                  <button onClick={() => setViewMode('list')} className={`p-2 rounded transition-all ${viewMode === 'list' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}><List size={18} /></button>
+                  <button 
+                    onClick={() => setViewMode('calendar')}
+                    className={`p-2 rounded transition-all ${viewMode === 'calendar' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <CalendarIcon size={18} />
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('list')}
+                    className={`p-2 rounded transition-all ${viewMode === 'list' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    <List size={18} />
+                  </button>
                </div>
 
                {/* Zoom Controls */}
                {viewMode === 'calendar' && (
                 <div className="flex items-center gap-1 bg-slate-900 rounded-lg p-1 border border-slate-800 ml-0 md:ml-2">
-                    <button onClick={() => setZoomLevel(prev => Math.max(0, prev - 1))} disabled={zoomLevel === 0} className={`p-2 rounded transition-all ${zoomLevel === 0 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><ZoomOut size={18} /></button>
+                    <button 
+                      onClick={() => setZoomLevel(prev => Math.max(0, prev - 1))} 
+                      disabled={zoomLevel === 0}
+                      className={`p-2 rounded transition-all ${zoomLevel === 0 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                      title="Menos Detalhes"
+                    >
+                      <ZoomOut size={18} />
+                    </button>
                     <div className="flex gap-0.5 px-1">
-                       {[0,1,2].map(l => <div key={l} className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === l ? 'bg-primary-500' : 'bg-slate-700'}`} />)}
+                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 0 ? 'bg-primary-500' : 'bg-slate-700'}`} />
+                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 1 ? 'bg-primary-500' : 'bg-slate-700'}`} />
+                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 2 ? 'bg-primary-500' : 'bg-slate-700'}`} />
                     </div>
-                    <button onClick={() => setZoomLevel(prev => Math.min(2, prev + 1))} disabled={zoomLevel === 2} className={`p-2 rounded transition-all ${zoomLevel === 2 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><ZoomIn size={18} /></button>
+                    <button 
+                      onClick={() => setZoomLevel(prev => Math.min(2, prev + 1))} 
+                      disabled={zoomLevel === 2}
+                      className={`p-2 rounded transition-all ${zoomLevel === 2 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
+                      title="Mais Detalhes"
+                    >
+                      <ZoomIn size={18} />
+                    </button>
                 </div>
                )}
 
                {viewMode === 'calendar' && (
-                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2 relative">
+                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2">
                    <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
-                   
-                   {/* Month Picker Dropdown Trigger */}
-                   <div className="relative z-30">
-                      <button 
-                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
-                        className="flex items-center justify-center gap-2 font-semibold text-white min-w-[160px] text-center uppercase tracking-wide hover:bg-slate-800 py-1 px-2 rounded transition-colors"
-                      >
-                        {monthNames[month]} {year}
-                        <ChevronDown size={14} className={`transition-transform ${isMonthPickerOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      
-                      {isMonthPickerOpen && (
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 animate-fade-in z-50">
-                           {/* Year Control */}
-                           <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
-                              <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year - 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={16}/></button>
-                              <span className="font-bold text-white text-lg">{year}</span>
-                              <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year + 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={16}/></button>
-                           </div>
-                           {/* Month Grid */}
-                           <div className="grid grid-cols-3 gap-2">
-                              {monthNames.map((mName, idx) => (
-                                <button
-                                  key={mName}
-                                  onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year, idx, 1)); setIsMonthPickerOpen(false); }}
-                                  className={`text-xs py-2 rounded font-medium transition-colors ${idx === month ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-                                >
-                                  {mName.substring(0, 3)}
-                                </button>
-                              ))}
-                           </div>
-                        </div>
-                      )}
-                   </div>
-
+                   <span className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide">{monthNames[month]} {year}</span>
                    <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
                  </div>
                )}
@@ -833,14 +690,12 @@ const AppContent: React.FC = () => {
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
                 />
               </div>
-              {!isViewer && (
-                <button 
-                    onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
-                    className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
-                >
-                    <Plus size={18} /> <span className="hidden md:inline">Novo Evento</span>
-                </button>
-              )}
+              <button 
+                onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
+                className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
+              >
+                <Plus size={18} /> <span className="hidden md:inline">Novo Evento</span>
+              </button>
             </div>
           </div>
 
@@ -856,38 +711,70 @@ const AppContent: React.FC = () => {
         {/* MODO CALENDÁRIO */}
         {viewMode === 'calendar' && (
           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0 relative">
+            
+            {/* Scroll Container */}
             <div className="flex-1 overflow-auto custom-scrollbar relative">
                 <div className={`flex flex-col min-h-full transition-all duration-300 ease-in-out ${zoomLevel === 2 ? 'min-w-[200vw] md:min-w-[150vw]' : 'w-full'}`}>
                     
+                    {/* Week Days Header - Sticky */}
                     <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 shrink-0 sticky top-0 z-20 shadow-md">
                         {weekDays.map(day => (
-                            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-900">{day}</div>
+                            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-900">
+                                {day}
+                            </div>
                         ))}
                     </div>
 
+                    {/* Calendar Grid - SCROLLABLE with Dynamic Rows */}
                     <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px">
+                    {/* Empty cells for previous month */}
                     {Array.from({ length: firstDay }).map((_, i) => (
                         <div key={`empty-${i}`} className={`bg-slate-950/50 ${zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]'} transition-all duration-300`}></div>
                     ))}
 
+                    {/* Days of current month */}
                     {Array.from({ length: days }).map((_, i) => {
                         const dayNum = i + 1;
+                        // Construct date string YYYY-MM-DD
                         const d = String(dayNum).padStart(2, '0');
                         const m = String(month + 1).padStart(2, '0');
                         const dateStr = `${year}-${m}-${d}`;
+
+                        // Strict string comparison to find events
                         const dayEvents = filteredEvents.filter(e => {
-                           if (!e.date) return false;
-                           return (e.date.includes('T') ? e.date.split('T')[0] : e.date) === dateStr;
+                        if (!e.date) return false;
+                        const eventDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
+                        return eventDate === dateStr;
                         });
 
                         const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
-                        // Zoom sizing
-                        let cellMinHeight = zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]';
-                        let cardPadding = zoomLevel === 0 ? 'p-0.5' : zoomLevel === 2 ? 'p-3' : 'p-1.5';
-                        let titleClass = zoomLevel === 0 ? 'text-[10px] leading-tight truncate' : 'text-xs font-semibold';
-                        if (zoomLevel === 2) titleClass = 'text-sm font-bold leading-tight whitespace-normal';
+                        // Define zoom-dependent classes
+                        let cellMinHeight = 'min-h-[120px]';
+                        let cardPadding = 'p-1.5';
+                        let cardGap = 'gap-0.5';
+                        let showDetails = true;
+                        let showExtras = false;
+                        let titleClass = 'text-xs font-semibold';
+                        let timeClass = 'text-xs font-bold';
                         
+                        if (zoomLevel === 0) { // Compact
+                            cellMinHeight = 'min-h-[80px]';
+                            cardPadding = 'p-0.5';
+                            cardGap = 'gap-1';
+                            showDetails = false;
+                            titleClass = 'text-[10px] leading-tight truncate';
+                            timeClass = 'text-[10px] font-bold';
+                        } else if (zoomLevel === 2) { // Detailed
+                            cellMinHeight = 'min-h-[200px]';
+                            cardPadding = 'p-3';
+                            cardGap = 'gap-2';
+                            showExtras = true;
+                            // Whitespace normal allows text wrapping when width is expanded
+                            titleClass = 'text-sm font-bold leading-tight whitespace-normal';
+                            timeClass = 'text-sm font-bold bg-black/20 px-1.5 py-0.5 rounded';
+                        }
+
                         return (
                         <div 
                             key={dayNum} 
@@ -895,14 +782,14 @@ const AppContent: React.FC = () => {
                             className={`bg-slate-950 ${cellMinHeight} h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
                         >
                             <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
-                              {dayNum} {isToday && '(Hoje)'}
+                            {dayNum} {isToday && '(Hoje)'}
                             </span>
                             
                             <div className="flex flex-col gap-1 w-full min-w-0">
                             {dayEvents.map(event => {
                                 const band = bands.find(b => b.id === event.bandId);
-                                const displayName = isViewer ? "Data Ocupada" : event.name;
                                 
+                                // Determine color based on status
                                 let statusColor = "bg-slate-700 border-slate-600";
                                 if (event.status === EventStatus.CONFIRMED) statusColor = "bg-green-600/90 border-green-500";
                                 if (event.status === EventStatus.RESERVED) statusColor = "bg-yellow-600/90 border-yellow-500";
@@ -913,32 +800,36 @@ const AppContent: React.FC = () => {
                                     key={event.id}
                                     onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
                                     className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
-                                    title={`${event.time} - ${displayName}`}
+                                    title={`${event.time} - ${event.name}`}
                                 >
                                     <div className={`flex ${zoomLevel === 0 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
-                                       <div className="text-[10px] font-bold whitespace-nowrap">{event.time}</div>
-                                       <div className={`${titleClass} break-words`}>{displayName}</div>
+                                    <div className={`${timeClass} whitespace-nowrap`}>
+                                        {event.time}
+                                    </div>
+                                    <div className={`${titleClass} break-words`}>
+                                        {event.name}
+                                    </div>
                                     </div>
 
-                                    {zoomLevel > 0 && (
+                                    {showDetails && (
                                     <div className={`mt-1 ${zoomLevel === 2 ? 'space-y-1' : ''}`}>
-                                        <div className="text-[10px] opacity-90 leading-tight flex items-center gap-1">
+                                        <div className={`text-[10px] opacity-90 leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs' : ''}`}>
                                             {zoomLevel === 2 && <MapPin size={10} />}
                                             {event.city}
                                         </div>
-                                        <div className="text-[10px] opacity-75 italic leading-tight flex items-center gap-1">
+                                        <div className={`text-[10px] opacity-75 italic leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs not-italic' : ''}`}>
                                             {zoomLevel === 2 && <Music size={10} />}
                                             {band?.name}
                                         </div>
                                     </div>
                                     )}
 
-                                    {zoomLevel === 2 && !isViewer && (
+                                    {showExtras && (
                                     <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
                                         {event.venue && (
                                             <div className="text-[10px] bg-black/20 p-1 rounded flex items-start gap-1">
-                                                <MapPin size={10} className="mt-0.5 shrink-0" /> 
-                                                <span className="leading-tight">{event.venue}</span>
+                                            <MapPin size={10} className="mt-0.5 shrink-0" /> 
+                                            <span className="leading-tight">{event.venue}</span>
                                             </div>
                                         )}
                                         {event.contractor && (
@@ -949,24 +840,30 @@ const AppContent: React.FC = () => {
                                         )}
                                         <div className="flex justify-end gap-1">
                                             {!event.hasContract && event.status !== EventStatus.CANCELED && (
-                                                <div title="Contrato Pendente" className="bg-red-500 text-white rounded-full p-0.5">
+                                                <div title="Contrato não enviado" className="bg-red-500 text-white rounded-full p-0.5">
                                                     <FileWarning size={10} />
                                                 </div>
                                             )}
-                                            {event.hasContract && <div className="text-green-300"><FileCheck size={12}/></div>}
+                                            <StatusBadge status={event.status} />
                                         </div>
                                     </div>
+                                    )}
+                                    
+                                    {/* Compact mode indicator for no contract */}
+                                    {zoomLevel !== 2 && !event.hasContract && event.status !== EventStatus.CANCELED && (
+                                        <div className="absolute top-0.5 right-0.5 text-red-300">
+                                            <FileWarning size={10} />
+                                        </div>
                                     )}
                                 </div>
                                 )
                             })}
                             </div>
-                            
-                            {!isViewer && (
-                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Plus size={14} className="text-primary-500" />
-                                </div>
-                            )}
+
+                            {/* Add button on hover */}
+                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Plus size={14} className="text-primary-500" />
+                            </div>
                         </div>
                         );
                     })}
@@ -987,18 +884,21 @@ const AppContent: React.FC = () => {
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Local</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Banda</th>
-                    {!isViewer && <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Contrato</th>}
+                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Contrato</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
-                    {!isViewer && <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>}
+                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
                   {filteredEvents.length === 0 ? (
-                    <tr><td colSpan={7} className="p-8 text-center text-slate-500">Nenhum evento encontrado.</td></tr>
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-500">
+                        Nenhum evento encontrado.
+                      </td>
+                    </tr>
                   ) : (
                     filteredEvents.map(event => {
                       const band = bands.find(b => b.id === event.bandId);
-                      const displayName = isViewer ? "Data Ocupada" : event.name;
                       return (
                         <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
                           <td className="p-4 text-slate-400 font-medium whitespace-nowrap">
@@ -1006,38 +906,34 @@ const AppContent: React.FC = () => {
                              <div className="text-xs text-slate-600">{event.time}</div>
                           </td>
                           <td className="p-4 text-white font-medium">
-                            {displayName}
-                            {!isViewer && <div className="text-xs text-slate-600">Criado por: {event.createdBy}</div>}
+                            {event.name}
+                            <div className="text-xs text-slate-600">Criado por: {event.createdBy}</div>
                           </td>
                           <td className="p-4 text-slate-400">
                              {event.city}
-                             {!isViewer && <div className="text-xs text-slate-600">{event.venue}</div>}
+                             <div className="text-xs text-slate-600">{event.venue}</div>
                           </td>
                           <td className="p-4 text-primary-400 text-sm">{band?.name}</td>
-                          {!isViewer && (
-                            <td className="p-4 text-center">
-                                {!event.hasContract ? (
-                                <span title="Pendente" className="text-red-400 flex justify-center"><FileWarning size={16} /></span>
-                                ) : (
-                                <span title="Ok" className="text-green-500/50 flex justify-center"><FileCheck size={16} /></span>
-                                )}
-                            </td>
-                          )}
+                          <td className="p-4 text-center">
+                             {!event.hasContract ? (
+                               <span title="Pendente" className="text-red-400 flex justify-center"><FileWarning size={16} /></span>
+                             ) : (
+                               <span title="Ok" className="text-green-500/50 flex justify-center"><FileCheck size={16} /></span>
+                             )}
+                          </td>
                           <td className="p-4 text-center">
                             <StatusBadge status={event.status} />
                           </td>
-                          {!isViewer && (
-                            <td className="p-4 text-right">
-                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openEditEvent(event)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-white" title="Editar">
-                                    <Edit2 size={16} />
-                                </button>
-                                <button onClick={() => handleDeleteEvent(event.id)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-red-400" title="Excluir">
-                                    <Trash2 size={16} />
-                                </button>
-                                </div>
-                            </td>
-                          )}
+                          <td className="p-4 text-right">
+                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                               <button onClick={() => openEditEvent(event)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-white" title="Editar">
+                                 <Edit2 size={16} />
+                               </button>
+                               <button onClick={() => handleDeleteEvent(event.id)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-red-400" title="Excluir">
+                                 <Trash2 size={16} />
+                               </button>
+                             </div>
+                          </td>
                         </tr>
                       );
                     })
@@ -1051,161 +947,8 @@ const AppContent: React.FC = () => {
     );
   };
 
-  const ContractsLibraryView = () => {
-    // Restricted Access Check
-    if (!isAdmin && !isContracts) {
-       return (
-          <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
-             <Ban size={48} className="mb-4 text-slate-700"/>
-             <p>Acesso restrito a gestores de contratos.</p>
-          </div>
-       )
-    }
-
-    // Filter events containing contracts (checking files array or legacy string)
-    const eventsWithContracts = events.filter(e => 
-      ((e.contractFiles && e.contractFiles.length > 0) || (e.contractUrl && e.contractUrl.trim() !== '')) &&
-      (e.name.toLowerCase().includes(filterText.toLowerCase()) || 
-       e.contractor.toLowerCase().includes(filterText.toLowerCase()))
-    );
-
-    const handleDownload = (event: Event, file: ContractFile) => {
-      // Create a blob to simulate a real file download
-      const content = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS\n\nEvento: ${event.name}\nData: ${new Date(event.date).toLocaleDateString()}\nContratante: ${event.contractor}\nLocal: ${event.venue || event.city}\n\nArquivo Original Referenciado: ${file.name}\nData Upload: ${new Date(file.uploadedAt).toLocaleString()}\n\n(Este arquivo foi gerado automaticamente pelo sistema)`;
-      const blob = new Blob([content], { type: 'text/plain' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      // Use the stored filename if possible, else default
-      link.download = file.name || `Contrato_${event.name.replace(/\s+/g, '_')}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    };
-
-    const openSendModal = (event: Event) => {
-      setSelectedEventForSend(event);
-      setIsSendModalOpen(true);
-    };
-
-    // Get Bands that have contracts
-    const bandsWithContracts = bands.filter(band => 
-        eventsWithContracts.some(e => e.bandId === band.id)
-    );
-
-    return (
-      <div className="space-y-6 pb-20 md:pb-0">
-        <div className="flex justify-between items-center mb-6">
-           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-             <FileText className="text-primary-500" /> Contratos Enviados
-           </h2>
-           <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar contrato..." 
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
-              />
-           </div>
-        </div>
-
-        {eventsWithContracts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center p-12 bg-slate-950 border border-slate-800 rounded-xl text-slate-500">
-                <FileText size={32} className="mb-2 opacity-50"/>
-                <p>Nenhum contrato encontrado com os filtros atuais.</p>
-            </div>
-        ) : (
-            <div className="space-y-8">
-                {bandsWithContracts.map(band => {
-                    const bandEvents = eventsWithContracts.filter(e => e.bandId === band.id);
-                    if (bandEvents.length === 0) return null;
-
-                    return (
-                        <div key={band.id} className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg animate-fade-in">
-                           {/* Band Header */}
-                           <div className="bg-slate-900 px-6 py-4 border-b border-slate-800 flex items-center gap-2">
-                               <Music className="text-accent-500" size={20} />
-                               <h3 className="text-white font-bold text-lg">{band.name}</h3>
-                               <span className="text-slate-500 text-sm ml-2">({bandEvents.length} contratos)</span>
-                           </div>
-
-                           <div className="overflow-x-auto">
-                             <table className="w-full text-left border-collapse">
-                               <thead>
-                                 <tr className="bg-slate-900/50 border-b border-slate-800">
-                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
-                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Contratante</th>
-                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Arquivos</th>
-                                   <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>
-                                 </tr>
-                               </thead>
-                               <tbody className="divide-y divide-slate-800">
-                                   {bandEvents.map(event => (
-                                     <tr key={event.id} className="hover:bg-slate-900 transition-colors">
-                                       <td className="p-4 align-top">
-                                         <div className="text-white font-medium">{event.name}</div>
-                                         <div className="text-xs text-slate-500">
-                                           {new Date(event.date).toLocaleDateString()} • {event.city}
-                                         </div>
-                                       </td>
-                                       <td className="p-4 align-top text-slate-400">
-                                         {event.contractor || 'Não informado'}
-                                       </td>
-                                       <td className="p-4 align-top">
-                                          <div className="flex flex-col gap-2">
-                                             {event.contractFiles.map((file, idx) => (
-                                                <button 
-                                                    key={idx}
-                                                    onClick={() => handleDownload(event, file)}
-                                                    className="flex items-center gap-2 text-sm text-primary-400 bg-primary-900/10 px-3 py-1 rounded-full w-fit hover:bg-primary-900/20 transition-colors text-left"
-                                                    title="Clique para baixar"
-                                                >
-                                                    <FileText size={14} className="shrink-0"/>
-                                                    <span className="truncate max-w-[200px]">{file.name}</span>
-                                                    <Download size={12} className="ml-1 opacity-50"/>
-                                                </button>
-                                             ))}
-                                          </div>
-                                       </td>
-                                       <td className="p-4 align-top text-right">
-                                          <div className="flex items-center justify-end">
-                                             <button 
-                                               onClick={() => openSendModal(event)}
-                                               className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
-                                               title="Enviar via Plataforma"
-                                             >
-                                                <Share2 size={16} /> <span className="hidden md:inline">Enviar</span>
-                                             </button>
-                                          </div>
-                                       </td>
-                                     </tr>
-                                   ))}
-                               </tbody>
-                             </table>
-                           </div>
-                        </div>
-                    );
-                })}
-            </div>
-        )}
-      </div>
-    );
-  };
-
   const ContractorsView = () => {
-     // Access Check
-     if (isViewer || isSales) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
-                <Ban size={48} className="mb-4 text-slate-700"/>
-                <p>Você não tem permissão para visualizar a lista de contratantes.</p>
-            </div>
-        )
-     }
-
+     // Filter Logic
      const filtered = contractors.filter(c => 
        c.name.toLowerCase().includes(filterText.toLowerCase()) || 
        c.responsibleName.toLowerCase().includes(filterText.toLowerCase())
@@ -1279,91 +1022,59 @@ const AppContent: React.FC = () => {
   }
 
   const BandManagerView = () => {
-    // Access Check: Admin or Contracts role
-    if (!canManageUsers) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
-                <Ban size={48} className="mb-4 text-slate-700"/>
-                <p>Acesso restrito.</p>
-            </div>
-        )
-    }
-
-    // Filter users: Contracts role only sees Viewers (and maybe themselves in a real list, but here strict management is better)
-    const visibleUsers = users.filter(u => {
-        if (isAdmin) return true;
-        if (isContracts) return u.role === UserRole.VIEWER;
-        return false;
-    });
-
     return (
       <div className="space-y-8 pb-20 md:pb-0">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* Gerenciar Bandas (Admin Only) */}
-          {isAdmin && (
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-                <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Music className="text-accent-500" /> Bandas
-                </h3>
-                <button onClick={handleAddBand} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors">
-                    + Adicionar
-                </button>
-                </div>
-                <div className="space-y-2">
-                {bands.map(band => (
-                    <div key={band.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800">
-                        <span className="text-white font-medium">{band.name}</span>
-                        <span className="text-xs text-slate-500">{band.members} integrantes</span>
-                    </div>
-                ))}
-                {bands.length === 0 && <p className="text-slate-500 text-sm">Nenhuma banda cadastrada.</p>}
-                </div>
-            </div>
-          )}
-
-          {/* Gerenciar Usuários (Admin or Contracts) */}
+          {/* Gerenciar Bandas */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
             <div className="flex justify-between items-center mb-6">
                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                 <Users className="text-green-500" /> Usuários
+                 <Music className="text-accent-500" /> Bandas
+               </h3>
+               <button onClick={handleAddBand} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors">
+                 + Adicionar
+               </button>
+            </div>
+            <div className="space-y-2">
+               {bands.map(band => (
+                 <div key={band.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800">
+                    <span className="text-white font-medium">{band.name}</span>
+                    <span className="text-xs text-slate-500">{band.members} integrantes</span>
+                 </div>
+               ))}
+               {bands.length === 0 && <p className="text-slate-500 text-sm">Nenhuma banda cadastrada.</p>}
+            </div>
+          </div>
+
+          {/* Gerenciar Usuários */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
+            <div className="flex justify-between items-center mb-6">
+               <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                 <Users className="text-green-500" /> Usuários do Sistema
                </h3>
                <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors">
                  + Novo Usuário
                </button>
             </div>
             <div className="space-y-3">
-               {visibleUsers.map(u => {
-                 const isSelf = currentUser?.id === u.id;
-                 const isSuperAdmin = u.email === 'admin';
-                 // Permissions: Admin can edit all. Contracts can only edit Viewers.
-                 const canEdit = isAdmin || (isContracts && u.role === UserRole.VIEWER);
-                 
-                 return (
+               {users.map(u => (
                  <div key={u.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800 group">
                     <div>
                        <div className="text-white font-medium flex items-center gap-2">
                          {u.name}
-                         <span className={`text-[10px] px-1 rounded uppercase ${u.role === UserRole.ADMIN ? 'bg-primary-900/50 text-primary-400' : 'bg-slate-800 text-slate-400'}`}>
-                           {u.role}
-                         </span>
+                         {u.role === UserRole.ADMIN && <span className="text-[10px] bg-red-900 text-red-200 px-1 rounded">ADMIN</span>}
                        </div>
                        <div className="text-xs text-slate-500">{u.email}</div>
                     </div>
-                    
-                    {canEdit && (
-                        <div className="flex gap-2">
-                           <button onClick={() => openEditUser(u)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-white transition-colors" title="Editar"><Edit2 size={14}/></button>
-                           {!isSuperAdmin && !isSelf && (
-                             <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-red-400 transition-colors" title="Excluir"><Trash2 size={14}/></button>
-                           )}
-                        </div>
-                    )}
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <button onClick={() => openEditUser(u)} className="p-1 text-slate-400 hover:text-white"><Edit2 size={14}/></button>
+                       {u.email !== 'admin' && (
+                         <button onClick={() => handleDeleteUser(u.id)} className="p-1 text-slate-400 hover:text-red-400"><Trash2 size={14}/></button>
+                       )}
+                    </div>
                  </div>
-                 );
-               })}
-               {visibleUsers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">Nenhum usuário encontrado.</p>}
+               ))}
             </div>
           </div>
 
@@ -1454,19 +1165,10 @@ const AppContent: React.FC = () => {
         {currentView === 'agenda' && renderAgendaView()}
         {currentView === 'contractors' && <ContractorsView />}
         {currentView === 'bands' && <BandManagerView />}
-        {currentView === 'contracts_library' && <ContractsLibraryView />}
       </div>
 
       {/* Modals */}
       {selectedDateDetails && <DayDetailsModal />}
-      
-      {isSendModalOpen && selectedEventForSend && (
-        <SendContractModal 
-          event={selectedEventForSend}
-          contractor={contractors.find(c => c.name === selectedEventForSend.contractor)}
-          onClose={() => setIsSendModalOpen(false)}
-        />
-      )}
       
       {isFormOpen && (
         <EventForm 
@@ -1474,8 +1176,8 @@ const AppContent: React.FC = () => {
           contractors={contractors}
           existingEvent={editingEvent}
           currentUser={currentUser}
-          initialDate={newEventDate} 
-          initialBandId={selectedBandFilter || undefined} 
+          initialDate={newEventDate} // Pass calendar click date
+          initialBandId={selectedBandFilter || undefined} // Pass active filter band
           onSave={handleSaveEvent}
           onClose={() => setIsFormOpen(false)}
         />
