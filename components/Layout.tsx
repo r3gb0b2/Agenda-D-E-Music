@@ -55,7 +55,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
         <nav className="flex-1 px-4 py-4">
           <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem view="agenda" icon={Calendar} label="Agenda" />
-          <NavItem view="financials" icon={DollarSign} label="Financeiro" />
+          {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
+            <NavItem view="financials" icon={DollarSign} label="Financeiro" />
+          )}
           <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
           {userRole === UserRole.ADMIN && (
              <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
@@ -101,7 +103,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
            <nav className="flex flex-col">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
             <NavItem view="agenda" icon={Calendar} label="Agenda" />
-            <NavItem view="financials" icon={DollarSign} label="Financeiro" />
+            {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
+              <NavItem view="financials" icon={DollarSign} label="Financeiro" />
+            )}
             <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
             {userRole === UserRole.ADMIN && (
                <NavItem view="bands" icon={Music} label="Bandas & Usuários" />

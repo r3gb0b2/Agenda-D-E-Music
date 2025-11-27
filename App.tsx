@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -59,14 +60,11 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Refactored to use a constructor for state initialization to avoid potential issues with class property syntax in some toolchains.
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-  }
+  // FIX: Reverted to class property syntax for state initialization to resolve typing errors.
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -550,7 +548,9 @@ const AppContent: React.FC = () => {
                          </div>
                          <div className="mt-3 pt-2 border-t border-white/5 flex justify-between items-center">
                             <div className="flex gap-2">
-                              <button onClick={() => handleGenerateContract(event)} title="Gerar Contrato" className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400"><FileText size={10}/> Contrato</button>
+                              {(currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.CONTRACT) && (
+                                <button onClick={() => handleGenerateContract(event)} title="Gerar Contrato" className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400"><FileText size={10}/> Contrato</button>
+                              )}
                               <button onClick={() => handleExportICS(event)} title="Adicionar ao Calendário" className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400"><Download size={10}/> Calendário</button>
                             </div>
                             <button onClick={() => { setSelectedDateDetails(null); openEditEvent(event); }} className="text-[10px] text-primary-400 group-hover:underline flex items-center gap-1">Editar <Edit2 size={10}/></button>
@@ -676,7 +676,8 @@ const AppContent: React.FC = () => {
                               })}
                               {dayEvents.length > 3 && (<div className="text-slate-500 font-medium text-center text-xs mt-2">+ {dayEvents.length - 3} mais</div>)}
                            </div>
-                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (zoomLevel-1)*4} /></button>
+                           {/* FIX: Explicitly cast zoomLevel to a number to prevent type error in arithmetic operation. */}
+                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (Number(zoomLevel)-1)*4} /></button>
                         </div>
                      );
                   })}

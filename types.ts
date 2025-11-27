@@ -1,4 +1,5 @@
 
+
 export enum EventStatus {
   RESERVED = 'RESERVED',
   CONFIRMED = 'CONFIRMED',
@@ -8,6 +9,7 @@ export enum EventStatus {
 
 export enum UserRole {
   ADMIN = 'ADMIN',
+  CONTRACT = 'CONTRACT', // Access to financials and contracts
   MANAGER = 'MANAGER', // Band Manager
   VIEWER = 'VIEWER'    // Read-only access
 }

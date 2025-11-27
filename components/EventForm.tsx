@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Band, Event, EventStatus, Contractor, User } from '../types';
+import { Band, Event, EventStatus, Contractor, User, UserRole } from '../types';
 import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
 import { db } from '../services/databaseService';
@@ -28,6 +28,8 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
 
   // Estado local para exibir detalhes do contratante selecionado
   const [selectedContractorInfo, setSelectedContractorInfo] = useState<Contractor | undefined>(undefined);
+
+  const canEditFinancials = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.CONTRACT;
 
   const [formData, setFormData] = useState<Event>({
     id: existingEvent?.id || crypto.randomUUID(),
@@ -69,6 +71,13 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     loadSuggestions();
   }, []);
 
+  // Ensure non-authorized users can't see financials
+  useEffect(() => {
+    if (!canEditFinancials && activeTab === 'financials') {
+      setActiveTab('details');
+    }
+  }, [canEditFinancials, activeTab]);
+
   // Atualiza infos do contratante se já houver um nome preenchido (edição)
   useEffect(() => {
     if (formData.contractor) {
@@ -100,10 +109,8 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   }, [formData.financials.grossValue, formData.financials.commissionType, formData.financials.commissionValue, formData.financials.taxes]);
 
   const handleGenerateBrief = async () => {
-    if (!process.env.API_KEY) {
-      setAiSummary("API Key not found in environment.");
-      return;
-    }
+    // FIX: Removed check for process.env.API_KEY as it's unreliable in the browser
+    // and the service layer already handles the case where the AI client is not initialized.
     setIsGenerating(true);
     const band = bands.find(b => b.id === formData.bandId);
     const summary = await generateEventBrief(formData, band?.name || 'Banda');
@@ -167,12 +174,14 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
           >
             Detalhes & Logística
           </button>
-          <button
-            onClick={() => setActiveTab('financials')}
-            className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'financials' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
-          >
-            Financeiro
-          </button>
+          {canEditFinancials && (
+            <button
+              onClick={() => setActiveTab('financials')}
+              className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'financials' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
+            >
+              Financeiro
+            </button>
+          )}
           {existingEvent && (
             <button
               onClick={() => setActiveTab('ai')}
@@ -386,7 +395,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
             </div>
           )}
 
-          {activeTab === 'financials' && (
+          {activeTab === 'financials' && canEditFinancials && (
             <div className="space-y-6">
               <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
                 <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
