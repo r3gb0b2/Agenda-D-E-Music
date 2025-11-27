@@ -21,7 +21,7 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
       name: '',
       email: '',
       password: '',
-      role: UserRole.MEMBER,
+      role: UserRole.VIEWER,
       bandIds: []
     };
   });
@@ -143,7 +143,7 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
                  onChange={(e) => handleChange('role', e.target.value)}
                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
               >
-                <option value={UserRole.MEMBER}>Membro / Músico (Apenas Visualizar)</option>
+                <option value={UserRole.VIEWER}>Visualizador (Apenas Leitura)</option>
                 <option value={UserRole.MANAGER}>Gerente (Editar)</option>
                 <option value={UserRole.ADMIN}>Administrador (Acesso Total)</option>
               </select>

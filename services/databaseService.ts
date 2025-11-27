@@ -1,4 +1,5 @@
 
+
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
@@ -68,7 +69,8 @@ const sanitizeUser = (data: any, id: string): User => {
     name: data?.name || 'Usuário',
     email: (data?.email || 'sem-email@dne.music').toLowerCase(),
     password: data?.password || '',
-    role: data?.role || UserRole.MEMBER,
+    // FIX: Property 'MEMBER' does not exist on type 'typeof UserRole'. Changed to VIEWER as a sensible default.
+    role: data?.role || UserRole.VIEWER,
     bandIds: data?.bandIds || []
   };
 };
@@ -227,7 +229,8 @@ export const db = {
                id: userCredential.user.uid,
                name: userCredential.user.displayName || 'Usuário Firebase',
                email: normalizedLogin,
-               role: UserRole.MEMBER,
+               // FIX: Property 'MEMBER' does not exist on type 'typeof UserRole'. Changed to VIEWER as a sensible default.
+               role: UserRole.VIEWER,
                bandIds: []
              };
           }

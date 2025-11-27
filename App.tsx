@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -5,33 +6,16 @@ import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import ContractorForm from './components/ContractorForm';
 import UserForm from './components/UserForm';
+import ContractView from './components/ContractView';
 import { 
-  Plus, 
-  Search, 
-  MapPin, 
-  Clock, 
-  Trash2,
-  Users,
-  Music,
-  Loader2,
-  AlertTriangle,
-  RefreshCcw,
-  CalendarDays,
-  Edit2,
-  ChevronRight,
-  ChevronLeft,
-  List,
-  Calendar as CalendarIcon,
-  X,
-  History,
-  FileWarning,
-  Mic2,
-  LogIn,
-  Briefcase,
-  User as UserIcon,
-  Phone,
-  ZoomIn,
-  ZoomOut
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+} from 'recharts';
+import { 
+  Plus, Search, MapPin, Clock, Trash2, Users, Music, Loader2,
+  AlertTriangle, RefreshCcw, CalendarDays, Edit2, ChevronRight, ChevronLeft,
+  List, Calendar as CalendarIcon, X, History, FileWarning, Mic2, LogIn,
+  Briefcase, User as UserIcon, Phone, ZoomIn, ZoomOut, DollarSign,
+  TrendingUp, Download, Printer, FileText
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -75,11 +59,14 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Use state property initializer instead of constructor to prevent `this` context issues.
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  // FIX: Refactored to use a constructor for state initialization to avoid potential issues with class property syntax in some toolchains.
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -144,7 +131,6 @@ const AppContent: React.FC = () => {
   // Hoisted Agenda State
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  // Continuous zoom level: 1 = 100%, 2 = 200%, etc.
   const [zoomLevel, setZoomLevel] = useState(1); 
 
   const [isLoading, setIsLoading] = useState(true);
@@ -155,7 +141,10 @@ const AppContent: React.FC = () => {
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // Initial Load & Session Check
+  // New Feature State
+  const [contractData, setContractData] = useState<{ event: Event, band: Band, contractor?: Contractor } | null>(null);
+
+  // --- Initial Load & Data Management ---
   useEffect(() => {
     const initApp = async () => {
       const preloader = document.getElementById('initial-loader');
@@ -297,13 +286,63 @@ const AppContent: React.FC = () => {
     setIsUserFormOpen(true);
   }
 
-  // Navegação Especial: Banda -> Agenda Filtrada
+  // --- Handlers: New Features ---
+  const handleGenerateContract = (event: Event) => {
+    const band = bands.find(b => b.id === event.bandId);
+    const contractor = contractors.find(c => c.name === event.contractor);
+    if (band) {
+      setContractData({ event, band, contractor });
+    } else {
+      alert("Banda não encontrada para gerar o contrato.");
+    }
+  };
+
+  const handleExportICS = (event: Event) => {
+    const band = bands.find(b => b.id === event.bandId);
+    
+    // Ensure date and time are valid
+    if (!event.date || !event.time) return;
+
+    // Create valid ISO string with timezone offset
+    const startDate = new Date(`${event.date.split('T')[0]}T${event.time}:00`);
+    const endDate = new Date(startDate.getTime() + (event.durationHours || 2) * 60 * 60 * 1000);
+    
+    // Format for ICS (YYYYMMDDTHHmmssZ)
+    const toICSDate = (date: Date) => date.toISOString().replace(/[-:]/g, "").split('.')[0] + 'Z';
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//D&E MUSIC//Agenda//EN',
+      'BEGIN:VEVENT',
+      `UID:${event.id}@demusic.com`,
+      `DTSTAMP:${toICSDate(new Date())}`,
+      `DTSTART:${toICSDate(startDate)}`,
+      `DTEND:${toICSDate(endDate)}`,
+      `SUMMARY:${event.name} - ${band?.name || ''}`,
+      `DESCRIPTION:Contratante: ${event.contractor}. Notas: ${event.notes}`,
+      `LOCATION:${event.venue}, ${event.city}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${event.name}.ics`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleBandClick = (bandId: string) => {
     setSelectedBandFilter(bandId);
     setCurrentView('agenda');
   };
 
-  // --- Filter Logic based on User Role ---
+  // --- Filter Logic ---
   const getVisibleBands = () => {
     if (!currentUser) return [];
     if (currentUser.role === UserRole.ADMIN) return bands;
@@ -316,6 +355,8 @@ const AppContent: React.FC = () => {
     return events.filter(e => visibleBandIds.includes(e.bandId));
   };
 
+  const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
   // --- Views ---
 
   const DashboardView = () => {
@@ -325,13 +366,9 @@ const AppContent: React.FC = () => {
     const confirmedCount = visibleEvents.filter(e => e.status === EventStatus.CONFIRMED).length;
     const reservedCount = visibleEvents.filter(e => e.status === EventStatus.RESERVED).length;
     const canceledCount = visibleEvents.filter(e => e.status === EventStatus.CANCELED).length;
-
-    // Logic for "Latest Updates"
     const latestEvents = [...visibleEvents]
        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
        .slice(0, 5);
-
-    // Logic for "Upcoming Events" (Replaces Canceled List)
     const today = new Date().toISOString().split('T')[0];
     const upcomingEvents = visibleEvents
        .filter(e => e.date >= today && e.status !== EventStatus.CANCELED)
@@ -340,8 +377,6 @@ const AppContent: React.FC = () => {
 
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
-        
-        {/* Bandas Section (MOVED TO TOP) */}
         <div>
            <div className="flex justify-between items-center mb-4">
              <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -380,8 +415,6 @@ const AppContent: React.FC = () => {
              </div>
            </div>
         </div>
-
-        {/* Stats Row */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-slate-500 text-xs uppercase font-semibold">Total de Shows</p>
@@ -395,7 +428,6 @@ const AppContent: React.FC = () => {
              <p className="text-yellow-500/80 text-xs uppercase font-semibold">Reservados</p>
              <p className="text-2xl font-bold text-white mt-1">{reservedCount}</p>
           </div>
-          {/* Nova Coluna: Cancelados */}
           <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
              <p className="text-red-500/80 text-xs uppercase font-semibold">Cancelados</p>
              <p className="text-2xl font-bold text-white mt-1">{canceledCount}</p>
@@ -405,9 +437,7 @@ const AppContent: React.FC = () => {
              <p className="text-2xl font-bold text-white mt-1">{new Set(visibleEvents.map(e => e.city)).size}</p>
           </div>
         </div>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Últimas Adições */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                  <History className="text-primary-400" size={20} /> Últimas Atualizações
@@ -438,8 +468,6 @@ const AppContent: React.FC = () => {
                  )}
                </div>
             </div>
-
-            {/* Próximos Shows (Replaces Canceled) */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-5">
                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                  <CalendarDays className="text-green-400" size={20} /> Próximos Shows
@@ -474,24 +502,17 @@ const AppContent: React.FC = () => {
       </div>
     );
   };
-
+  
   const DayDetailsModal = () => {
     if (!selectedDateDetails) return null;
     
-    // Parse date safely
     const [y, m, d] = selectedDateDetails.split('-');
     const dateObj = new Date(Number(y), Number(m)-1, Number(d));
-    
-    // Filter events for this day from all accessible events
-    const dayEvents = getVisibleEvents().filter(e => {
-       if (!e.date) return false;
-       return e.date.split('T')[0] === selectedDateDetails;
-    }).sort((a, b) => a.time.localeCompare(b.time));
+    const dayEvents = getVisibleEvents().filter(e => e.date.split('T')[0] === selectedDateDetails).sort((a, b) => a.time.localeCompare(b.time));
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setSelectedDateDetails(null)}>
-        <div className="bg-slate-900 w-full max-w-md rounded-xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[80vh] relative" onClick={e => e.stopPropagation()}>
-             {/* Header */}
+        <div className="bg-slate-900 w-full max-w-lg rounded-xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative" onClick={e => e.stopPropagation()}>
              <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
                <div>
                   <h3 className="text-white font-bold text-lg capitalize">{dateObj.toLocaleDateString('pt-BR', { weekday: 'long' })}</h3>
@@ -501,8 +522,6 @@ const AppContent: React.FC = () => {
                  <X size={20} />
                </button>
              </div>
-
-             {/* Body */}
              <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {dayEvents.length === 0 && (
                    <div className="text-center py-8">
@@ -513,15 +532,10 @@ const AppContent: React.FC = () => {
                       <p className="text-slate-600 text-xs mt-1">Toque em adicionar para criar um novo.</p>
                    </div>
                 )}
-                
                 {dayEvents.map(event => {
                    const band = bands.find(b => b.id === event.bandId);
                    return (
-                      <div 
-                        key={event.id}
-                        onClick={() => { setSelectedDateDetails(null); openEditEvent(event); }}
-                        className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg p-3 transition-all cursor-pointer group"
-                      >
+                      <div key={event.id} className="bg-slate-800/40 border border-slate-700 rounded-lg p-3 transition-all group">
                          <div className="flex justify-between items-start mb-2">
                             <span className="text-xs font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 flex items-center gap-1">
                                <Clock size={10} /> {event.time}
@@ -530,41 +544,23 @@ const AppContent: React.FC = () => {
                          </div>
                          <h4 className="text-white font-bold text-base mb-1">{band?.name || 'Banda Desconhecida'}</h4>
                          <p className="text-slate-300 text-sm mb-2">{event.name}</p>
-                         
                          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                           {(event.venue || event.city) && (
-                             <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded">
-                                <MapPin size={12} /> {event.venue ? `${event.venue}, ` : ''}{event.city}
-                             </div>
-                           )}
-                           
-                           {!event.hasContract && event.status !== EventStatus.CANCELED && (
-                             <div className="flex items-center gap-1 bg-red-900/20 text-red-400 p-1.5 rounded border border-red-900/30">
-                               <FileWarning size={12} /> Sem contrato
-                             </div>
-                           )}
+                           {(event.venue || event.city) && ( <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded"><MapPin size={12} /> {event.venue ? `${event.venue}, ` : ''}{event.city}</div> )}
+                           {!event.hasContract && event.status !== EventStatus.CANCELED && ( <div className="flex items-center gap-1 bg-red-900/20 text-red-400 p-1.5 rounded border border-red-900/30"><FileWarning size={12} /> Sem contrato</div> )}
                          </div>
-
-                         <div className="mt-3 pt-2 border-t border-white/5 text-[10px] text-slate-600 flex justify-between">
-                            <span>Add: {event.createdBy}</span>
-                            <span className="text-primary-400 group-hover:underline flex items-center gap-1">Editar <Edit2 size={10}/></span>
+                         <div className="mt-3 pt-2 border-t border-white/5 flex justify-between items-center">
+                            <div className="flex gap-2">
+                              <button onClick={() => handleGenerateContract(event)} title="Gerar Contrato" className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400"><FileText size={10}/> Contrato</button>
+                              <button onClick={() => handleExportICS(event)} title="Adicionar ao Calendário" className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-primary-400"><Download size={10}/> Calendário</button>
+                            </div>
+                            <button onClick={() => { setSelectedDateDetails(null); openEditEvent(event); }} className="text-[10px] text-primary-400 group-hover:underline flex items-center gap-1">Editar <Edit2 size={10}/></button>
                          </div>
                       </div>
                    )
                 })}
              </div>
-
-             {/* Footer */}
              <div className="p-4 border-t border-slate-800 bg-slate-950">
-                <button 
-                  onClick={() => {
-                     setNewEventDate(selectedDateDetails);
-                     setSelectedDateDetails(null);
-                     setEditingEvent(null);
-                     setIsFormOpen(true);
-                  }}
-                  className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all"
-                >
+                <button onClick={() => { setNewEventDate(selectedDateDetails); setSelectedDateDetails(null); setEditingEvent(null); setIsFormOpen(true); }} className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all">
                   <Plus size={18} /> Novo Evento
                 </button>
              </div>
@@ -575,131 +571,55 @@ const AppContent: React.FC = () => {
 
   const renderAgendaView = () => {
     let visibleEvents = getVisibleEvents();
-    
-    // Aplicar Filtro de Banda (se houver)
     if (selectedBandFilter) {
       visibleEvents = visibleEvents.filter(e => e.bandId === selectedBandFilter);
     }
-
-    // Filtragem por texto
-    const filteredEvents = visibleEvents.filter(e => 
-      e.name.toLowerCase().includes(filterText.toLowerCase()) || 
-      e.city.toLowerCase().includes(filterText.toLowerCase())
-    );
-    
+    const filteredEvents = visibleEvents.filter(e => e.name.toLowerCase().includes(filterText.toLowerCase()) || e.city.toLowerCase().includes(filterText.toLowerCase()));
     const selectedBandName = bands.find(b => b.id === selectedBandFilter)?.name;
-
-    // --- Calendar Helpers ---
     const getDaysInMonth = (date: Date) => {
-      const year = date.getFullYear();
-      const month = date.getMonth();
+      const year = date.getFullYear(); const month = date.getMonth();
       const days = new Date(year, month + 1, 0).getDate();
-      const firstDay = new Date(year, month, 1).getDay(); // 0 = Domingo
+      const firstDay = new Date(year, month, 1).getDay();
       return { days, firstDay, year, month };
     };
-
-    const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const weekDays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    
     const { days, firstDay, year, month } = getDaysInMonth(currentMonth);
-
     const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
     const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
-    
-    // Helpers for Month Picker
-    const changeYear = (offset: number) => {
-        const newDate = new Date(currentMonth);
-        newDate.setFullYear(newDate.getFullYear() + offset);
-        setCurrentMonth(newDate);
-    };
-
-    const selectMonth = (monthIndex: number) => {
-        const newDate = new Date(currentMonth);
-        newDate.setMonth(monthIndex);
-        setCurrentMonth(newDate);
-        setIsMonthPickerOpen(false);
-    };
-
+    const changeYear = (offset: number) => { const newDate = new Date(currentMonth); newDate.setFullYear(newDate.getFullYear() + offset); setCurrentMonth(newDate); };
+    const selectMonth = (monthIndex: number) => { const newDate = new Date(currentMonth); newDate.setMonth(monthIndex); setCurrentMonth(newDate); setIsMonthPickerOpen(false); };
     const handleDayClick = (dayNum: number) => {
       const d = String(dayNum).padStart(2, '0');
       const m = String(month + 1).padStart(2, '0');
-      const dateStr = `${year}-${m}-${d}`;
-
-      // Open Day Details Modal instead of Create Form directly
-      setSelectedDateDetails(dateStr);
+      setSelectedDateDetails(`${year}-${m}-${d}`);
     };
-
-    // Zoom Handlers
-    const ZOOM_STEP = 0.25;
-    const MAX_ZOOM = 4; // 400%
-    const MIN_ZOOM = 1; // 100%
+    const ZOOM_STEP = 0.25; const MAX_ZOOM = 4; const MIN_ZOOM = 1;
     const handleZoomIn = () => setZoomLevel(prev => Math.min(prev + ZOOM_STEP, MAX_ZOOM));
     const handleZoomOut = () => setZoomLevel(prev => Math.max(prev - ZOOM_STEP, MIN_ZOOM));
 
-
     return (
       <div className="space-y-6 h-full flex flex-col pb-20 md:pb-0 max-h-[calc(100vh-100px)]">
-        
-        {/* Header da Agenda */}
         <div className="flex flex-col gap-4 shrink-0">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            
-            {/* Controles de Visualização e Mês */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
-                  <button 
-                    onClick={() => setViewMode('calendar')}
-                    className={`p-2 rounded transition-all ${viewMode === 'calendar' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                    title="Modo Calendário"
-                  >
-                    <CalendarIcon size={18} />
-                  </button>
-                  <button 
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded transition-all ${viewMode === 'list' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-                    title="Modo Lista"
-                  >
-                    <List size={18} />
-                  </button>
+                  <button onClick={() => setViewMode('calendar')} className={`p-2 rounded transition-all ${viewMode === 'calendar' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`} title="Modo Calendário"><CalendarIcon size={18} /></button>
+                  <button onClick={() => setViewMode('list')} className={`p-2 rounded transition-all ${viewMode === 'list' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`} title="Modo Lista"><List size={18} /></button>
                </div>
-
-               {/* Zoom Controls for Calendar */}
                {viewMode === 'calendar' && (
                  <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800 items-center">
-                    <button 
-                      onClick={handleZoomOut}
-                      disabled={zoomLevel <= MIN_ZOOM}
-                      className="p-2 rounded transition-all text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Diminuir Zoom"
-                    >
-                      <ZoomOut size={18} />
-                    </button>
+                    <button onClick={handleZoomOut} disabled={zoomLevel <= MIN_ZOOM} className="p-2 rounded transition-all text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed" title="Diminuir Zoom"><ZoomOut size={18} /></button>
                     <span className="text-xs font-mono text-slate-500 w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
-                    <button 
-                      onClick={handleZoomIn}
-                      disabled={zoomLevel >= MAX_ZOOM}
-                      className="p-2 rounded transition-all text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Aumentar Zoom"
-                    >
-                      <ZoomIn size={18} />
-                    </button>
+                    <button onClick={handleZoomIn} disabled={zoomLevel >= MAX_ZOOM} className="p-2 rounded transition-all text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed" title="Aumentar Zoom"><ZoomIn size={18} /></button>
                  </div>
                )}
-
                {viewMode === 'calendar' && (
                  <div className="relative ml-0 md:ml-2">
                    <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
                      <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
-                     <button 
-                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
-                        className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide hover:text-primary-400 transition-colors py-1"
-                     >
-                        {monthNames[month]} {year}
-                     </button>
+                     <button onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)} className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide hover:text-primary-400 transition-colors py-1">{monthNames[month]} {year}</button>
                      <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
                    </div>
-                   
-                   {/* MONTH PICKER DROPDOWN */}
                    {isMonthPickerOpen && (
                       <div className="absolute top-full left-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-4 w-64 animate-fade-in origin-top-left">
                           <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
@@ -708,35 +628,18 @@ const AppContent: React.FC = () => {
                               <button onClick={() => changeYear(1)} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={16}/></button>
                           </div>
                           <div className="grid grid-cols-3 gap-2">
-                              {monthNames.map((m, i) => (
-                                  <button 
-                                      key={i} 
-                                      onClick={() => selectMonth(i)} 
-                                      className={`text-xs py-2 rounded-lg font-medium transition-colors ${i === month ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
-                                  >
-                                      {m.substring(0, 3)}
-                                  </button>
-                              ))}
+                              {monthNames.map((m, i) => (<button key={i} onClick={() => selectMonth(i)} className={`text-xs py-2 rounded-lg font-medium transition-colors ${i === month ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>{m.substring(0, 3)}</button>))}
                           </div>
                       </div>
                    )}
                  </div>
                )}
             </div>
-
-            {/* Filter Input */}
             <div className="relative w-full md:w-64">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-              <input
-                type="text"
-                placeholder="Filtrar por nome ou cidade..."
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:border-primary-500 outline-none"
-              />
+              <input type="text" placeholder="Filtrar por nome ou cidade..." value={filterText} onChange={(e) => setFilterText(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:border-primary-500 outline-none" />
             </div>
           </div>
-          
           {selectedBandFilter && (
             <div className="flex items-center gap-2 bg-primary-900/20 text-primary-300 px-3 py-1.5 rounded-lg w-fit border border-primary-500/30">
               <span className="text-sm">Filtrando: <b>{selectedBandName}</b></span>
@@ -744,108 +647,36 @@ const AppContent: React.FC = () => {
             </div>
           )}
         </div>
-
-        {/* Calendar Grid */}
         {viewMode === 'calendar' ? (
           <div className="flex-1 overflow-auto bg-slate-950 border border-slate-800 rounded-xl shadow-inner relative custom-scrollbar">
-            {/* The Grid Container - Responsive based on Zoom Level */}
             <div style={{ width: `${zoomLevel * 100}%` }}>
-              
-              {/* Header Row (Days of Week) - Sticky */}
               <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
-                 {weekDays.map(day => (
-                   <div key={day} className="py-2 text-center font-bold text-slate-500 uppercase tracking-wider border-r border-slate-800 last:border-0 text-xs">
-                     {day}
-                   </div>
-                 ))}
+                 {weekDays.map(day => (<div key={day} className="py-2 text-center font-bold text-slate-500 uppercase tracking-wider border-r border-slate-800 last:border-0 text-xs">{day}</div>))}
               </div>
-              
-              {/* Days Grid */}
                <div className="grid grid-cols-7 auto-rows-fr">
-                  {/* Empty cells for start of month */}
-                  {Array.from({ length: firstDay }).map((_, i) => (
-                     <div key={`empty-${i}`} className="bg-slate-900/30 border-b border-r border-slate-800/50" style={{ minHeight: `${100 * zoomLevel}px` }} />
-                  ))}
-
-                  {/* Actual Days */}
+                  {Array.from({ length: firstDay }).map((_, i) => (<div key={`empty-${i}`} className="bg-slate-900/30 border-b border-r border-slate-800/50" style={{ minHeight: `${100 * zoomLevel}px` }} />))}
                   {Array.from({ length: days }).map((_, i) => {
                      const dayNum = i + 1;
                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                      const dayEvents = visibleEvents.filter(e => e.date.split('T')[0] === dateStr);
                      const isToday = new Date().toISOString().split('T')[0] === dateStr;
-
                      return (
-                        <div 
-                          key={dayNum} 
-                          onClick={() => handleDayClick(dayNum)}
-                          className={`
-                            border-b border-r border-slate-800 relative p-2 transition-colors hover:bg-slate-900 cursor-pointer group 
-                            ${isToday ? 'bg-primary-900/10' : ''}
-                          `}
-                          style={{ minHeight: `${100 * zoomLevel}px` }}
-                        >
-                           <div className={`font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-500'}`} style={{ fontSize: `${12 + (zoomLevel - 1) * 4}px` }}>
-                              {dayNum} {isToday && '(Hoje)'}
-                           </div>
-                           
-                           {/* Events List in Day Cell */}
+                        <div key={dayNum} onClick={() => handleDayClick(dayNum)} className={`border-b border-r border-slate-800 relative p-2 transition-colors hover:bg-slate-900 cursor-pointer group ${isToday ? 'bg-primary-900/10' : ''}`} style={{ minHeight: `${100 * zoomLevel}px` }}>
+                           <div className={`font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-500'}`} style={{ fontSize: `${12 + (zoomLevel - 1) * 4}px` }}>{dayNum} {isToday && '(Hoje)'}</div>
                            <div className="space-y-1">
                               {dayEvents.map(event => {
                                  const band = bands.find(b => b.id === event.bandId);
                                  return (
-                                    <div 
-                                      key={event.id} 
-                                      className="rounded border border-slate-700 bg-slate-800/50 hover:border-slate-500 transition-colors overflow-hidden"
-                                      style={{
-                                        fontSize: `${10 + (zoomLevel - 1) * 2}px`,
-                                        padding: `${4 + (zoomLevel - 1) * 2}px`,
-                                        marginBottom: `${4 + (zoomLevel - 1) * 2}px`,
-                                      }}
-                                    >
-                                       <div className="flex justify-between items-center gap-1">
-                                          <span className="font-bold text-white truncate">{event.time} - {band?.name}</span>
-                                       </div>
-                                       
-                                       {/* Extended details only if Zoom is high */}
-                                       {zoomLevel > 1.5 && (
-                                         <div className="mt-1 space-y-1">
-                                            <div className="text-slate-400 truncate flex items-center gap-1">
-                                              <MapPin size={12}/> {event.venue || event.city}
-                                            </div>
-                                            {!event.hasContract && event.status !== EventStatus.CANCELED && (
-                                              <div className="text-red-400 text-xs flex items-center gap-1 font-medium bg-red-950/30 p-1 rounded">
-                                                <FileWarning size={12}/> Sem Contrato
-                                              </div>
-                                            )}
-                                         </div>
-                                       )}
-                                       
-                                       {/* Compact View for low zoom */}
-                                       {zoomLevel <= 1.5 && !event.hasContract && event.status !== EventStatus.CANCELED && (
-                                           <div className="w-1.5 h-1.5 bg-red-500 rounded-full absolute top-1 right-1" title="Sem Contrato" />
-                                       )}
+                                    <div key={event.id} className="rounded border border-slate-700 bg-slate-800/50 hover:border-slate-500 transition-colors overflow-hidden" style={{ fontSize: `${10 + (zoomLevel - 1) * 2}px`, padding: `${4 + (zoomLevel - 1) * 2}px`, marginBottom: `${4 + (zoomLevel - 1) * 2}px` }}>
+                                       <div className="flex justify-between items-center gap-1"><span className="font-bold text-white truncate">{event.time} - {band?.name}</span></div>
+                                       {zoomLevel > 1.5 && (<div className="mt-1 space-y-1"><div className="text-slate-400 truncate flex items-center gap-1"><MapPin size={12}/> {event.venue || event.city}</div>{!event.hasContract && event.status !== EventStatus.CANCELED && (<div className="text-red-400 text-xs flex items-center gap-1 font-medium bg-red-950/30 p-1 rounded"><FileWarning size={12}/> Sem Contrato</div>)}</div>)}
+                                       {zoomLevel <= 1.5 && !event.hasContract && event.status !== EventStatus.CANCELED && (<div className="w-1.5 h-1.5 bg-red-500 rounded-full absolute top-1 right-1" title="Sem Contrato" />)}
                                     </div>
                                  )
                               })}
-                              {dayEvents.length > 3 && (
-                                 <div className="text-slate-500 font-medium text-center text-xs mt-2">
-                                   + {dayEvents.length - 3} mais
-                                 </div>
-                              )}
+                              {dayEvents.length > 3 && (<div className="text-slate-500 font-medium text-center text-xs mt-2">+ {dayEvents.length - 3} mais</div>)}
                            </div>
-                           
-                           {/* Add Button on Hover */}
-                           <button 
-                             onClick={(e) => {
-                                e.stopPropagation();
-                                setNewEventDate(dateStr);
-                                setEditingEvent(null);
-                                setIsFormOpen(true);
-                             }}
-                             className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"
-                           >
-                             <Plus size={14 + (zoomLevel-1)*4} />
-                           </button>
+                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (zoomLevel-1)*4} /></button>
                         </div>
                      );
                   })}
@@ -853,11 +684,8 @@ const AppContent: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* List View */
           <div className="flex-1 overflow-auto bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4 custom-scrollbar">
-            {filteredEvents.length === 0 ? (
-               <div className="text-center py-12 text-slate-500">Nenhum evento encontrado para este filtro.</div>
-            ) : (
+            {filteredEvents.length === 0 ? (<div className="text-center py-12 text-slate-500">Nenhum evento encontrado para este filtro.</div>) : (
                filteredEvents.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(event => {
                  const band = bands.find(b => b.id === event.bandId);
                  return (
@@ -887,6 +715,115 @@ const AppContent: React.FC = () => {
     );
   };
   
+  const FinancialView = () => {
+    const visibleEvents = getVisibleEvents();
+    const visibleBands = getVisibleBands();
+    
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [filteredBandId, setFilteredBandId] = useState<string>('all');
+    
+    const availableYears = [...new Set(events.map(e => new Date(e.date).getFullYear()))].sort((a,b) => b-a);
+    if (availableYears.length === 0) availableYears.push(new Date().getFullYear());
+
+    const filteredEvents = visibleEvents.filter(e => {
+      const eventYear = new Date(e.date).getFullYear();
+      const bandMatch = filteredBandId === 'all' || e.bandId === filteredBandId;
+      return eventYear === selectedYear && bandMatch && e.status !== EventStatus.CANCELED;
+    });
+
+    const totalGross = filteredEvents.reduce((sum, e) => sum + e.financials.grossValue, 0);
+    const totalNet = filteredEvents.reduce((sum, e) => sum + e.financials.netValue, 0);
+    const totalCommission = totalGross - totalNet - filteredEvents.reduce((s, e) => s + e.financials.taxes, 0);
+
+    const monthlyData = Array.from({ length: 12 }, (_, i) => {
+      const monthEvents = filteredEvents.filter(e => new Date(e.date).getMonth() === i);
+      const gross = monthEvents.reduce((sum, e) => sum + e.financials.grossValue, 0);
+      const net = monthEvents.reduce((sum, e) => sum + e.financials.netValue, 0);
+      return { name: monthNames[i].substring(0,3), Bruto: gross, Líquido: net };
+    });
+
+    const formatCurrency = (value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return (
+      <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2"><DollarSign className="text-primary-500"/> Visão Financeira</h2>
+          <div className="flex gap-2">
+            <select value={filteredBandId} onChange={e => setFilteredBandId(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white outline-none">
+              <option value="all">Todas as Bandas</option>
+              {visibleBands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <select value={selectedYear} onChange={e => setSelectedYear(parseInt(e.target.value))} className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-white outline-none">
+              {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-green-500/80 text-sm uppercase font-semibold">Faturamento Bruto</p>
+             <p className="text-3xl font-bold text-white mt-1">{formatCurrency(totalGross)}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-yellow-500/80 text-sm uppercase font-semibold">Comissões Pagas</p>
+             <p className="text-3xl font-bold text-white mt-1">{formatCurrency(totalCommission)}</p>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+             <p className="text-blue-500/80 text-sm uppercase font-semibold">Receita Líquida</p>
+             <p className="text-3xl font-bold text-white mt-1">{formatCurrency(totalNet)}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl h-96">
+          <h3 className="text-lg font-bold text-white mb-4">Receita Mensal ({selectedYear})</h3>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="name" tick={{ fill: '#94a3b8' }} />
+              <YAxis tickFormatter={(value) => `R$${Number(value)/1000}k`} tick={{ fill: '#94a3b8' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', color: '#fff' }}
+                formatter={(value: number) => formatCurrency(value)}
+              />
+              <Legend wrapperStyle={{ color: '#fff' }} />
+              <Bar dataKey="Bruto" fill="#6366f1" name="Faturamento Bruto" />
+              <Bar dataKey="Líquido" fill="#38bdf8" name="Receita Líquida" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+          <h3 className="text-lg font-bold text-white p-4">Detalhes dos Eventos</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-900 text-slate-400 text-xs uppercase">
+                <tr>
+                  <th className="p-4">Data</th><th className="p-4">Evento</th><th className="p-4">Banda</th><th className="p-4">Bruto</th><th className="p-4">Líquido</th><th className="p-4">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-sm">
+                {filteredEvents.map(e => {
+                  const band = bands.find(b => b.id === e.bandId);
+                  return (
+                    <tr key={e.id} className="text-slate-300 hover:bg-slate-900/50">
+                      <td className="p-4">{new Date(e.date).toLocaleDateString()}</td>
+                      <td className="p-4 font-medium text-white">{e.name}</td>
+                      <td className="p-4 text-primary-400">{band?.name}</td>
+                      <td className="p-4">{formatCurrency(e.financials.grossValue)}</td>
+                      <td className="p-4 font-semibold text-green-400">{formatCurrency(e.financials.netValue)}</td>
+                      <td className="p-4"><StatusBadge status={e.status} /></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    )
+  }
+
   // --- Render ---
 
   if (isLoading) {
@@ -896,11 +833,14 @@ const AppContent: React.FC = () => {
       </div>
     );
   }
+  
+  if (contractData) {
+    return <ContractView {...contractData} onClose={() => setContractData(null)} />;
+  }
 
   if (!currentUser) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950 relative overflow-hidden">
-        {/* Background Effects */}
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-600/20 rounded-full blur-[100px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-500/10 rounded-full blur-[100px]" />
         
@@ -916,105 +856,50 @@ const AppContent: React.FC = () => {
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">E-mail</label>
-              <input
-                type="text"
-                required
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-                placeholder="seu@email.com"
-              />
+              <input type="text" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all" placeholder="seu@email.com" />
             </div>
-            
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Senha</label>
-              <input
-                type="password"
-                required
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
-                placeholder="••••••••"
-              />
+              <input type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all" placeholder="••••••••" />
             </div>
-
-            {loginError && (
-              <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm text-center">
-                {loginError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary-600/25 transition-all flex items-center justify-center gap-2"
-            >
+            {loginError && (<div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm text-center">{loginError}</div>)}
+            <button type="submit" disabled={isLoggingIn} className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary-600/25 transition-all flex items-center justify-center gap-2">
               {isLoggingIn ? <Loader2 className="animate-spin" size={20}/> : <><LogIn size={20}/> Entrar</>}
             </button>
           </form>
-          
-          <div className="mt-8 pt-6 border-t border-slate-800 text-center text-xs text-slate-500">
-             &copy; 2024 D&E Music Management
-          </div>
+          <div className="mt-8 pt-6 border-t border-slate-800 text-center text-xs text-slate-500">&copy; 2024 D&E Music Management</div>
         </div>
       </div>
     );
   }
 
   return (
-    <Layout 
-      user={currentUser} 
-      currentView={currentView} 
-      onChangeView={setCurrentView}
-      onLogout={handleLogout}
-    >
+    <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView} onLogout={handleLogout}>
       {currentView === 'dashboard' && <DashboardView />}
-      
       {currentView === 'agenda' && renderAgendaView()}
+      {currentView === 'financials' && <FinancialView />}
 
       {currentView === 'contractors' && (
         <div className="space-y-6">
            <div className="flex justify-between items-center">
-             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-               <Briefcase className="text-primary-500" /> Contratantes
-             </h2>
-             <button onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all">
-               <Plus size={18} /> Novo Contratante
-             </button>
+             <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Briefcase className="text-primary-500" /> Contratantes</h2>
+             <button onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all"><Plus size={18} /> Novo Contratante</button>
            </div>
-           
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {contractors.length === 0 ? (
-               <div className="col-span-full text-center py-12 text-slate-500 bg-slate-950 rounded-xl border border-slate-800">
-                 Nenhum contratante cadastrado.
-               </div>
-             ) : (
+             {contractors.length === 0 ? (<div className="col-span-full text-center py-12 text-slate-500 bg-slate-950 rounded-xl border border-slate-800">Nenhum contratante cadastrado.</div>) : (
                contractors.map(c => (
                  <div key={c.id} className="bg-slate-950 border border-slate-800 rounded-xl p-5 hover:border-slate-600 transition-all group relative">
                     <div className="flex justify-between items-start mb-3">
-                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
-                          {c.name.charAt(0).toUpperCase()}
-                       </div>
+                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">{c.name.charAt(0).toUpperCase()}</div>
                        <button onClick={() => handleDeleteContractor(c.id)} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>
                     </div>
                     <h3 className="text-white font-bold text-lg mb-1">{c.name}</h3>
                     <p className="text-sm text-slate-400 mb-4 flex items-center gap-1"><UserIcon size={12}/> {c.responsibleName || 'Sem responsável'}</p>
-                    
                     <div className="space-y-2 text-sm text-slate-500 border-t border-slate-800 pt-3">
-                       <div className="flex items-center gap-2">
-                          <Phone size={14} /> {c.whatsapp || c.phone || 'N/A'}
-                       </div>
-                       <div className="flex items-center gap-2 truncate">
-                          <MapPin size={14} /> {c.address.city || 'Cidade N/A'}
-                       </div>
+                       <div className="flex items-center gap-2"><Phone size={14} /> {c.whatsapp || c.phone || 'N/A'}</div>
+                       <div className="flex items-center gap-2 truncate"><MapPin size={14} /> {c.address.city || 'Cidade N/A'}</div>
                     </div>
-                    
-                    <button 
-                       onClick={() => openEditContractor(c)}
-                       className="absolute bottom-4 right-4 p-2 bg-slate-800 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary-600 shadow-lg"
-                    >
-                       <Edit2 size={16}/>
-                    </button>
+                    <button onClick={() => openEditContractor(c)} className="absolute bottom-4 right-4 p-2 bg-slate-800 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary-600 shadow-lg"><Edit2 size={16}/></button>
                  </div>
                ))
              )}
@@ -1024,59 +909,32 @@ const AppContent: React.FC = () => {
 
       {currentView === 'bands' && (
         <div className="space-y-8">
-           {/* Section 1: Bands Management */}
            <div>
              <div className="flex justify-between items-center mb-4">
-               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                 <Music className="text-primary-500" /> Bandas do Sistema
-               </h2>
-               <button onClick={handleAddBand} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 border border-slate-700 transition-all">
-                 <Plus size={18} /> Nova Banda
-               </button>
+               <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Music className="text-primary-500" /> Bandas do Sistema</h2>
+               <button onClick={handleAddBand} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 border border-slate-700 transition-all"><Plus size={18} /> Nova Banda</button>
              </div>
-             
              <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
                 <table className="w-full text-left">
                   <thead className="bg-slate-900 text-slate-400 text-xs uppercase">
-                    <tr>
-                      <th className="p-4">Nome da Banda</th>
-                      <th className="p-4">Gênero</th>
-                      <th className="p-4 text-right">Ações</th>
-                    </tr>
+                    <tr><th className="p-4">Nome da Banda</th><th className="p-4">Gênero</th><th className="p-4 text-right">Ações</th></tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-sm">
-                    {bands.map(b => (
-                      <tr key={b.id} className="text-slate-300 hover:bg-slate-900/50">
-                        <td className="p-4 font-medium text-white">{b.name}</td>
-                        <td className="p-4">{b.genre}</td>
-                        <td className="p-4 text-right">
-                           <button className="text-slate-500 hover:text-white transition-colors">Editar</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {bands.map(b => (<tr key={b.id} className="text-slate-300 hover:bg-slate-900/50"><td className="p-4 font-medium text-white">{b.name}</td><td className="p-4">{b.genre}</td><td className="p-4 text-right"><button className="text-slate-500 hover:text-white transition-colors">Editar</button></td></tr>))}
                   </tbody>
                 </table>
              </div>
            </div>
-
-           {/* Section 2: Users Management */}
            <div>
               <div className="flex justify-between items-center mb-4">
-               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                 <Users className="text-accent-500" /> Usuários e Acesso
-               </h2>
-               <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all">
-                 <Plus size={18} /> Novo Usuário
-               </button>
+               <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Users className="text-accent-500" /> Usuários e Acesso</h2>
+               <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all"><Plus size={18} /> Novo Usuário</button>
              </div>
-             
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                {users.map(u => (
                   <div key={u.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between group">
                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold border border-slate-600">
-                           {u.name.charAt(0)}
-                        </div>
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold border border-slate-600">{u.name.charAt(0)}</div>
                         <div>
                            <p className="font-bold text-white">{u.name}</p>
                            <p className="text-xs text-slate-500">{u.email}</p>
@@ -1095,39 +953,11 @@ const AppContent: React.FC = () => {
       )}
 
       {/* MODALS */}
-      {isFormOpen && (
-        <EventForm 
-          bands={getVisibleBands()}
-          contractors={contractors}
-          existingEvent={editingEvent}
-          currentUser={currentUser}
-          initialDate={newEventDate}
-          initialBandId={selectedBandFilter || undefined}
-          onSave={handleSaveEvent}
-          onClose={() => setIsFormOpen(false)}
-        />
-      )}
-      
-      {isContractorFormOpen && (
-        <ContractorForm
-          existingContractor={editingContractor}
-          onSave={handleSaveContractor}
-          onClose={() => setIsContractorFormOpen(false)}
-        />
-      )}
-
-      {isUserFormOpen && (
-        <UserForm
-          bands={bands}
-          existingUser={editingUser}
-          onSave={handleSaveUser}
-          onClose={() => setIsUserFormOpen(false)}
-        />
-      )}
-      
-      {/* Day Details Popup */}
+      {isFormOpen && (<EventForm bands={getVisibleBands()} contractors={contractors} existingEvent={editingEvent} currentUser={currentUser} initialDate={newEventDate} initialBandId={selectedBandFilter || undefined} onSave={handleSaveEvent} onClose={() => setIsFormOpen(false)} />)}
+      {isContractorFormOpen && (<ContractorForm existingContractor={editingContractor} onSave={handleSaveContractor} onClose={() => setIsContractorFormOpen(false)} />)}
+      {/* FIX: Corrected typo 'setIsUserForm-open' to 'setIsUserFormOpen' to fix function call. */}
+      {isUserFormOpen && (<UserForm bands={bands} existingUser={editingUser} onSave={handleSaveUser} onClose={() => setIsUserFormOpen(false)} />)}
       <DayDetailsModal />
-
     </Layout>
   );
 };

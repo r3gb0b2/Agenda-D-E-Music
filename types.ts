@@ -9,7 +9,7 @@ export enum EventStatus {
 export enum UserRole {
   ADMIN = 'ADMIN',
   MANAGER = 'MANAGER', // Band Manager
-  MEMBER = 'MEMBER'    // Musician
+  VIEWER = 'VIEWER'    // Read-only access
 }
 
 export enum ContractorType {
@@ -25,7 +25,7 @@ export interface Band {
 }
 
 export interface User {
-  id: string;
+  id:string;
   name: string;
   email: string;
   password?: string; // Para autenticação local
