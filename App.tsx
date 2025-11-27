@@ -10,32 +10,26 @@ import {
   Search, 
   MapPin, 
   Clock, 
-  MoreVertical, 
   Trash2,
   Users,
   Music,
   Loader2,
-  LogIn,
   AlertTriangle,
   RefreshCcw,
   CalendarDays,
-  Mic2,
-  Phone,
-  Briefcase,
   Edit2,
   ChevronRight,
-  FilterX,
   ChevronLeft,
   List,
   Calendar as CalendarIcon,
-  User as UserIcon,
-  ZoomIn,
-  ZoomOut,
   X,
   History,
-  Ban,
   FileWarning,
-  FileCheck
+  Mic2,
+  LogIn,
+  Briefcase,
+  User as UserIcon,
+  Phone
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -79,8 +73,6 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Fix: Initialize state as a class property. This is a more modern approach
-  // and resolves the TypeScript errors related to 'state' and 'props' not being found.
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -133,6 +125,7 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false); 
   
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
@@ -145,11 +138,9 @@ const AppContent: React.FC = () => {
   const [newEventDate, setNewEventDate] = useState<string>('');
   const [selectedDateDetails, setSelectedDateDetails] = useState<string | null>(null);
   
-  // Hoisted Agenda State (to prevent reset on re-renders)
+  // Hoisted Agenda State
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  // 0: Compact, 1: Normal, 2: Detailed
-  const [zoomLevel, setZoomLevel] = useState(1);
 
   const [isLoading, setIsLoading] = useState(true);
   
@@ -609,6 +600,20 @@ const AppContent: React.FC = () => {
 
     const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
     const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+    
+    // Helpers for Month Picker
+    const changeYear = (offset: number) => {
+        const newDate = new Date(currentMonth);
+        newDate.setFullYear(newDate.getFullYear() + offset);
+        setCurrentMonth(newDate);
+    };
+
+    const selectMonth = (monthIndex: number) => {
+        const newDate = new Date(currentMonth);
+        newDate.setMonth(monthIndex);
+        setCurrentMonth(newDate);
+        setIsMonthPickerOpen(false);
+    };
 
     const handleDayClick = (dayNum: number) => {
       const d = String(dayNum).padStart(2, '0');
@@ -626,7 +631,7 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col gap-4 shrink-0">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
-            {/* Controles de Visualização, Zoom e Mês */}
+            {/* Controles de Visualização e Mês */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
                   <button 
@@ -643,511 +648,243 @@ const AppContent: React.FC = () => {
                   </button>
                </div>
 
-               {/* Zoom Controls */}
                {viewMode === 'calendar' && (
-                <div className="flex items-center gap-1 bg-slate-900 rounded-lg p-1 border border-slate-800 ml-0 md:ml-2">
-                    <button 
-                      onClick={() => setZoomLevel(prev => Math.max(0, prev - 1))} 
-                      disabled={zoomLevel === 0}
-                      className={`p-2 rounded transition-all ${zoomLevel === 0 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                      title="Menos Detalhes"
-                    >
-                      <ZoomOut size={18} />
-                    </button>
-                    <div className="flex gap-0.5 px-1">
-                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 0 ? 'bg-primary-500' : 'bg-slate-700'}`} />
-                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 1 ? 'bg-primary-500' : 'bg-slate-700'}`} />
-                       <div className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === 2 ? 'bg-primary-500' : 'bg-slate-700'}`} />
-                    </div>
-                    <button 
-                      onClick={() => setZoomLevel(prev => Math.min(2, prev + 1))} 
-                      disabled={zoomLevel === 2}
-                      className={`p-2 rounded transition-all ${zoomLevel === 2 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                      title="Mais Detalhes"
-                    >
-                      <ZoomIn size={18} />
-                    </button>
-                </div>
-               )}
-
-               {viewMode === 'calendar' && (
-                 <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2">
-                   <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
-                   <span className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide">{monthNames[month]} {year}</span>
-                   <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
+                 <div className="relative ml-0 md:ml-2">
+                   <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
+                     <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
+                     <button 
+                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                        className="font-semibold text-white min-w-[140px] text-center uppercase tracking-wide hover:text-primary-400 transition-colors py-1"
+                     >
+                        {monthNames[month]} {year}
+                     </button>
+                     <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
+                   </div>
+                   
+                   {/* MONTH PICKER DROPDOWN */}
+                   {isMonthPickerOpen && (
+                      <div className="absolute top-full left-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-4 w-64 animate-fade-in origin-top-left">
+                          <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+                              <button onClick={() => changeYear(-1)} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={16}/></button>
+                              <span className="font-bold text-white text-lg">{year}</span>
+                              <button onClick={() => changeYear(1)} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={16}/></button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                              {monthNames.map((m, i) => (
+                                  <button 
+                                      key={i} 
+                                      onClick={() => selectMonth(i)} 
+                                      className={`text-xs py-2 rounded-lg font-medium transition-colors ${i === month ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                                  >
+                                      {m.substring(0, 3)}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
+                   )}
                  </div>
                )}
             </div>
 
-            <div className="flex gap-2 w-full md:w-auto">
-               <div className="relative flex-1 md:w-64">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Buscar..." 
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
-                />
-              </div>
-              <button 
-                onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
-                className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
-              >
-                <Plus size={18} /> <span className="hidden md:inline">Novo Evento</span>
-              </button>
+            {/* Filter Input */}
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+              <input
+                type="text"
+                placeholder="Filtrar por nome ou cidade..."
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white focus:border-primary-500 outline-none"
+              />
             </div>
           </div>
-
-          {/* Banner de Filtro Ativo */}
+          
           {selectedBandFilter && (
-            <div className="flex items-center justify-between bg-primary-900/20 border border-primary-900/50 p-3 rounded-lg text-primary-200">
-               <span className="flex items-center gap-2 text-sm"><FilterX size={14}/> Filtrando por: <strong>{selectedBandName}</strong></span>
-               <button onClick={() => setSelectedBandFilter(null)} className="text-xs hover:text-white underline">Limpar filtro</button>
+            <div className="flex items-center gap-2 bg-primary-900/20 text-primary-300 px-3 py-1.5 rounded-lg w-fit border border-primary-500/30">
+              <span className="text-sm">Filtrando: <b>{selectedBandName}</b></span>
+              <button onClick={() => setSelectedBandFilter(null)} className="hover:text-white"><X size={14}/></button>
             </div>
           )}
         </div>
 
-        {/* MODO CALENDÁRIO */}
-        {viewMode === 'calendar' && (
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0 relative">
+        {/* Calendar Grid - Always Full Width / Detail */}
+        {viewMode === 'calendar' ? (
+          <div className="flex-1 overflow-auto bg-slate-950 border border-slate-800 rounded-xl shadow-inner relative custom-scrollbar">
+            {/* Header Row (Days of Week) - Sticky */}
+            <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 sticky top-0 z-10 min-w-[1000px] md:min-w-0">
+               {weekDays.map(day => (
+                 <div key={day} className="py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-800 last:border-0">
+                   {day}
+                 </div>
+               ))}
+            </div>
             
-            {/* Scroll Container */}
-            <div className="flex-1 overflow-auto custom-scrollbar relative">
-                <div className={`flex flex-col min-h-full transition-all duration-300 ease-in-out ${zoomLevel === 2 ? 'min-w-[200vw] md:min-w-[150vw]' : 'w-full'}`}>
-                    
-                    {/* Week Days Header - Sticky */}
-                    <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 shrink-0 sticky top-0 z-20 shadow-md">
-                        {weekDays.map(day => (
-                            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-900">
-                                {day}
-                            </div>
-                        ))}
-                    </div>
+            {/* Days Grid */}
+             <div className="grid grid-cols-7 auto-rows-fr min-h-full min-w-[1000px] md:min-w-0">
+                {/* Empty cells for start of month */}
+                {Array.from({ length: firstDay }).map((_, i) => (
+                   <div key={`empty-${i}`} className="bg-slate-900/30 border-b border-r border-slate-800/50 min-h-[120px]" />
+                ))}
 
-                    {/* Calendar Grid - SCROLLABLE with Dynamic Rows */}
-                    <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px">
-                    {/* Empty cells for previous month */}
-                    {Array.from({ length: firstDay }).map((_, i) => (
-                        <div key={`empty-${i}`} className={`bg-slate-950/50 ${zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]'} transition-all duration-300`}></div>
-                    ))}
+                {/* Actual Days */}
+                {Array.from({ length: days }).map((_, i) => {
+                   const dayNum = i + 1;
+                   const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                   const dayEvents = visibleEvents.filter(e => e.date.split('T')[0] === dateStr);
+                   const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
-                    {/* Days of current month */}
-                    {Array.from({ length: days }).map((_, i) => {
-                        const dayNum = i + 1;
-                        // Construct date string YYYY-MM-DD
-                        const d = String(dayNum).padStart(2, '0');
-                        const m = String(month + 1).padStart(2, '0');
-                        const dateStr = `${year}-${m}-${d}`;
-
-                        // Strict string comparison to find events
-                        const dayEvents = filteredEvents.filter(e => {
-                        if (!e.date) return false;
-                        const eventDate = e.date.includes('T') ? e.date.split('T')[0] : e.date;
-                        return eventDate === dateStr;
-                        });
-
-                        const isToday = new Date().toISOString().split('T')[0] === dateStr;
-
-                        // Define zoom-dependent classes
-                        let cellMinHeight = 'min-h-[120px]';
-                        let cardPadding = 'p-1.5';
-                        let cardGap = 'gap-0.5';
-                        let showDetails = true;
-                        let showExtras = false;
-                        let titleClass = 'text-xs font-semibold';
-                        let timeClass = 'text-xs font-bold';
-                        
-                        if (zoomLevel === 0) { // Compact
-                            cellMinHeight = 'min-h-[80px]';
-                            cardPadding = 'p-0.5';
-                            cardGap = 'gap-1';
-                            showDetails = false;
-                            titleClass = 'text-[10px] leading-tight truncate';
-                            timeClass = 'text-[10px] font-bold';
-                        } else if (zoomLevel === 2) { // Detailed
-                            cellMinHeight = 'min-h-[200px]';
-                            cardPadding = 'p-3';
-                            cardGap = 'gap-2';
-                            showExtras = true;
-                            // Whitespace normal allows text wrapping when width is expanded
-                            titleClass = 'text-sm font-bold leading-tight whitespace-normal';
-                            timeClass = 'text-sm font-bold bg-black/20 px-1.5 py-0.5 rounded';
-                        }
-
-                        return (
-                        <div 
-                            key={dayNum} 
-                            onClick={() => handleDayClick(dayNum)}
-                            className={`bg-slate-950 ${cellMinHeight} h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
-                        >
-                            <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
+                   return (
+                      <div 
+                        key={dayNum} 
+                        onClick={() => handleDayClick(dayNum)}
+                        className={`min-h-[120px] border-b border-r border-slate-800 relative p-2 transition-colors hover:bg-slate-900 cursor-pointer group ${isToday ? 'bg-primary-900/10' : ''}`}
+                      >
+                         <div className={`text-xs font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-500'}`}>
                             {dayNum} {isToday && '(Hoje)'}
-                            </span>
-                            
-                            <div className="flex flex-col gap-1 w-full min-w-0">
+                         </div>
+                         
+                         {/* Events List in Day Cell */}
+                         <div className="space-y-1">
                             {dayEvents.map(event => {
-                                const band = bands.find(b => b.id === event.bandId);
-                                
-                                // Determine color based on status
-                                let statusColor = "bg-slate-700 border-slate-600";
-                                if (event.status === EventStatus.CONFIRMED) statusColor = "bg-green-600/90 border-green-500";
-                                if (event.status === EventStatus.RESERVED) statusColor = "bg-yellow-600/90 border-yellow-500";
-                                if (event.status === EventStatus.CANCELED) statusColor = "bg-red-600/90 border-red-500";
-                                
-                                return (
-                                <div 
-                                    key={event.id}
-                                    onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
-                                    className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
-                                    title={`${event.time} - ${event.name}`}
-                                >
-                                    <div className={`flex ${zoomLevel === 0 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
-                                    <div className={`${timeClass} whitespace-nowrap`}>
-                                        {event.time}
-                                    </div>
-                                    <div className={`${titleClass} break-words`}>
-                                        {event.name}
-                                    </div>
-                                    </div>
-
-                                    {showDetails && (
-                                    <div className={`mt-1 ${zoomLevel === 2 ? 'space-y-1' : ''}`}>
-                                        <div className={`text-[10px] opacity-90 leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs' : ''}`}>
-                                            {zoomLevel === 2 && <MapPin size={10} />}
-                                            {event.city}
-                                        </div>
-                                        <div className={`text-[10px] opacity-75 italic leading-tight ${zoomLevel === 2 ? 'flex items-center gap-1 text-xs not-italic' : ''}`}>
-                                            {zoomLevel === 2 && <Music size={10} />}
-                                            {band?.name}
-                                        </div>
-                                    </div>
-                                    )}
-
-                                    {showExtras && (
-                                    <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
-                                        {event.venue && (
-                                            <div className="text-[10px] bg-black/20 p-1 rounded flex items-start gap-1">
-                                            <MapPin size={10} className="mt-0.5 shrink-0" /> 
-                                            <span className="leading-tight">{event.venue}</span>
-                                            </div>
-                                        )}
-                                        {event.contractor && (
-                                            <div className="text-[10px] bg-black/20 p-1 rounded flex items-center gap-1">
-                                                <UserIcon size={10} className="shrink-0" />
-                                                <span className="truncate">{event.contractor}</span>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-end gap-1">
-                                            {!event.hasContract && event.status !== EventStatus.CANCELED && (
-                                                <div title="Contrato não enviado" className="bg-red-500 text-white rounded-full p-0.5">
-                                                    <FileWarning size={10} />
-                                                </div>
-                                            )}
-                                            <StatusBadge status={event.status} />
-                                        </div>
-                                    </div>
-                                    )}
-                                    
-                                    {/* Compact mode indicator for no contract */}
-                                    {zoomLevel !== 2 && !event.hasContract && event.status !== EventStatus.CANCELED && (
-                                        <div className="absolute top-0.5 right-0.5 text-red-300">
-                                            <FileWarning size={10} />
-                                        </div>
-                                    )}
-                                </div>
-                                )
+                               const band = bands.find(b => b.id === event.bandId);
+                               return (
+                                  <div key={event.id} className="text-[10px] p-1.5 rounded border border-slate-700 bg-slate-800/50 hover:border-slate-500 transition-colors overflow-hidden">
+                                     <div className="font-bold text-white truncate">{event.time} - {band?.name}</div>
+                                     <div className="text-slate-400 truncate">{event.venue || event.city}</div>
+                                     {!event.hasContract && event.status !== EventStatus.CANCELED && (
+                                       <div className="text-red-400 text-[9px] mt-0.5 flex items-center gap-0.5"><FileWarning size={8}/> Sem Contrato</div>
+                                     )}
+                                  </div>
+                               )
                             })}
-                            </div>
-
-                            {/* Add button on hover */}
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Plus size={14} className="text-primary-500" />
-                            </div>
-                        </div>
-                        );
-                    })}
-                    </div>
-                </div>
-            </div>
+                            {dayEvents.length > 3 && (
+                               <div className="text-[9px] text-center text-slate-500 font-medium">
+                                 + {dayEvents.length - 3} mais
+                               </div>
+                            )}
+                         </div>
+                         
+                         {/* Add Button on Hover */}
+                         <button 
+                           onClick={(e) => {
+                              e.stopPropagation();
+                              setNewEventDate(dateStr);
+                              setEditingEvent(null);
+                              setIsFormOpen(true);
+                           }}
+                           className="absolute bottom-2 right-2 p-1 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg"
+                         >
+                           <Plus size={14} />
+                         </button>
+                      </div>
+                   );
+                })}
+             </div>
           </div>
-        )}
-
-        {/* MODO LISTA */}
-        {viewMode === 'list' && (
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-900 border-b border-slate-800">
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Data</th>
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Local</th>
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Banda</th>
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Contrato</th>
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {filteredEvents.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-500">
-                        Nenhum evento encontrado.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredEvents.map(event => {
-                      const band = bands.find(b => b.id === event.bandId);
-                      return (
-                        <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
-                          <td className="p-4 text-slate-400 font-medium whitespace-nowrap">
-                             {event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('pt-BR') : '--'}
-                             <div className="text-xs text-slate-600">{event.time}</div>
-                          </td>
-                          <td className="p-4 text-white font-medium">
-                            {event.name}
-                            <div className="text-xs text-slate-600">Criado por: {event.createdBy}</div>
-                          </td>
-                          <td className="p-4 text-slate-400">
-                             {event.city}
-                             <div className="text-xs text-slate-600">{event.venue}</div>
-                          </td>
-                          <td className="p-4 text-primary-400 text-sm">{band?.name}</td>
-                          <td className="p-4 text-center">
-                             {!event.hasContract ? (
-                               <span title="Pendente" className="text-red-400 flex justify-center"><FileWarning size={16} /></span>
-                             ) : (
-                               <span title="Ok" className="text-green-500/50 flex justify-center"><FileCheck size={16} /></span>
-                             )}
-                          </td>
-                          <td className="p-4 text-center">
-                            <StatusBadge status={event.status} />
-                          </td>
-                          <td className="p-4 text-right">
-                             <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                               <button onClick={() => openEditEvent(event)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-white" title="Editar">
-                                 <Edit2 size={16} />
-                               </button>
-                               <button onClick={() => handleDeleteEvent(event.id)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-red-400" title="Excluir">
-                                 <Trash2 size={16} />
-                               </button>
+        ) : (
+          /* List View */
+          <div className="flex-1 overflow-auto bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-4 custom-scrollbar">
+            {filteredEvents.length === 0 ? (
+               <div className="text-center py-12 text-slate-500">Nenhum evento encontrado para este filtro.</div>
+            ) : (
+               filteredEvents.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(event => {
+                 const band = bands.find(b => b.id === event.bandId);
+                 return (
+                    <div key={event.id} onClick={() => openEditEvent(event)} className="bg-slate-900 border border-slate-800 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:border-slate-600 transition-colors">
+                       <div className="flex items-center gap-4">
+                          <div className="text-center bg-slate-950 p-3 rounded border border-slate-800 min-w-[70px]">
+                             <span className="block text-xs text-slate-500 uppercase">{new Date(event.date).toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                             <span className="block text-2xl font-bold text-white">{new Date(event.date).getDate()}</span>
+                          </div>
+                          <div>
+                             <h4 className="text-lg font-bold text-white">{event.name}</h4>
+                             <p className="text-sm text-primary-400 font-medium">{band?.name}</p>
+                             <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                                <span className="flex items-center gap-1"><Clock size={12}/> {event.time}</span>
+                                <span className="flex items-center gap-1"><MapPin size={12}/> {event.city}</span>
                              </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          </div>
+                       </div>
+                       <StatusBadge status={event.status} />
+                    </div>
+                 )
+               })
+            )}
           </div>
         )}
       </div>
     );
   };
-
-  const ContractorsView = () => {
-     // Filter Logic
-     const filtered = contractors.filter(c => 
-       c.name.toLowerCase().includes(filterText.toLowerCase()) || 
-       c.responsibleName.toLowerCase().includes(filterText.toLowerCase())
-     );
-
-     return (
-       <div className="space-y-6 pb-20 md:pb-0">
-         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-           <div className="relative flex-1 w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar contratantes..." 
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
-              />
-           </div>
-           <button 
-              onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }}
-              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap w-full md:w-auto justify-center"
-            >
-              <Plus size={18} /> Novo Contratante
-           </button>
-         </div>
-
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.length === 0 && (
-               <div className="col-span-full text-center py-12 bg-slate-950 border border-slate-800 rounded-xl">
-                  <Briefcase size={48} className="mx-auto text-slate-700 mb-3" />
-                  <p className="text-slate-400">Nenhum contratante encontrado.</p>
-               </div>
-            )}
-            {filtered.map(contractor => (
-              <div key={contractor.id} className="bg-slate-950 border border-slate-800 rounded-xl p-5 hover:border-slate-600 transition-all group relative">
-                 <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="text-white font-bold text-lg">{contractor.name}</h3>
-                      <p className="text-xs text-slate-500 uppercase font-semibold">{contractor.type}</p>
-                    </div>
-                    <div className="p-2 bg-slate-900 rounded-lg text-primary-500">
-                       <UserIcon size={20} />
-                    </div>
-                 </div>
-                 
-                 <div className="space-y-2 text-sm text-slate-400">
-                    <div className="flex items-center gap-2">
-                       <UserIcon size={14} className="text-slate-600"/> {contractor.responsibleName || 'Responsável não inf.'}
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <Phone size={14} className="text-slate-600"/> {contractor.whatsapp || contractor.phone || '--'}
-                    </div>
-                    <div className="flex items-center gap-2">
-                       <MapPin size={14} className="text-slate-600"/> {contractor.address.city || 'Cidade não inf.'} - {contractor.address.state}
-                    </div>
-                 </div>
-
-                 <div className="mt-4 pt-4 border-t border-slate-800 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEditContractor(contractor)} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                       <Edit2 size={12} /> Editar
-                    </button>
-                    <button onClick={() => handleDeleteContractor(contractor.id)} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800 hover:border-red-900">
-                       <Trash2 size={12} /> Excluir
-                    </button>
-                 </div>
-              </div>
-            ))}
-         </div>
-       </div>
-     )
-  }
-
-  const BandManagerView = () => {
-    return (
-      <div className="space-y-8 pb-20 md:pb-0">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* Gerenciar Bandas */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-            <div className="flex justify-between items-center mb-6">
-               <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                 <Music className="text-accent-500" /> Bandas
-               </h3>
-               <button onClick={handleAddBand} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors">
-                 + Adicionar
-               </button>
-            </div>
-            <div className="space-y-2">
-               {bands.map(band => (
-                 <div key={band.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800">
-                    <span className="text-white font-medium">{band.name}</span>
-                    <span className="text-xs text-slate-500">{band.members} integrantes</span>
-                 </div>
-               ))}
-               {bands.length === 0 && <p className="text-slate-500 text-sm">Nenhuma banda cadastrada.</p>}
-            </div>
-          </div>
-
-          {/* Gerenciar Usuários */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-            <div className="flex justify-between items-center mb-6">
-               <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                 <Users className="text-green-500" /> Usuários do Sistema
-               </h3>
-               <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors">
-                 + Novo Usuário
-               </button>
-            </div>
-            <div className="space-y-3">
-               {users.map(u => (
-                 <div key={u.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800 group">
-                    <div>
-                       <div className="text-white font-medium flex items-center gap-2">
-                         {u.name}
-                         {u.role === UserRole.ADMIN && <span className="text-[10px] bg-red-900 text-red-200 px-1 rounded">ADMIN</span>}
-                       </div>
-                       <div className="text-xs text-slate-500">{u.email}</div>
-                    </div>
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => openEditUser(u)} className="p-1 text-slate-400 hover:text-white"><Edit2 size={14}/></button>
-                       {u.email !== 'admin' && (
-                         <button onClick={() => handleDeleteUser(u.id)} className="p-1 text-slate-400 hover:text-red-400"><Trash2 size={14}/></button>
-                       )}
-                    </div>
-                 </div>
-               ))}
-            </div>
-          </div>
-
-        </div>
-      </div>
-    );
-  };
-
-  // --- Render Logic ---
+  
+  // --- Render ---
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950 text-white">
-        <Loader2 className="animate-spin mr-2" /> Carregando sistema...
+      <div className="flex h-screen items-center justify-center bg-slate-950">
+        <Loader2 className="animate-spin text-primary-500" size={32} />
       </div>
     );
   }
 
   if (!currentUser) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950 p-4">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 animate-fade-in-up">
-           <div className="text-center mb-8">
-             <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-accent-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-500/20">
-               <Mic2 size={32} className="text-white" />
-             </div>
-             <h1 className="text-2xl font-bold text-white mb-2">Agenda D&E MUSIC</h1>
-             <p className="text-slate-400">Acesse o sistema para gerenciar seus shows.</p>
-           </div>
+      <div className="flex h-screen items-center justify-center bg-slate-950 relative overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-600/20 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-500/10 rounded-full blur-[100px]" />
+        
+        <div className="w-full max-w-md p-8 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl relative z-10 mx-4">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 text-white mb-4 shadow-lg shadow-primary-500/25">
+              <Mic2 size={32} />
+            </div>
+            <h1 className="text-2xl font-bold text-white">Agenda D&E MUSIC</h1>
+            <p className="text-slate-400 mt-2">Acesse para gerenciar shows e contratos</p>
+          </div>
 
-           <form onSubmit={handleLoginSubmit} className="space-y-4">
-              {loginError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center">
-                  {loginError}
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">E-mail ou Usuário</label>
-                <input 
-                  type="text" 
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                  placeholder="ex: admin"
-                />
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">E-mail</label>
+              <input
+                type="text"
+                required
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                placeholder="seu@email.com"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Senha</label>
+              <input
+                type="password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all"
+                placeholder="••••••••"
+              />
+            </div>
+
+            {loginError && (
+              <div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm text-center">
+                {loginError}
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
-                <input 
-                  type="password" 
-                  required
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                  placeholder="••••••••"
-                />
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={isLoggingIn}
-                className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary-600/20 transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isLoggingIn ? <Loader2 className="animate-spin" size={20}/> : <><LogIn size={20} /> Entrar no Sistema</>}
-              </button>
-           </form>
-
-           <div className="mt-8 text-center text-xs text-slate-600">
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary-600/25 transition-all flex items-center justify-center gap-2"
+            >
+              {isLoggingIn ? <Loader2 className="animate-spin" size={20}/> : <><LogIn size={20}/> Entrar</>}
+            </button>
+          </form>
+          
+          <div className="mt-8 pt-6 border-t border-slate-800 text-center text-xs text-slate-500">
              &copy; 2024 D&E Music Management
-           </div>
+          </div>
         </div>
       </div>
     );
@@ -1160,29 +897,146 @@ const AppContent: React.FC = () => {
       onChangeView={setCurrentView}
       onLogout={handleLogout}
     >
-      <div className="max-w-7xl mx-auto h-full">
-        {currentView === 'dashboard' && <DashboardView />}
-        {currentView === 'agenda' && renderAgendaView()}
-        {currentView === 'contractors' && <ContractorsView />}
-        {currentView === 'bands' && <BandManagerView />}
-      </div>
-
-      {/* Modals */}
-      {selectedDateDetails && <DayDetailsModal />}
+      {currentView === 'dashboard' && <DashboardView />}
       
+      {currentView === 'agenda' && renderAgendaView()}
+
+      {currentView === 'contractors' && (
+        <div className="space-y-6">
+           <div className="flex justify-between items-center">
+             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+               <Briefcase className="text-primary-500" /> Contratantes
+             </h2>
+             <button onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all">
+               <Plus size={18} /> Novo Contratante
+             </button>
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {contractors.length === 0 ? (
+               <div className="col-span-full text-center py-12 text-slate-500 bg-slate-950 rounded-xl border border-slate-800">
+                 Nenhum contratante cadastrado.
+               </div>
+             ) : (
+               contractors.map(c => (
+                 <div key={c.id} className="bg-slate-950 border border-slate-800 rounded-xl p-5 hover:border-slate-600 transition-all group relative">
+                    <div className="flex justify-between items-start mb-3">
+                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">
+                          {c.name.charAt(0).toUpperCase()}
+                       </div>
+                       <button onClick={() => handleDeleteContractor(c.id)} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>
+                    </div>
+                    <h3 className="text-white font-bold text-lg mb-1">{c.name}</h3>
+                    <p className="text-sm text-slate-400 mb-4 flex items-center gap-1"><UserIcon size={12}/> {c.responsibleName || 'Sem responsável'}</p>
+                    
+                    <div className="space-y-2 text-sm text-slate-500 border-t border-slate-800 pt-3">
+                       <div className="flex items-center gap-2">
+                          <Phone size={14} /> {c.whatsapp || c.phone || 'N/A'}
+                       </div>
+                       <div className="flex items-center gap-2 truncate">
+                          <MapPin size={14} /> {c.address.city || 'Cidade N/A'}
+                       </div>
+                    </div>
+                    
+                    <button 
+                       onClick={() => openEditContractor(c)}
+                       className="absolute bottom-4 right-4 p-2 bg-slate-800 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary-600 shadow-lg"
+                    >
+                       <Edit2 size={16}/>
+                    </button>
+                 </div>
+               ))
+             )}
+           </div>
+        </div>
+      )}
+
+      {currentView === 'bands' && (
+        <div className="space-y-8">
+           {/* Section 1: Bands Management */}
+           <div>
+             <div className="flex justify-between items-center mb-4">
+               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                 <Music className="text-primary-500" /> Bandas do Sistema
+               </h2>
+               <button onClick={handleAddBand} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 border border-slate-700 transition-all">
+                 <Plus size={18} /> Nova Banda
+               </button>
+             </div>
+             
+             <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-slate-900 text-slate-400 text-xs uppercase">
+                    <tr>
+                      <th className="p-4">Nome da Banda</th>
+                      <th className="p-4">Gênero</th>
+                      <th className="p-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-sm">
+                    {bands.map(b => (
+                      <tr key={b.id} className="text-slate-300 hover:bg-slate-900/50">
+                        <td className="p-4 font-medium text-white">{b.name}</td>
+                        <td className="p-4">{b.genre}</td>
+                        <td className="p-4 text-right">
+                           <button className="text-slate-500 hover:text-white transition-colors">Editar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+             </div>
+           </div>
+
+           {/* Section 2: Users Management */}
+           <div>
+              <div className="flex justify-between items-center mb-4">
+               <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                 <Users className="text-accent-500" /> Usuários e Acesso
+               </h2>
+               <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all">
+                 <Plus size={18} /> Novo Usuário
+               </button>
+             </div>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+               {users.map(u => (
+                  <div key={u.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between group">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold border border-slate-600">
+                           {u.name.charAt(0)}
+                        </div>
+                        <div>
+                           <p className="font-bold text-white">{u.name}</p>
+                           <p className="text-xs text-slate-500">{u.email}</p>
+                           <span className="text-[10px] uppercase tracking-wider text-primary-400 font-bold">{u.role}</span>
+                        </div>
+                     </div>
+                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEditUser(u)} className="p-1.5 text-slate-400 hover:text-white bg-slate-900 rounded"><Edit2 size={14}/></button>
+                        <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 text-slate-400 hover:text-red-400 bg-slate-900 rounded"><Trash2 size={14}/></button>
+                     </div>
+                  </div>
+               ))}
+             </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODALS */}
       {isFormOpen && (
         <EventForm 
-          bands={getVisibleBands()} 
+          bands={getVisibleBands()}
           contractors={contractors}
           existingEvent={editingEvent}
           currentUser={currentUser}
-          initialDate={newEventDate} // Pass calendar click date
-          initialBandId={selectedBandFilter || undefined} // Pass active filter band
+          initialDate={newEventDate}
+          initialBandId={selectedBandFilter || undefined}
           onSave={handleSaveEvent}
           onClose={() => setIsFormOpen(false)}
         />
       )}
-
+      
       {isContractorFormOpen && (
         <ContractorForm
           existingContractor={editingContractor}
@@ -1199,17 +1053,18 @@ const AppContent: React.FC = () => {
           onClose={() => setIsUserFormOpen(false)}
         />
       )}
+      
+      {/* Day Details Popup */}
+      <DayDetailsModal />
 
     </Layout>
   );
 };
 
-const App: React.FC = () => {
+export default function App() {
   return (
     <ErrorBoundary>
       <AppContent />
     </ErrorBoundary>
   );
-};
-
-export default App;
+}
