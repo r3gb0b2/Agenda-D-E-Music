@@ -1,4 +1,5 @@
-import React, { Component, useState, useEffect, ReactNode, ErrorInfo } from 'react';
+
+import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
 import Layout from './components/Layout';
@@ -29,7 +30,9 @@ import {
   LogIn,
   Briefcase,
   User as UserIcon,
-  Phone
+  Phone,
+  ZoomIn,
+  ZoomOut
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -72,7 +75,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -141,6 +144,8 @@ const AppContent: React.FC = () => {
   // Hoisted Agenda State
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  // 1 = Fit Screen (Compact), 2 = Expanded (High Res/Detailed)
+  const [zoomLevel, setZoomLevel] = useState<1 | 2>(1); 
 
   const [isLoading, setIsLoading] = useState(true);
   
@@ -637,16 +642,38 @@ const AppContent: React.FC = () => {
                   <button 
                     onClick={() => setViewMode('calendar')}
                     className={`p-2 rounded transition-all ${viewMode === 'calendar' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                    title="Modo Calendário"
                   >
                     <CalendarIcon size={18} />
                   </button>
                   <button 
                     onClick={() => setViewMode('list')}
                     className={`p-2 rounded transition-all ${viewMode === 'list' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                    title="Modo Lista"
                   >
                     <List size={18} />
                   </button>
                </div>
+
+               {/* Zoom Controls for Calendar */}
+               {viewMode === 'calendar' && (
+                 <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
+                    <button 
+                      onClick={() => setZoomLevel(1)}
+                      className={`p-2 rounded transition-all ${zoomLevel === 1 ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                      title="Zoom Out (Visão Geral)"
+                    >
+                      <ZoomOut size={18} />
+                    </button>
+                    <button 
+                      onClick={() => setZoomLevel(2)}
+                      className={`p-2 rounded transition-all ${zoomLevel === 2 ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                      title="Zoom In (Detalhes)"
+                    >
+                      <ZoomIn size={18} />
+                    </button>
+                 </div>
+               )}
 
                {viewMode === 'calendar' && (
                  <div className="relative ml-0 md:ml-2">
@@ -707,79 +734,104 @@ const AppContent: React.FC = () => {
           )}
         </div>
 
-        {/* Calendar Grid - Always Full Width / Detail */}
+        {/* Calendar Grid */}
         {viewMode === 'calendar' ? (
           <div className="flex-1 overflow-auto bg-slate-950 border border-slate-800 rounded-xl shadow-inner relative custom-scrollbar">
-            {/* Header Row (Days of Week) - Sticky */}
-            <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 sticky top-0 z-10 min-w-[1000px] md:min-w-0">
-               {weekDays.map(day => (
-                 <div key={day} className="py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-800 last:border-0">
-                   {day}
-                 </div>
-               ))}
+            {/* The Grid Container - Responsive based on Zoom Level */}
+            <div className={`${zoomLevel === 2 ? 'min-w-[1500px]' : 'w-full'}`}>
+              
+              {/* Header Row (Days of Week) - Sticky */}
+              <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
+                 {weekDays.map(day => (
+                   <div key={day} className="py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider border-r border-slate-800 last:border-0">
+                     {day}
+                   </div>
+                 ))}
+              </div>
+              
+              {/* Days Grid */}
+               <div className="grid grid-cols-7 auto-rows-fr">
+                  {/* Empty cells for start of month */}
+                  {Array.from({ length: firstDay }).map((_, i) => (
+                     <div key={`empty-${i}`} className={`bg-slate-900/30 border-b border-r border-slate-800/50 ${zoomLevel === 2 ? 'min-h-[160px]' : 'min-h-[100px]'}`} />
+                  ))}
+
+                  {/* Actual Days */}
+                  {Array.from({ length: days }).map((_, i) => {
+                     const dayNum = i + 1;
+                     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                     const dayEvents = visibleEvents.filter(e => e.date.split('T')[0] === dateStr);
+                     const isToday = new Date().toISOString().split('T')[0] === dateStr;
+
+                     return (
+                        <div 
+                          key={dayNum} 
+                          onClick={() => handleDayClick(dayNum)}
+                          className={`
+                            border-b border-r border-slate-800 relative p-2 transition-colors hover:bg-slate-900 cursor-pointer group 
+                            ${isToday ? 'bg-primary-900/10' : ''}
+                            ${zoomLevel === 2 ? 'min-h-[160px]' : 'min-h-[100px]'}
+                          `}
+                        >
+                           <div className={`text-xs font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-500'}`}>
+                              {dayNum} {isToday && '(Hoje)'}
+                           </div>
+                           
+                           {/* Events List in Day Cell */}
+                           <div className="space-y-1">
+                              {dayEvents.map(event => {
+                                 const band = bands.find(b => b.id === event.bandId);
+                                 return (
+                                    <div key={event.id} className="text-[10px] p-1.5 rounded border border-slate-700 bg-slate-800/50 hover:border-slate-500 transition-colors overflow-hidden">
+                                       <div className="flex justify-between items-center gap-1">
+                                          <span className="font-bold text-white truncate">{event.time} - {band?.name}</span>
+                                       </div>
+                                       
+                                       {/* Extended details only if Zoom is Level 2 (High Res) */}
+                                       {zoomLevel === 2 && (
+                                         <div className="mt-1 space-y-0.5">
+                                            <div className="text-slate-400 truncate flex items-center gap-1">
+                                              <MapPin size={8}/> {event.venue || event.city}
+                                            </div>
+                                            {!event.hasContract && event.status !== EventStatus.CANCELED && (
+                                              <div className="text-red-400 text-[9px] flex items-center gap-1">
+                                                <FileWarning size={8}/> Sem Contrato
+                                              </div>
+                                            )}
+                                         </div>
+                                       )}
+                                       
+                                       {/* Compact View for Zoom Level 1 */}
+                                       {zoomLevel === 1 && !event.hasContract && event.status !== EventStatus.CANCELED && (
+                                           <div className="w-1.5 h-1.5 bg-red-500 rounded-full absolute top-1 right-1" title="Sem Contrato" />
+                                       )}
+                                    </div>
+                                 )
+                              })}
+                              {dayEvents.length > (zoomLevel === 2 ? 5 : 3) && (
+                                 <div className="text-[9px] text-center text-slate-500 font-medium">
+                                   + {dayEvents.length - (zoomLevel === 2 ? 5 : 3)} mais
+                                 </div>
+                              )}
+                           </div>
+                           
+                           {/* Add Button on Hover */}
+                           <button 
+                             onClick={(e) => {
+                                e.stopPropagation();
+                                setNewEventDate(dateStr);
+                                setEditingEvent(null);
+                                setIsFormOpen(true);
+                             }}
+                             className="absolute bottom-2 right-2 p-1 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg"
+                           >
+                             <Plus size={14} />
+                           </button>
+                        </div>
+                     );
+                  })}
+               </div>
             </div>
-            
-            {/* Days Grid */}
-             <div className="grid grid-cols-7 auto-rows-fr min-h-full min-w-[1000px] md:min-w-0">
-                {/* Empty cells for start of month */}
-                {Array.from({ length: firstDay }).map((_, i) => (
-                   <div key={`empty-${i}`} className="bg-slate-900/30 border-b border-r border-slate-800/50 min-h-[120px]" />
-                ))}
-
-                {/* Actual Days */}
-                {Array.from({ length: days }).map((_, i) => {
-                   const dayNum = i + 1;
-                   const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-                   const dayEvents = visibleEvents.filter(e => e.date.split('T')[0] === dateStr);
-                   const isToday = new Date().toISOString().split('T')[0] === dateStr;
-
-                   return (
-                      <div 
-                        key={dayNum} 
-                        onClick={() => handleDayClick(dayNum)}
-                        className={`min-h-[120px] border-b border-r border-slate-800 relative p-2 transition-colors hover:bg-slate-900 cursor-pointer group ${isToday ? 'bg-primary-900/10' : ''}`}
-                      >
-                         <div className={`text-xs font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-500'}`}>
-                            {dayNum} {isToday && '(Hoje)'}
-                         </div>
-                         
-                         {/* Events List in Day Cell */}
-                         <div className="space-y-1">
-                            {dayEvents.map(event => {
-                               const band = bands.find(b => b.id === event.bandId);
-                               return (
-                                  <div key={event.id} className="text-[10px] p-1.5 rounded border border-slate-700 bg-slate-800/50 hover:border-slate-500 transition-colors overflow-hidden">
-                                     <div className="font-bold text-white truncate">{event.time} - {band?.name}</div>
-                                     <div className="text-slate-400 truncate">{event.venue || event.city}</div>
-                                     {!event.hasContract && event.status !== EventStatus.CANCELED && (
-                                       <div className="text-red-400 text-[9px] mt-0.5 flex items-center gap-0.5"><FileWarning size={8}/> Sem Contrato</div>
-                                     )}
-                                  </div>
-                               )
-                            })}
-                            {dayEvents.length > 3 && (
-                               <div className="text-[9px] text-center text-slate-500 font-medium">
-                                 + {dayEvents.length - 3} mais
-                               </div>
-                            )}
-                         </div>
-                         
-                         {/* Add Button on Hover */}
-                         <button 
-                           onClick={(e) => {
-                              e.stopPropagation();
-                              setNewEventDate(dateStr);
-                              setEditingEvent(null);
-                              setIsFormOpen(true);
-                           }}
-                           className="absolute bottom-2 right-2 p-1 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg"
-                         >
-                           <Plus size={14} />
-                         </button>
-                      </div>
-                   );
-                })}
-             </div>
           </div>
         ) : (
           /* List View */
