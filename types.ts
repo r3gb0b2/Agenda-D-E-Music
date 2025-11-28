@@ -68,6 +68,8 @@ export interface Contractor {
   id: string;
   type: ContractorType;
   name: string; // Nome ou Razão Social
+  cpf: string; // CPF ou CNPJ
+  rg: string; // RG
   responsibleName: string;
   phone: string;
   whatsapp: string;

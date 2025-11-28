@@ -48,30 +48,26 @@ const KEYS = {
   CONTRACT_TEMPLATE: `${STORAGE_PREFIX}contract_template`
 };
 
-const DEFAULT_CONTRACT_TEMPLATE = `CONTRATO DE APRESENTAÇÃO ARTÍSTICA
+const DEFAULT_CONTRACT_TEMPLATE = `As partes acima identificadas têm, entre si, justas e acertadas o presente, CONTRATO PARTICULAR DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS que acordam pelas cláusulas seguintes e pelas condições descritas no presente.
 
-Pelo presente instrumento, as partes:
+CLÁUSULA PRIMEIRA: É objeto deste contrato, na condição de representante exclusivo do artista {{NOME_BANDA}} a realização de uma apresentação artística nas cidades, datas e horários, conforme abaixo:
+A que a data e o local acertados neste contrato não poderão ter modificação sem autorização da CONTRATADA.
 
-CONTRATANTE: {{NOME_CONTRATANTE}}
-Responsável: {{NOME_RESPONSAVEL}}
-Endereço: {{ENDERECO_CONTRATANTE}}
+CLÁUSULA SEGUNDA: Pelo cumprimento do exposto na Cláusula Primeira o CONTRATANTE pagará à CONTRATADA, um valor de {{VALOR_BRUTO_FORMATADO}} ({{VALOR_POR_EXTENSO}}) de cachê livres de tributações, em moeda corrente nacional, sendo da seguinte forma:
 
-CONTRATADA: {{NOME_BANDA}}
-Agência: D&E MUSIC
+CLÁUSULA TERCEIRA: Caso as cláusulas primeira e segunda deste contrato não sejam cumpridas na íntegra pelo CONTRATANTE fica a CONTRATADA desobrigada do cumprimento das obrigações a ele(a) atinentes, podendo inclusive reagendar outro compromisso para a mesma data e horário, sem que haja ônus ou penalidade para o mesmo, ficando ainda no direito de cobrar judicialmente a devida indenização e quando for o caso as perdas e danos.
 
-Celebram o presente contrato para a apresentação artística no evento "{{NOME_EVENTO}}", a ser realizado em {{DATA_EVENTO_EXTENSO}} às {{HORARIO_EVENTO}}, no local "{{LOCAL_EVENTO}}, {{CIDADE_EVENTO}}".
+CLÁUSULA QUARTA: O preço estabelecido na cláusula segunda é livre de qualquer despesa, cabendo ao CONTRATANTE providenciar por sua inteira responsabilidade os equipamentos de sonorização, iluminação, led, palco, camarins, serviços, publicidade, segurança, taxas de direitos autorais (ECAD), Nota Contratual, ISS local e outros afins que se façam necessários à realização do espetáculo, bem como fica responsável pelo devido recolhimento de todos os impostos decorrentes da prestação de serviços ora contratada.
 
-O valor acordado para a apresentação é de {{VALOR_BRUTO_FORMATADO}}.
+CLÁUSULA DÉCIMA: Constituem obrigações do CONTRATANTE:
+a) Pagar pontualmente pelos Serviços prestados, conforme condições prazos expressos na Cláusula Segunda deste contrato;
+b) Comunicar à CONTRATADA, por escrito e em tempo hábil, quaisquer instruções ou procedimentos a adotar sobre assuntos relacionados a este Contrato;
+c) Designar um representante autorizado para acompanhar o andamento dos Serviços, fiscalizar e dirimir as possíveis dúvidas existentes;
+d) Zelar pelos instrumentos musicais de propriedade da CONTRATADA, a partir do momento em que eles forem instalados no local da apresentação;
 
-[... Inserir mais cláusulas sobre rider técnico, camarim, alimentação, transporte, cancelamento, etc. ...]
+CLÁUSULA DECIMA SEGUNDA – DO CANCELAMENTO: A não realização do evento, por culpa da CONTRATANTE, obriga esta ao pagamento de todas as perdas e danos experimentados pela CONTRATADA, inclusive, as sanções que lhe venham a ser aplicadas pelo Poder Público, sem prejuízo da aplicação da multa contratual adiante estabelecida.
 
-E por estarem justos e contratados, assinam o presente em duas vias de igual teor e forma.
-
-_________________________
-{{NOME_CONTRATANTE}}
-
-_________________________
-D&E MUSIC
+Por estarem assim justos e contratados, firmam o presente instrumento, em duas vias de igual teor, juntamente com 02 (duas) testemunhas.
 `;
 
 
@@ -161,6 +157,8 @@ const sanitizeContractor = (data: any, id: string): Contractor => {
     id: id,
     type: data?.type || ContractorType.FISICA,
     name: data?.name || '',
+    cpf: data?.cpf || '',
+    rg: data?.rg || '',
     responsibleName: data?.responsibleName || '',
     phone: data?.phone || '',
     whatsapp: data?.whatsapp || '',

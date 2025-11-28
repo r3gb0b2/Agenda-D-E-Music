@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -61,11 +62,14 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Initialize state as a class property instead of in the constructor.
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  // FIX: Initialize state in the constructor to ensure `this.props` is available.
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -739,14 +743,15 @@ const AppContent: React.FC = () => {
       return eventYear === selectedYear && bandMatch && e.status !== EventStatus.CANCELED;
     });
 
-    const totalGross = filteredEvents.reduce((sum, e) => sum + e.financials.grossValue, 0);
-    const totalNet = filteredEvents.reduce((sum, e) => sum + e.financials.netValue, 0);
-    const totalCommission = totalGross - totalNet - filteredEvents.reduce((s, e) => s + e.financials.taxes, 0);
+    // FIX: Added optional chaining and default values to prevent type errors in calculations.
+    const totalGross = filteredEvents.reduce((sum, e) => sum + (e.financials?.grossValue || 0), 0);
+    const totalNet = filteredEvents.reduce((sum, e) => sum + (e.financials?.netValue || 0), 0);
+    const totalCommission = totalGross - totalNet - filteredEvents.reduce((s, e) => s + (e.financials?.taxes || 0), 0);
 
     const monthlyData = Array.from({ length: 12 }, (_, i) => {
       const monthEvents = filteredEvents.filter(e => new Date(e.date).getMonth() === i);
-      const gross = monthEvents.reduce((sum, e) => sum + e.financials.grossValue, 0);
-      const net = monthEvents.reduce((sum, e) => sum + e.financials.netValue, 0);
+      const gross = monthEvents.reduce((sum, e) => sum + (e.financials?.grossValue || 0), 0);
+      const net = monthEvents.reduce((sum, e) => sum + (e.financials?.netValue || 0), 0);
       return { name: monthNames[i].substring(0,3), Bruto: gross, Líquido: net };
     });
 
