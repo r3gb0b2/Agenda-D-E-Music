@@ -1,6 +1,6 @@
 
 
-import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType } from '../types';
+import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, BandCompanyInfo } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from "firebase/auth";
@@ -10,7 +10,22 @@ const USE_FIREBASE = true;
 
 // --- DADOS MOCK (Modo Demo Limpo) ---
 const MOCK_BANDS: Band[] = [
-  { id: 'b_new_1', name: 'Banda Principal', genre: 'Variado', members: 5 }
+  { 
+    id: 'b_new_1', 
+    name: 'Banda Principal', 
+    genre: 'Variado', 
+    members: 5,
+    companyInfo: {
+      razaoSocial: 'Banda Principal Produções LTDA',
+      cnpj: '00.000.000/0001-00',
+      endereco: 'Rua dos Músicos, 123, São Paulo, SP',
+      representanteLegal: 'Gerente Principal',
+      cpfRepresentante: '111.222.333-44',
+      rgRepresentante: '1234567',
+      email: 'contato@bandaprincipal.com',
+      telefone: '(11) 99999-8888'
+    }
+  }
 ];
 
 // Admin padrão solicitado
@@ -96,6 +111,31 @@ const sanitizeUser = (data: any, id: string): User => {
     // FIX: Property 'MEMBER' does not exist on type 'typeof UserRole'. Changed to VIEWER as a sensible default.
     role: data?.role || UserRole.VIEWER,
     bandIds: data?.bandIds || []
+  };
+};
+
+// Helper for Bands to ensure backward compatibility
+const sanitizeBand = (data: any, id: string): Band => {
+  const defaultCompanyInfo: BandCompanyInfo = {
+    razaoSocial: '',
+    cnpj: '',
+    endereco: '',
+    representanteLegal: '',
+    cpfRepresentante: '',
+    rgRepresentante: '',
+    email: '',
+    telefone: ''
+  };
+
+  return {
+    id: id,
+    name: data?.name || 'Banda Desconhecida',
+    genre: data?.genre || 'Geral',
+    members: data?.members || 1,
+    companyInfo: {
+      ...defaultCompanyInfo,
+      ...(data?.companyInfo || {})
+    }
   };
 };
 
@@ -339,37 +379,39 @@ export const db = {
 
   // --- BANDS ---
   getBands: async (): Promise<Band[]> => {
+    let rawBands: any[] = [];
     if (USE_FIREBASE && dbFirestore) {
       try {
         const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.BANDS));
         if (snapshot.empty) {
-           const local = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
-           return local.length > 0 ? local : MOCK_BANDS;
+           rawBands = JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
+        } else {
+           rawBands = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         }
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Band));
       } catch (e) {
         console.warn("Firebase Read Error (Bands):", e);
-        return JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
+        rawBands = JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
       }
     } else {
-      return JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
+      rawBands = JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
     }
+    return rawBands.map(b => sanitizeBand(b, b.id));
   },
 
   saveBand: async (band: Band): Promise<void> => {
+    const sanitized = sanitizeBand(band, band.id || crypto.randomUUID());
     // Local update
-    const bands = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
-    const index = bands.findIndex((b: Band) => b.id === band.id);
-    if (index >= 0) bands[index] = band;
-    else bands.push(band);
+    const bands = await db.getBands();
+    const index = bands.findIndex((b: Band) => b.id === sanitized.id);
+    if (index >= 0) bands[index] = sanitized;
+    else bands.push(sanitized);
     localStorage.setItem(KEYS.BANDS, JSON.stringify(bands));
 
     if (USE_FIREBASE && dbFirestore) {
       try {
-        const bandId = band.id || crypto.randomUUID();
-        await setDoc(doc(dbFirestore, FB_COLLECTIONS.BANDS, bandId), { ...band, id: bandId });
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.BANDS, sanitized.id), { ...sanitized });
       } catch (e) {
-         console.error(e);
+         console.error("Firebase Band Save Error", e);
       }
     }
   },

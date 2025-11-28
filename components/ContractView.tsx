@@ -78,6 +78,7 @@ const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, co
   };
 
   const fullAddress = contractor ? `${contractor.address.street}, ${contractor.address.number} - ${contractor.address.complement || ''} ${contractor.address.neighborhood} CEP: ${contractor.address.zipCode}`.trim() : 'Não informado';
+  const bandCompanyInfo = band.companyInfo;
 
   return (
     <div className="bg-slate-800 min-h-screen font-serif print:bg-white">
@@ -115,13 +116,13 @@ const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, co
                     <h3 className="font-bold bg-slate-300 px-2 py-0.5 text-xs">CONTRATADA</h3>
                     <table className="w-full border-collapse">
                        <tbody>
-                            <ContractTableField label="RAZÃO SOCIAL" value="DAVIZAO PRODUCOES ARTISTICAS E EVENTOS LTDA" />
-                            <ContractTableField label="CNPJ" value="53.318.815/0001-80" />
-                            <ContractTableField label="ENDEREÇO" value="AV WASHINGTON SOARES, 55. SALA 307 CEP: 60.811-341 EDSON QUEIROZ FORTALEZA/CE" />
-                            <ContractTableField label="REPRESENTANTE LEGAL" value="CAIO MACHADO VERISSIMO PINTO" />
-                            <ContractTableField label="CPF" value="059.288.663-80" />
-                            <ContractTableField label="RG" value="2004010341912" />
-                            <ContractTableField label="E-MAIL" value="85 9745-5751" />
+                            <ContractTableField label="RAZÃO SOCIAL" value={bandCompanyInfo.razaoSocial} />
+                            <ContractTableField label="CNPJ" value={bandCompanyInfo.cnpj} />
+                            <ContractTableField label="ENDEREÇO" value={bandCompanyInfo.endereco} />
+                            <ContractTableField label="REPRESENTANTE LEGAL" value={bandCompanyInfo.representanteLegal} />
+                            <ContractTableField label="CPF" value={bandCompanyInfo.cpfRepresentante} />
+                            <ContractTableField label="RG" value={bandCompanyInfo.rgRepresentante} />
+                            <ContractTableField label="E-MAIL" value={bandCompanyInfo.email} />
                         </tbody>
                     </table>
                 </div>
@@ -184,8 +185,8 @@ const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, co
                         <p>Contratante</p>
                     </div>
                     <div className="w-2/5 border-t border-slate-800 pt-1">
-                        <p className="font-bold">DAVIZAO PRODUCOES ARTISTICAS</p>
-                        <p>53.318.815/0001-80</p>
+                        <p className="font-bold">{bandCompanyInfo.razaoSocial || band.name}</p>
+                        <p>{bandCompanyInfo.cnpj}</p>
                         <p>Contratada</p>
                     </div>
                 </div>

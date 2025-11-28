@@ -1,5 +1,16 @@
 
 
+export interface BandCompanyInfo {
+  razaoSocial: string;
+  cnpj: string;
+  endereco: string;
+  representanteLegal: string;
+  cpfRepresentante: string;
+  rgRepresentante: string;
+  email: string;
+  telefone: string;
+}
+
 export enum EventStatus {
   RESERVED = 'RESERVED',
   CONFIRMED = 'CONFIRMED',
@@ -24,6 +35,7 @@ export interface Band {
   name: string;
   genre: string;
   members: number;
+  companyInfo: BandCompanyInfo; // Adicionado
 }
 
 export interface User {

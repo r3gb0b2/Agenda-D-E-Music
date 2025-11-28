@@ -2,6 +2,8 @@
 
 
 
+
+
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -9,6 +11,7 @@ import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import ContractorForm from './components/ContractorForm';
 import UserForm from './components/UserForm';
+import BandForm from './components/BandForm'; // Importado
 import ContractView from './components/ContractView';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
@@ -62,14 +65,11 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Initialize state in the constructor to ensure `this.props` is available.
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-  }
+  // FIX: Initialize state as a class property.
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -118,11 +118,13 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [isBandFormOpen, setIsBandFormOpen] = useState(false); // Adicionado
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false); 
   
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingBand, setEditingBand] = useState<Band | null>(null); // Adicionado
   
   const [filterText, setFilterText] = useState('');
   const [selectedBandFilter, setSelectedBandFilter] = useState<string | null>(null);
@@ -263,18 +265,16 @@ const AppContent: React.FC = () => {
   }
 
   // --- Handlers: Bands/Users ---
-  const handleAddBand = async () => {
-    const name = window.prompt("Nome da nova banda:");
-    if (name) {
-      const newBand: Band = {
-        id: crypto.randomUUID(),
-        name: name,
-        genre: 'Geral',
-        members: 1
-      };
-      await db.saveBand(newBand);
-      refreshData();
-    }
+  const handleSaveBand = async (band: Band) => {
+    await db.saveBand(band);
+    refreshData();
+    setIsBandFormOpen(false);
+    setEditingBand(null);
+  };
+
+  const openEditBand = (band: Band) => {
+    setEditingBand(band);
+    setIsBandFormOpen(true);
   };
 
   const handleSaveUser = async (user: User) => {
@@ -393,7 +393,7 @@ const AppContent: React.FC = () => {
                <Music className="text-primary-500" /> Minhas Bandas
              </h2>
              {currentUser?.role === UserRole.ADMIN && (
-               <button onClick={handleAddBand} className="text-sm text-primary-400 hover:text-white flex items-center gap-1">
+               <button onClick={() => { setEditingBand(null); setIsBandFormOpen(true); }} className="text-sm text-primary-400 hover:text-white flex items-center gap-1">
                  <Plus size={14} /> Nova Banda
                </button>
              )}
@@ -743,15 +743,15 @@ const AppContent: React.FC = () => {
       return eventYear === selectedYear && bandMatch && e.status !== EventStatus.CANCELED;
     });
 
-    // FIX: Added optional chaining and default values to prevent type errors in calculations.
-    const totalGross = filteredEvents.reduce((sum, e) => sum + (e.financials?.grossValue || 0), 0);
-    const totalNet = filteredEvents.reduce((sum, e) => sum + (e.financials?.netValue || 0), 0);
-    const totalCommission = totalGross - totalNet - filteredEvents.reduce((s, e) => s + (e.financials?.taxes || 0), 0);
+    // FIX: Added optional chaining, default values, and Number() coercion to prevent type errors from string values during arithmetic operations.
+    const totalGross = filteredEvents.reduce((sum, e) => sum + Number(e.financials?.grossValue || 0), 0);
+    const totalNet = filteredEvents.reduce((sum, e) => sum + Number(e.financials?.netValue || 0), 0);
+    const totalCommission = totalGross - totalNet - filteredEvents.reduce((s, e) => s + Number(e.financials?.taxes || 0), 0);
 
     const monthlyData = Array.from({ length: 12 }, (_, i) => {
       const monthEvents = filteredEvents.filter(e => new Date(e.date).getMonth() === i);
-      const gross = monthEvents.reduce((sum, e) => sum + (e.financials?.grossValue || 0), 0);
-      const net = monthEvents.reduce((sum, e) => sum + (e.financials?.netValue || 0), 0);
+      const gross = monthEvents.reduce((sum, e) => sum + Number(e.financials?.grossValue || 0), 0);
+      const net = monthEvents.reduce((sum, e) => sum + Number(e.financials?.netValue || 0), 0);
       return { name: monthNames[i].substring(0,3), Bruto: gross, Líquido: net };
     });
 
@@ -949,112 +949,3 @@ const AppContent: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Senha</label>
-              <input type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all" placeholder="••••••••" />
-            </div>
-            {loginError && (<div className="p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm text-center">{loginError}</div>)}
-            <button type="submit" disabled={isLoggingIn} className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary-600/25 transition-all flex items-center justify-center gap-2">
-              {isLoggingIn ? <Loader2 className="animate-spin" size={20}/> : <><LogIn size={20}/> Entrar</>}
-            </button>
-          </form>
-          <div className="mt-8 pt-6 border-t border-slate-800 text-center text-xs text-slate-500">&copy; 2024 D&E Music Management</div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView} onLogout={handleLogout}>
-      {currentView === 'dashboard' && <DashboardView />}
-      {currentView === 'agenda' && renderAgendaView()}
-      {currentView === 'financials' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CONTRACT) && <FinancialView />}
-      {currentView === 'settings' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CONTRACT) && <SettingsView />}
-
-      {currentView === 'contractors' && (
-        <div className="space-y-6">
-           <div className="flex justify-between items-center">
-             <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Briefcase className="text-primary-500" /> Contratantes</h2>
-             <button onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all"><Plus size={18} /> Novo Contratante</button>
-           </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-             {contractors.length === 0 ? (<div className="col-span-full text-center py-12 text-slate-500 bg-slate-950 rounded-xl border border-slate-800">Nenhum contratante cadastrado.</div>) : (
-               contractors.map(c => (
-                 <div key={c.id} className="bg-slate-950 border border-slate-800 rounded-xl p-5 hover:border-slate-600 transition-all group relative">
-                    <div className="flex justify-between items-start mb-3">
-                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 font-bold border border-slate-700">{c.name.charAt(0).toUpperCase()}</div>
-                       <button onClick={() => handleDeleteContractor(c.id)} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={16}/></button>
-                    </div>
-                    <h3 className="text-white font-bold text-lg mb-1">{c.name}</h3>
-                    <p className="text-sm text-slate-400 mb-4 flex items-center gap-1"><UserIcon size={12}/> {c.responsibleName || 'Sem responsável'}</p>
-                    <div className="space-y-2 text-sm text-slate-500 border-t border-slate-800 pt-3">
-                       <div className="flex items-center gap-2"><Phone size={14} /> {c.whatsapp || c.phone || 'N/A'}</div>
-                       <div className="flex items-center gap-2 truncate"><MapPin size={14} /> {c.address.city || 'Cidade N/A'}</div>
-                    </div>
-                    <button onClick={() => openEditContractor(c)} className="absolute bottom-4 right-4 p-2 bg-slate-800 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary-600 shadow-lg"><Edit2 size={16}/></button>
-                 </div>
-               ))
-             )}
-           </div>
-        </div>
-      )}
-
-      {currentView === 'bands' && currentUser.role === UserRole.ADMIN && (
-        <div className="space-y-8">
-           <div>
-             <div className="flex justify-between items-center mb-4">
-               <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Music className="text-primary-500" /> Bandas do Sistema</h2>
-               <button onClick={handleAddBand} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 border border-slate-700 transition-all"><Plus size={18} /> Nova Banda</button>
-             </div>
-             <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-900 text-slate-400 text-xs uppercase">
-                    <tr><th className="p-4">Nome da Banda</th><th className="p-4">Gênero</th><th className="p-4 text-right">Ações</th></tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-sm">
-                    {bands.map(b => (<tr key={b.id} className="text-slate-300 hover:bg-slate-900/50"><td className="p-4 font-medium text-white">{b.name}</td><td className="p-4">{b.genre}</td><td className="p-4 text-right"><button className="text-slate-500 hover:text-white transition-colors">Editar</button></td></tr>))}
-                  </tbody>
-                </table>
-             </div>
-           </div>
-           <div>
-              <div className="flex justify-between items-center mb-4">
-               <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Users className="text-accent-500" /> Usuários e Acesso</h2>
-               <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-primary-600/20 transition-all"><Plus size={18} /> Novo Usuário</button>
-             </div>
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-               {users.map(u => (
-                  <div key={u.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between group">
-                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold border border-slate-600">{u.name.charAt(0)}</div>
-                        <div>
-                           <p className="font-bold text-white">{u.name}</p>
-                           <p className="text-xs text-slate-500">{u.email}</p>
-                           <span className="text-[10px] uppercase tracking-wider text-primary-400 font-bold">{u.role}</span>
-                        </div>
-                     </div>
-                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => openEditUser(u)} className="p-1.5 text-slate-400 hover:text-white bg-slate-900 rounded"><Edit2 size={14}/></button>
-                        <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 text-slate-400 hover:text-red-400 bg-slate-900 rounded"><Trash2 size={14}/></button>
-                     </div>
-                  </div>
-               ))}
-             </div>
-           </div>
-        </div>
-      )}
-
-      {/* MODALS */}
-      {isFormOpen && (<EventForm bands={getVisibleBands()} contractors={contractors} existingEvent={editingEvent} currentUser={currentUser} initialDate={newEventDate} initialBandId={selectedBandFilter || undefined} onSave={handleSaveEvent} onClose={() => setIsFormOpen(false)} />)}
-      {isContractorFormOpen && (<ContractorForm existingContractor={editingContractor} onSave={handleSaveContractor} onClose={() => setIsContractorFormOpen(false)} />)}
-      {isUserFormOpen && (<UserForm bands={bands} existingUser={editingUser} onSave={handleSaveUser} onClose={() => setIsUserFormOpen(false)} />)}
-      <DayDetailsModal />
-    </Layout>
-  );
-};
-
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <AppContent />
-    </ErrorBoundary>
-  );
-}
