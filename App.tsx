@@ -49,7 +49,9 @@ import {
   ChevronDown,
   Kanban,
   DollarSign,
-  Printer
+  Printer,
+  Settings,
+  CreditCard
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -135,26 +137,105 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// --- Contract Generator Modal ---
+// --- Contract Generator Modal (UPDATED TO MODEL) ---
+interface Installment {
+    value: number;
+    date: string;
+}
+
 const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event, contractors: Contractor[], onClose: () => void }) => {
    const contractor = contractors.find(c => c.name === event.contractor);
    
+   // --- Configuration State ---
+   const [step, setStep] = useState<'config' | 'preview'>('config');
+   
+   // Default Data from OCR Model
+   const [contractedData, setContractedData] = useState({
+       razSocial: 'DAVIZAO PRODUCOES ARTISTICAS E EVENTOS LTDA',
+       cnpj: '53.318.815/0001-80',
+       address: 'AV WASHINGTON SOARES, 55. SALA 307 CEP: 60.811-341 EDSON QUEIROZ FORTALEZA/CE',
+       repLegal: 'CAIO MACHADO VERISSIMO PINTO',
+       cpf: '059.288.663-80',
+       rg: '2004010341912',
+       email: '85 9745-5751', // Phone in email field in OCR? Keeping as is or correcting
+       phone: '85 9745-5751'
+   });
+
+   const [bankData, setBankData] = useState({
+       bank: 'ITAÚ',
+       agency: '8142',
+       account: '98803-2',
+       favored: 'DAVIZAO PRODUCOES ARTISTICAS',
+       cnpj: '53.318.815/0001-80',
+       pix: '53318815000180'
+   });
+
+   // Installments Logic
+   const [installments, setInstallments] = useState<Installment[]>([]);
+
+   useEffect(() => {
+       // Default logic: 2 installments (50/50)
+       const total = event.financials.grossValue;
+       if (total > 0) {
+           const half = total / 2;
+           setInstallments([
+               { value: half, date: new Date().toISOString().split('T')[0] }, // Today
+               { value: half, date: event.date.split('T')[0] } // Event day
+           ]);
+       }
+   }, [event]);
+
+   const handleInstallmentChange = (index: number, field: keyof Installment, value: any) => {
+       const newInst = [...installments];
+       newInst[index] = { ...newInst[index], [field]: value };
+       setInstallments(newInst);
+   };
+
+   const addInstallment = () => {
+       setInstallments([...installments, { value: 0, date: '' }]);
+   };
+
+   const removeInstallment = (index: number) => {
+       setInstallments(installments.filter((_, i) => i !== index));
+   };
+
+   const formatMoney = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
    const handlePrint = () => {
       const printContent = document.getElementById('contract-preview');
       if (printContent) {
-          const win = window.open('', '', 'width=800,height=600');
+          const win = window.open('', '', 'width=900,height=800');
           if (win) {
               win.document.write(`
                   <html>
                     <head>
                         <title>Contrato - ${event.name}</title>
                         <style>
-                           body { font-family: Arial, sans-serif; padding: 40px; line-height: 1.6; }
-                           h1 { text-align: center; font-size: 18px; text-transform: uppercase; margin-bottom: 30px; }
-                           .section { margin-bottom: 20px; }
-                           .label { font-weight: bold; }
-                           .footer { margin-top: 50px; display: flex; justify-content: space-between; }
-                           .sig { border-top: 1px solid #000; padding-top: 10px; width: 40%; text-align: center; }
+                           @page { margin: 2cm; size: A4; }
+                           body { font-family: 'Arial', sans-serif; font-size: 11pt; line-height: 1.4; color: #000; padding: 20px; }
+                           
+                           /* Tables */
+                           table { width: 100%; border-collapse: collapse; margin-bottom: 15px; border: 1px solid #000; }
+                           th, td { border: 1px solid #000; padding: 4px 8px; vertical-align: top; text-align: left; }
+                           th { background-color: #000; color: #fff; font-weight: bold; text-transform: uppercase; }
+                           .table-header-black { background-color: #000; color: #fff; font-weight: bold; text-align: center; }
+                           
+                           /* Typography */
+                           h1, h2, h3 { text-align: center; font-weight: bold; text-transform: uppercase; margin: 15px 0; font-size: 12pt; }
+                           .contract-title { text-decoration: underline; margin-bottom: 20px; }
+                           p { margin-bottom: 10px; text-align: justify; }
+                           .clause-title { font-weight: bold; text-decoration: underline; }
+                           
+                           /* Specific Helpers */
+                           .no-border { border: none; }
+                           .text-center { text-align: center; }
+                           .bold { font-weight: bold; }
+                           .uppercase { text-transform: uppercase; }
+                           .signature-box { margin-top: 50px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+                           .sig-line { border-top: 1px solid #000; width: 45%; text-align: center; padding-top: 5px; font-size: 10pt; }
+                           
+                           /* Bank Table Styling specifically */
+                           .bank-table td:first-child { background-color: #000; color: #fff; font-weight: bold; width: 30%; }
                         </style>
                     </head>
                     <body>
@@ -164,70 +245,351 @@ const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event,
               `);
               win.document.close();
               win.focus();
-              win.print();
-              win.close();
+              setTimeout(() => {
+                  win.print();
+                  win.close();
+              }, 500);
           }
       }
    };
 
    return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-         <div className="bg-white text-black w-full max-w-3xl h-[80vh] rounded-xl flex flex-col shadow-2xl">
-             <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-xl">
-                 <h3 className="font-bold text-lg flex items-center gap-2"><FileText/> Pré-visualização do Contrato</h3>
-                 <button onClick={onClose}><X size={20}/></button>
-             </div>
-             <div className="flex-1 overflow-y-auto p-8 bg-white" id="contract-preview">
-                 <h1 className="text-center font-bold text-xl mb-8 uppercase underline">Contrato de Prestação de Serviços Artísticos</h1>
-                 
-                 <div className="mb-6">
-                     <p><span className="font-bold">CONTRATANTE:</span> {event.contractor || '________________________'} - {contractor?.type === 'JURIDICA' ? 'CNPJ' : 'CPF'}: _________________</p>
-                     <p><span className="font-bold">ENDEREÇO:</span> {contractor?.address.street || '________________________'}, {contractor?.address.city || '___'} - {contractor?.address.state || '__'}</p>
-                 </div>
-
-                 <div className="mb-6">
-                     <p>As partes acima qualificadas têm, entre si, justo e contratado o seguinte:</p>
-                 </div>
-
-                 <div className="mb-4 space-y-2">
-                     <p><span className="font-bold">CLÁUSULA 1ª - DO EVENTO:</span> O CONTRATADO compromete-se a realizar a apresentação artística no evento descrito abaixo:</p>
-                     <ul className="list-disc pl-6">
-                         <li><strong>Evento:</strong> {event.name} ({event.eventType})</li>
-                         <li><strong>Data:</strong> {new Date(event.date).toLocaleDateString('pt-BR')}</li>
-                         <li><strong>Horário Início:</strong> {event.time}</li>
-                         <li><strong>Duração:</strong> {event.durationHours} horas</li>
-                         <li><strong>Local:</strong> {event.venue || 'A definir'}, {event.city}</li>
-                     </ul>
-                 </div>
-
-                 <div className="mb-4">
-                    <p><span className="font-bold">CLÁUSULA 2ª - DO PAGAMENTO:</span> Pela prestação dos serviços, o CONTRATANTE pagará ao CONTRATADO a importância total de <strong>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(event.financials.grossValue)}</strong>.</p>
-                 </div>
-
-                 <div className="mb-4">
-                     <p><span className="font-bold">CLÁUSULA 3ª - DAS OBRIGAÇÕES:</span> O CONTRATANTE deverá fornecer estrutura de palco, som e iluminação conforme Rider Técnico anexo, além de alimentação para a equipe.</p>
-                 </div>
-
-                 <div className="mt-12 flex justify-between pt-12">
-                     <div className="text-center w-1/3 border-t border-black pt-2">
-                         <p className="font-bold">CONTRATANTE</p>
-                         <p className="text-xs">{event.contractor}</p>
-                     </div>
-                     <div className="text-center w-1/3 border-t border-black pt-2">
-                         <p className="font-bold">CONTRATADO</p>
-                         <p className="text-xs">D&E Music Management</p>
-                     </div>
-                 </div>
-                 
-                 <div className="mt-8 text-center text-xs text-gray-500">
-                     Gerado em {new Date().toLocaleDateString()}
+         <div className="bg-slate-100 text-black w-full max-w-5xl h-[90vh] rounded-xl flex flex-col shadow-2xl overflow-hidden">
+             
+             {/* Header */}
+             <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-white rounded-t-xl shrink-0">
+                 <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800">
+                     <FileText className="text-primary-600"/> Gerador de Contrato (Modelo Davizão)
+                 </h3>
+                 <div className="flex gap-2">
+                    {step === 'preview' && (
+                        <button onClick={() => setStep('config')} className="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded text-gray-700">
+                            Voltar para Configuração
+                        </button>
+                    )}
+                    <button onClick={onClose}><X size={20} className="text-gray-500 hover:text-red-500"/></button>
                  </div>
              </div>
-             <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-3 rounded-b-xl">
-                 <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg">Cancelar</button>
-                 <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 font-medium">
-                     <Printer size={16}/> Imprimir / Salvar PDF
-                 </button>
+
+             {/* Content Area */}
+             <div className="flex-1 overflow-y-auto bg-gray-100 flex">
+                 
+                 {/* STEP 1: CONFIGURATION */}
+                 {step === 'config' && (
+                     <div className="w-full max-w-3xl mx-auto p-8 space-y-6">
+                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><CreditCard size={20}/> Configurar Pagamento (Cláusula 2)</h4>
+                             <p className="text-sm text-gray-500 mb-4">Valor Total: <span className="font-bold text-green-600">{formatMoney(event.financials.grossValue)}</span></p>
+                             
+                             <div className="space-y-2">
+                                 {installments.map((inst, idx) => (
+                                     <div key={idx} className="flex gap-2 items-center">
+                                         <span className="text-sm font-bold text-gray-400 w-6">#{idx + 1}</span>
+                                         <div className="flex-1">
+                                             <label className="text-xs text-gray-500 block">Valor</label>
+                                             <input 
+                                                type="number" 
+                                                value={inst.value} 
+                                                onChange={e => handleInstallmentChange(idx, 'value', parseFloat(e.target.value))}
+                                                className="w-full p-2 border rounded bg-gray-50"
+                                             />
+                                         </div>
+                                         <div className="flex-1">
+                                             <label className="text-xs text-gray-500 block">Data Pagamento</label>
+                                             <input 
+                                                type="date" 
+                                                value={inst.date} 
+                                                onChange={e => handleInstallmentChange(idx, 'date', e.target.value)}
+                                                className="w-full p-2 border rounded bg-gray-50"
+                                             />
+                                         </div>
+                                         <button onClick={() => removeInstallment(idx)} className="mt-4 p-2 text-red-400 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
+                                     </div>
+                                 ))}
+                                 <button onClick={addInstallment} className="text-sm text-primary-600 font-medium hover:underline flex items-center gap-1 mt-2">
+                                     <Plus size={14}/> Adicionar Parcela
+                                 </button>
+                                 
+                                 <div className="mt-2 text-right text-xs text-gray-500">
+                                     Soma Parcelas: {formatMoney(installments.reduce((a, b) => a + (b.value || 0), 0))}
+                                 </div>
+                             </div>
+                         </div>
+
+                         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                             <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Settings size={20}/> Dados da Contratada & Banco</h4>
+                             <div className="grid grid-cols-2 gap-4">
+                                 <div>
+                                     <label className="text-xs font-bold text-gray-500">Razão Social Contratada</label>
+                                     <input type="text" value={contractedData.razSocial} onChange={e => setContractedData({...contractedData, razSocial: e.target.value})} className="w-full p-2 border rounded text-sm"/>
+                                 </div>
+                                 <div>
+                                     <label className="text-xs font-bold text-gray-500">CNPJ Contratada</label>
+                                     <input type="text" value={contractedData.cnpj} onChange={e => setContractedData({...contractedData, cnpj: e.target.value})} className="w-full p-2 border rounded text-sm"/>
+                                 </div>
+                                 <div>
+                                     <label className="text-xs font-bold text-gray-500">Representante Legal</label>
+                                     <input type="text" value={contractedData.repLegal} onChange={e => setContractedData({...contractedData, repLegal: e.target.value})} className="w-full p-2 border rounded text-sm"/>
+                                 </div>
+                                 <div>
+                                     <label className="text-xs font-bold text-gray-500">Chave PIX</label>
+                                     <input type="text" value={bankData.pix} onChange={e => setBankData({...bankData, pix: e.target.value})} className="w-full p-2 border rounded text-sm"/>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 )}
+
+                 {/* STEP 2: PREVIEW HTML */}
+                 <div className={`w-full bg-white p-12 shadow-inner overflow-y-auto ${step === 'config' ? 'hidden' : 'block'}`}>
+                     <div id="contract-preview" className="max-w-[21cm] mx-auto bg-white text-black text-[11pt] leading-[1.4] font-sans">
+                         
+                         {/* HEADER LOGOS MOCK */}
+                         <div className="flex justify-between items-center mb-8 px-4">
+                             <div className="font-bold italic text-xl">D&E MUSIC</div>
+                             <div className="font-black text-2xl tracking-tighter">DAVIZÃO</div>
+                             <div className="font-bold italic text-xl">D&E MUSIC</div>
+                         </div>
+
+                         <h1 className="contract-title">CONTRATO PARTICULAR DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS</h1>
+
+                         <div className="mb-6">
+                             <div className="font-bold underline mb-2">IDENTIFICAÇÃO DAS PARTES:</div>
+                             
+                             {/* CONTRATANTE */}
+                             <table className="mb-0">
+                                 <thead>
+                                     <tr><th colSpan={2} className="table-header-black">CONTRATANTE</th></tr>
+                                 </thead>
+                                 <tbody>
+                                     <tr>
+                                         <td className="font-bold w-[30%]">RAZÃO SOCIAL</td>
+                                         <td className="uppercase">{contractor?.name || '____________________'}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">CPF/CNPJ</td>
+                                         <td>{contractor?.type === 'JURIDICA' ? 'CNPJ' : 'CPF'}: _________________</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">RG</td>
+                                         <td>_________________</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">ENDEREÇO</td>
+                                         <td className="uppercase">
+                                             {contractor?.address.street}, {contractor?.address.number} {contractor?.address.complement} - {contractor?.address.neighborhood} CEP: {contractor?.address.zipCode}
+                                         </td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">TELEFONE:</td>
+                                         <td>{contractor?.phone || contractor?.whatsapp}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">E-MAIL</td>
+                                         <td>{contractor?.email}</td>
+                                     </tr>
+                                 </tbody>
+                             </table>
+
+                             {/* CONTRATADA */}
+                             <table className="mt-0 border-t-0">
+                                 <thead>
+                                     <tr><th colSpan={2} className="table-header-black">CONTRATADA</th></tr>
+                                 </thead>
+                                 <tbody>
+                                     <tr>
+                                         <td className="font-bold w-[30%]">RAZÃO SOCIAL</td>
+                                         <td className="uppercase">{contractedData.razSocial}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">CNPJ</td>
+                                         <td>{contractedData.cnpj}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">ENDEREÇO</td>
+                                         <td className="uppercase">{contractedData.address}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">REPRESENTANTE LEGAL</td>
+                                         <td className="uppercase">{contractedData.repLegal}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">CPF</td>
+                                         <td>{contractedData.cpf}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">RG</td>
+                                         <td>{contractedData.rg}</td>
+                                     </tr>
+                                     <tr>
+                                         <td className="font-bold">E-MAIL/TEL</td>
+                                         <td>{contractedData.email}</td>
+                                     </tr>
+                                 </tbody>
+                             </table>
+                         </div>
+
+                         <p>
+                             As partes acima identificadas têm, entre si, justas e acertadas o presente, CONTRATO PARTICULAR DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS que acordam pelas cláusulas seguintes e pelas condições descritas no presente.
+                         </p>
+
+                         {/* CLAUSE 1 */}
+                         <p>
+                             <span className="clause-title">CLÁUSULA PRIMEIRA:</span> É objeto deste contrato, na condição de representante exclusivo do artista <span className="font-bold underline">DAVIZÃO</span> a realização de uma apresentação artística nas cidades, datas e horários, conforme abaixo:
+                         </p>
+
+                         <table>
+                             <thead>
+                                 <tr>
+                                     <th>CIDADE/UF</th>
+                                     <th>DATA</th>
+                                     <th>LOCAL</th>
+                                     <th>DURAÇÃO</th>
+                                 </tr>
+                             </thead>
+                             <tbody>
+                                 <tr>
+                                     <td className="uppercase">{event.city}</td>
+                                     <td>{new Date(event.date).toLocaleDateString('pt-BR')}</td>
+                                     <td className="uppercase">{event.venue || 'A DEFINIR'}</td>
+                                     <td className="uppercase">{event.durationHours} HORAS {event.durationHours % 1 !== 0 ? 'e 30 MINUTOS' : ''}</td>
+                                 </tr>
+                             </tbody>
+                         </table>
+                         <p className="text-sm italic mb-4">A que a data e o local acertados neste contrato não poderão ter modificação sem autorização da CONTRATADA.</p>
+
+                         {/* CLAUSE 2 */}
+                         <p>
+                             <span className="clause-title">CLÁUSULA SEGUNDA:</span> Pelo cumprimento do exposto na Cláusula Primeira o <span className="font-bold">CONTRATANTE</span> pagará à <span className="font-bold">CONTRATADA</span>, um valor de <span className="font-bold">{formatMoney(event.financials.grossValue)}</span> de cachê livres de tributações, em moeda corrente nacional, sendo da seguinte forma:
+                         </p>
+
+                         <table>
+                             <thead>
+                                 <tr>
+                                     <th>VALOR DA PARCELA</th>
+                                     <th>DATA DO PAGAMENTO</th>
+                                 </tr>
+                             </thead>
+                             <tbody>
+                                 {installments.length > 0 ? installments.map((inst, idx) => (
+                                     <tr key={idx}>
+                                         <td>{formatMoney(inst.value)}</td>
+                                         <td>{inst.date ? new Date(inst.date).toLocaleDateString('pt-BR') : '___/___/____'}</td>
+                                     </tr>
+                                 )) : (
+                                     <tr><td colSpan={2} className="text-center italic">À combinar</td></tr>
+                                 )}
+                             </tbody>
+                         </table>
+
+                         <p>
+                            <span className="font-bold">PARÁGRAFO PRIMEIRO:</span> Os valores deverão ser pagos em moeda corrente ou em deposito bancário com os seguintes dados:
+                         </p>
+
+                         {/* BANK INFO */}
+                         <table className="bank-table w-[80%] mx-auto">
+                             <tbody>
+                                 <tr>
+                                     <td>BANCO:</td>
+                                     <td className="uppercase">{bankData.bank}</td>
+                                 </tr>
+                                 <tr>
+                                     <td>AGÊNCIA:</td>
+                                     <td>{bankData.agency}</td>
+                                 </tr>
+                                 <tr>
+                                     <td>CONTA CORRENTE:</td>
+                                     <td>{bankData.account}</td>
+                                 </tr>
+                                 <tr>
+                                     <td>FAVORECIDO:</td>
+                                     <td className="uppercase">{bankData.favored}</td>
+                                 </tr>
+                                 <tr>
+                                     <td>CNPJ:</td>
+                                     <td>{bankData.cnpj}</td>
+                                 </tr>
+                                 <tr>
+                                     <td>PIX:</td>
+                                     <td>{bankData.pix}</td>
+                                 </tr>
+                             </tbody>
+                         </table>
+
+                         <p>
+                            <span className="font-bold">PARÁGRAFO SEGUNDO:</span> A efetiva quitação de todo e qualquer pagamento das parcelas contidas no caput da presente cláusula ficará condicionado à apresentação, pela Contratante, através do endereço eletrônico “financeirobandas@demusic.com.br” de todos dos comprovantes de depósito ou transferência(s) bancária(s) realizadas na conta supramencionada, ou em outra conta corrente que venha a ser apontada pela CONTRATADA.
+                         </p>
+
+                         <p>
+                             <span className="clause-title">CLÁUSULA TERCEIRA:</span> Caso as cláusulas primeira e segunda deste contrato não sejam cumpridas na íntegra pelo CONTRATANTE fica a CONTRATADA desobrigada do cumprimento das obrigações a ele(a) atinentes, podendo inclusive reagendar outro compromisso para a mesma data e horário, sem que haja ônus ou penalidade para o mesmo, ficando ainda no direito de cobrar judicialmente a devida indenização e quando for o caso as perdas e danos.
+                         </p>
+
+                         <p>
+                            <span className="clause-title">CLÁUSULA QUARTA:</span> O preço estabelecido na cláusula segunda é livre de qualquer despesa, cabendo ao CONTRATANTE providenciar por sua inteira responsabilidade os equipamentos de sonorização, iluminação, led, palco, camarins, serviços, publicidade, segurança, taxas de direitos autorais (ECAD), Nota Contratual, ISS local e outros afins que se façam necessários à realização do espetáculo, bem como fica responsável pelo devido recolhimento de todos os impostos decorrentes da prestação de serviços ora contratada, sejam eles Federais, Estaduais e/ou Municipais.
+                         </p>
+
+                         <p>
+                             <span className="font-bold">PARÁGRAFO PRIMEIRO:</span> O CONTRATANTE responderá isoladamente todos e quaisquer danos materiais e/ou morais aos artistas e a terceiros que decorram direta ou indiretamente do objeto deste contrato.
+                         </p>
+
+                         {/* ... MORE CLAUSES TEXT BLOCKS ... */}
+                         <p>
+                             <span className="clause-title">CLÁUSULA QUINTA – DO TRANSPORTE:</span> As despesas com transportes (aéreo e terrestre) para os músicos, equipe técnica e produção ficam por conta do CONTRATANTE, nas condições do flylist.
+                             <span className="font-bold text-red-600"> {event.logistics.transport ? '' : 'NÃO SE APLICA A ESTE CONTRATO.'}</span>
+                         </p>
+
+                         <p>
+                             <span className="clause-title">CLÁUSULA SEXTA – DA HOSPEDAGEM E ALIMENTAÇÃO:</span> O CONTRATANTE fornecerá à CONTRATADA, sob sua responsabilidade financeira, hospedagem para a banda e sua equipe que deverão ficar no mesmo hotel, sendo ele de boa qualidade, acomodados de acordo com o room list da banda.
+                             <span className="font-bold text-red-600"> {event.logistics.hotel ? '' : 'NÃO SE APLICA A ESTE CONTRATO.'}</span>
+                         </p>
+
+                         <p>
+                             <span className="clause-title">CLÁUSULA SÉTIMA – DA CORTESIA:</span> A CONTRATANTE deverá fornecer gratuitamente 30 (trinta) ingressos simples, 15 (quinze) ingressos para camarote e credenciais de acesso para a equipe.
+                             <span className="font-bold text-red-600"> NÃO SE APLICA A ESTE CONTRATO.</span>
+                         </p>
+                         
+                         <p>
+                             <span className="clause-title">CLÁUSULA OITAVA – DA PRODUÇÃO:</span> O CONTRATANTE obriga-se a oferecer boas condições para melhor desempenho dos trabalhos da CONTRATADA, tais como: palco que comporte os equipamentos da banda, suprimento de energia elétrica suficiente para alimentação dos equipamentos de som e luz de qualidade e dentro das especificações técnicas (Rider).
+                         </p>
+
+                         <div className="mt-12 mb-8">
+                             <p className="text-center font-bold">
+                                 Fortaleza, CE {new Date().toLocaleDateString('pt-BR', {day: 'numeric', month: 'long', year: 'numeric'})}
+                             </p>
+                         </div>
+
+                         {/* Signatures */}
+                         <div className="signature-box">
+                             <div className="sig-line">
+                                 <span className="font-bold uppercase">{contractor?.name}</span><br/>
+                                 {contractor?.type === 'JURIDICA' ? contractor.responsibleName : 'Contratante'}
+                             </div>
+                             <div className="sig-line">
+                                 <span className="font-bold uppercase">{contractedData.razSocial}</span><br/>
+                                 Contratada
+                             </div>
+                         </div>
+                         
+                     </div>
+                 </div>
+
+             </div>
+
+             {/* Footer Actions */}
+             <div className="p-4 border-t border-gray-200 bg-white flex justify-end gap-3 rounded-b-xl shrink-0">
+                 {step === 'config' ? (
+                     <button onClick={() => setStep('preview')} className="px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg flex items-center gap-2 font-medium">
+                         Visualizar Contrato <ChevronRight size={16}/>
+                     </button>
+                 ) : (
+                    <>
+                        <button onClick={() => setStep('config')} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg">Voltar</button>
+                        <button onClick={handlePrint} className="px-6 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 font-medium shadow-lg">
+                            <Printer size={16}/> Imprimir / Salvar PDF
+                        </button>
+                    </>
+                 )}
              </div>
          </div>
       </div>
