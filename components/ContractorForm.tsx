@@ -15,8 +15,6 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
       id: crypto.randomUUID(),
       type: ContractorType.FISICA,
       name: '',
-      cpf: '',
-      rg: '',
       responsibleName: '',
       phone: '',
       whatsapp: '',
@@ -140,7 +138,7 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
           {/* Dados Principais e Contato */}
           <div>
             <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              <FileText size={18} className="text-accent-500"/> Identificação e Contato
+              <Phone size={18} className="text-accent-500"/> Contato e Responsável
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
@@ -157,28 +155,6 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">
-                  {formData.type === ContractorType.FISICA ? 'CPF' : 'CNPJ'}
-                </label>
-                <input
-                  type="text"
-                  value={formData.cpf}
-                  onChange={(e) => handleChange('cpf', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">
-                  {formData.type === ContractorType.FISICA ? 'RG' : 'Inscrição Estadual'}
-                </label>
-                <input
-                  type="text"
-                  value={formData.rg}
-                  onChange={(e) => handleChange('rg', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                />
-              </div>
-               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1">Responsável</label>
                 <input
                   type="text"
@@ -302,6 +278,45 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                   className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Informações Adicionais */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+              <FileText size={18} className="text-blue-500"/> Informações Adicionais
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Evento (Padrão/Referência)</label>
+                <input
+                  type="text"
+                  value={formData.additionalInfo.event}
+                  onChange={(e) => handleInfoChange('event', e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                  placeholder="Tipo de evento comum"
+                />
+              </div>
+               <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Local (Venue Padrão)</label>
+                <input
+                  type="text"
+                  value={formData.additionalInfo.venue}
+                  onChange={(e) => handleInfoChange('venue', e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                  placeholder="Local de eventos frequente"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-400 mb-1">Observações Gerais</label>
+              <textarea
+                rows={4}
+                value={formData.additionalInfo.notes}
+                onChange={(e) => handleInfoChange('notes', e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white outline-none resize-none focus:border-primary-500"
+                placeholder="Detalhes sobre negociação, preferências, etc."
+              ></textarea>
             </div>
           </div>
 

@@ -1,6 +1,5 @@
 
-
-import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, BandCompanyInfo } from '../types';
+import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from "firebase/auth";
@@ -10,22 +9,7 @@ const USE_FIREBASE = true;
 
 // --- DADOS MOCK (Modo Demo Limpo) ---
 const MOCK_BANDS: Band[] = [
-  { 
-    id: 'b_new_1', 
-    name: 'Banda Principal', 
-    genre: 'Variado', 
-    members: 5,
-    companyInfo: {
-      razaoSocial: 'Banda Principal Produções LTDA',
-      cnpj: '00.000.000/0001-00',
-      endereco: 'Rua dos Músicos, 123, São Paulo, SP',
-      representanteLegal: 'Gerente Principal',
-      cpfRepresentante: '111.222.333-44',
-      rgRepresentante: '1234567',
-      email: 'contato@bandaprincipal.com',
-      telefone: '(11) 99999-8888'
-    }
-  }
+  { id: 'b_new_1', name: 'Banda Principal', genre: 'Variado', members: 5 }
 ];
 
 // Admin padrão solicitado
@@ -59,32 +43,8 @@ const KEYS = {
   USERS: `${STORAGE_PREFIX}users`,
   EVENTS: `${STORAGE_PREFIX}events`,
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
-  SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
-  CONTRACT_TEMPLATE: `${STORAGE_PREFIX}contract_template`
+  SESSION: `${STORAGE_PREFIX}session` // Key for 24h session
 };
-
-const DEFAULT_CONTRACT_TEMPLATE = `As partes acima identificadas têm, entre si, justas e acertadas o presente, CONTRATO PARTICULAR DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS que acordam pelas cláusulas seguintes e pelas condições descritas no presente.
-
-CLÁUSULA PRIMEIRA: É objeto deste contrato, na condição de representante exclusivo do artista {{NOME_BANDA}} a realização de uma apresentação artística nas cidades, datas e horários, conforme abaixo:
-A que a data e o local acertados neste contrato não poderão ter modificação sem autorização da CONTRATADA.
-
-CLÁUSULA SEGUNDA: Pelo cumprimento do exposto na Cláusula Primeira o CONTRATANTE pagará à CONTRATADA, um valor de {{VALOR_BRUTO_FORMATADO}} ({{VALOR_POR_EXTENSO}}) de cachê livres de tributações, em moeda corrente nacional, sendo da seguinte forma:
-
-CLÁUSULA TERCEIRA: Caso as cláusulas primeira e segunda deste contrato não sejam cumpridas na íntegra pelo CONTRATANTE fica a CONTRATADA desobrigada do cumprimento das obrigações a ele(a) atinentes, podendo inclusive reagendar outro compromisso para a mesma data e horário, sem que haja ônus ou penalidade para o mesmo, ficando ainda no direito de cobrar judicialmente a devida indenização e quando for o caso as perdas e danos.
-
-CLÁUSULA QUARTA: O preço estabelecido na cláusula segunda é livre de qualquer despesa, cabendo ao CONTRATANTE providenciar por sua inteira responsabilidade os equipamentos de sonorização, iluminação, led, palco, camarins, serviços, publicidade, segurança, taxas de direitos autorais (ECAD), Nota Contratual, ISS local e outros afins que se façam necessários à realização do espetáculo, bem como fica responsável pelo devido recolhimento de todos os impostos decorrentes da prestação de serviços ora contratada.
-
-CLÁUSULA DÉCIMA: Constituem obrigações do CONTRATANTE:
-a) Pagar pontualmente pelos Serviços prestados, conforme condições prazos expressos na Cláusula Segunda deste contrato;
-b) Comunicar à CONTRATADA, por escrito e em tempo hábil, quaisquer instruções ou procedimentos a adotar sobre assuntos relacionados a este Contrato;
-c) Designar um representante autorizado para acompanhar o andamento dos Serviços, fiscalizar e dirimir as possíveis dúvidas existentes;
-d) Zelar pelos instrumentos musicais de propriedade da CONTRATADA, a partir do momento em que eles forem instalados no local da apresentação;
-
-CLÁUSULA DECIMA SEGUNDA – DO CANCELAMENTO: A não realização do evento, por culpa da CONTRATANTE, obriga esta ao pagamento de todas as perdas e danos experimentados pela CONTRATADA, inclusive, as sanções que lhe venham a ser aplicadas pelo Poder Público, sem prejuízo da aplicação da multa contratual adiante estabelecida.
-
-Por estarem assim justos e contratados, firmam o presente instrumento, em duas vias de igual teor, juntamente com 02 (duas) testemunhas.
-`;
-
 
 // Helper to initialize local data
 const initLocalData = () => {
@@ -108,34 +68,8 @@ const sanitizeUser = (data: any, id: string): User => {
     name: data?.name || 'Usuário',
     email: (data?.email || 'sem-email@dne.music').toLowerCase(),
     password: data?.password || '',
-    // FIX: Property 'MEMBER' does not exist on type 'typeof UserRole'. Changed to VIEWER as a sensible default.
-    role: data?.role || UserRole.VIEWER,
+    role: data?.role || UserRole.MEMBER,
     bandIds: data?.bandIds || []
-  };
-};
-
-// Helper for Bands to ensure backward compatibility
-const sanitizeBand = (data: any, id: string): Band => {
-  const defaultCompanyInfo: BandCompanyInfo = {
-    razaoSocial: '',
-    cnpj: '',
-    endereco: '',
-    representanteLegal: '',
-    cpfRepresentante: '',
-    rgRepresentante: '',
-    email: '',
-    telefone: ''
-  };
-
-  return {
-    id: id,
-    name: data?.name || 'Banda Desconhecida',
-    genre: data?.genre || 'Geral',
-    members: data?.members || 1,
-    companyInfo: {
-      ...defaultCompanyInfo,
-      ...(data?.companyInfo || {})
-    }
   };
 };
 
@@ -148,13 +82,17 @@ const sanitizeEvent = (data: any, id: string): Event => {
     commissionValue: 0,
     taxes: 0,
     netValue: 0,
-    currency: 'BRL'
+    currency: 'BRL',
+    notes: '' // New field default
   };
 
   const safeFinancials = {
     ...defaultFinancials,
     ...(data?.financials || {})
   };
+  
+  // Ensure notes is defined
+  if (safeFinancials.notes === undefined) safeFinancials.notes = '';
 
   // Ensure netValue is a number
   if (typeof safeFinancials.netValue !== 'number') {
@@ -162,13 +100,44 @@ const sanitizeEvent = (data: any, id: string): Event => {
   }
 
   // Handle createdAt stability for legacy data
-  // If createdAt is missing, assign a very old, stable date (Unix epoch).
-  // This ensures legacy data consistently appears at the bottom of "Latest Updates"
-  // and does not get incorrectly sorted by its event date.
   let safeCreatedAt = data?.createdAt;
   if (!safeCreatedAt) {
       safeCreatedAt = new Date(0).toISOString(); // '1970-01-01T00:00:00.000Z'
   }
+  
+  // Handle Contract Files Migration
+  let safeContractFiles: ContractFile[] = data?.contractFiles || [];
+  
+  // Backward compatibility: If we have a single URL but empty array, migrate it
+  if (safeContractFiles.length === 0 && data?.contractUrl) {
+    safeContractFiles.push({
+      name: data.contractUrl,
+      url: data.contractUrl,
+      uploadedAt: safeCreatedAt
+    });
+  }
+
+  // CRM Pipeline Default
+  let safePipelineStage = data?.pipelineStage;
+  if (!safePipelineStage) {
+      // Infer based on status if legacy
+      if (data?.status === EventStatus.CONFIRMED) safePipelineStage = PipelineStage.WON;
+      else if (data?.status === EventStatus.CANCELED) safePipelineStage = PipelineStage.LOST;
+      else safePipelineStage = PipelineStage.LEAD;
+  }
+
+  // Logistics Defaults
+  const defaultLogistics = {
+      transport: '',
+      departureTime: '',
+      returnTime: '',
+      hotel: '',
+      flights: '',
+      crew: '',
+      rider: '',
+      notes: ''
+  };
+  const safeLogistics = { ...defaultLogistics, ...(data?.logistics || {}) };
 
   return {
     id: id,
@@ -187,7 +156,11 @@ const sanitizeEvent = (data: any, id: string): Event => {
     // New fields defaults
     createdBy: data?.createdBy || 'Sistema',
     createdAt: safeCreatedAt,
-    hasContract: data?.hasContract !== undefined ? data.hasContract : true // Default to true for old events to avoid mass warnings
+    hasContract: data?.hasContract !== undefined ? data.hasContract : true,
+    contractUrl: data?.contractUrl || '',
+    contractFiles: safeContractFiles,
+    pipelineStage: safePipelineStage,
+    logistics: safeLogistics
   } as Event;
 };
 
@@ -197,8 +170,6 @@ const sanitizeContractor = (data: any, id: string): Contractor => {
     id: id,
     type: data?.type || ContractorType.FISICA,
     name: data?.name || '',
-    cpf: data?.cpf || '',
-    rg: data?.rg || '',
     responsibleName: data?.responsibleName || '',
     phone: data?.phone || '',
     whatsapp: data?.whatsapp || '',
@@ -262,7 +233,7 @@ export const db = {
   login: async (loginInput: string, passwordInput: string): Promise<User | null> => {
     // Normalização para minúsculo (Case Insensitive)
     const normalizedLogin = loginInput.trim().toLowerCase();
-    const cleanPassword = passwordInput.trim(); // Ensure no trailing spaces from copy/paste
+    const cleanPassword = passwordInput.trim(); 
 
     // 1. Check Special Super Admin Hardcoded
     if (normalizedLogin === 'admin' && passwordInput === 'admin') {
@@ -282,7 +253,7 @@ export const db = {
 
     // 3. Try Firebase
     if (USE_FIREBASE && dbFirestore) {
-      // 3a. Try Firebase Auth (Main accounts)
+      // 3a. Try Firebase Auth
       if (auth && normalizedLogin.includes('@')) {
         try {
           const userCredential = await signInWithEmailAndPassword(auth, normalizedLogin, passwordInput);
@@ -295,8 +266,7 @@ export const db = {
                id: userCredential.user.uid,
                name: userCredential.user.displayName || 'Usuário Firebase',
                email: normalizedLogin,
-               // FIX: Property 'MEMBER' does not exist on type 'typeof UserRole'. Changed to VIEWER as a sensible default.
-               role: UserRole.VIEWER,
+               role: UserRole.MEMBER,
                bandIds: []
              };
           }
@@ -305,16 +275,13 @@ export const db = {
         }
       }
 
-      // 3b. Try Manual Firestore Collection (For Admin-created users without Firebase Auth)
+      // 3b. Try Manual Firestore Collection
       try {
         const usersRef = collection(dbFirestore, FB_COLLECTIONS.USERS);
-        // Query by email
         const q = query(usersRef, where("email", "==", normalizedLogin));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
-          // Find the user with matching password
-          // Note: In production, passwords should be hashed. This is a demo/internal tool approach.
           const userDoc = querySnapshot.docs.find(doc => {
             const data = doc.data();
             return data.password === passwordInput || data.password === cleanPassword;
@@ -334,7 +301,7 @@ export const db = {
 
   // --- SUGGESTIONS (Auto-Save/Learning) ---
   getUniqueValues: async (field: 'eventType' | 'venue' | 'city' | 'contractor'): Promise<string[]> => {
-    // Basic defaults to start with
+    // Basic defaults
     const defaults = {
         eventType: ['Casamento', 'Corporativo', 'Formatura', 'Aniversário', 'Show Público', 'Bar/Restaurante', 'Bodas'],
         city: [],
@@ -353,7 +320,6 @@ export const db = {
         if (field === 'contractor' && e.contractor) values.add(e.contractor);
     });
     
-    // Get Contractors for specific fields
     if (field === 'contractor' || field === 'city') {
         const contractors = await db.getContractors();
         contractors.forEach(c => {
@@ -365,53 +331,38 @@ export const db = {
     return Array.from(values).sort();
   },
 
-  // --- CONTRACT TEMPLATE ---
-  getContractTemplate: async (): Promise<string> => {
-    // For now, using localStorage. Firebase would require a 'settings' collection.
-    return localStorage.getItem(KEYS.CONTRACT_TEMPLATE) || DEFAULT_CONTRACT_TEMPLATE;
-  },
-
-  saveContractTemplate: async (template: string): Promise<void> => {
-    localStorage.setItem(KEYS.CONTRACT_TEMPLATE, template);
-    // In a full implementation, you'd save this to a specific document in Firebase,
-    // e.g., db.collection('settings').doc('contract').set({ template });
-  },
-
   // --- BANDS ---
   getBands: async (): Promise<Band[]> => {
-    let rawBands: any[] = [];
     if (USE_FIREBASE && dbFirestore) {
       try {
         const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.BANDS));
         if (snapshot.empty) {
-           rawBands = JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
-        } else {
-           rawBands = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+           const local = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
+           return local.length > 0 ? local : MOCK_BANDS;
         }
+        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Band));
       } catch (e) {
         console.warn("Firebase Read Error (Bands):", e);
-        rawBands = JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
+        return JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
       }
     } else {
-      rawBands = JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
+      return JSON.parse(localStorage.getItem(KEYS.BANDS) || JSON.stringify(MOCK_BANDS));
     }
-    return rawBands.map(b => sanitizeBand(b, b.id));
   },
 
   saveBand: async (band: Band): Promise<void> => {
-    const sanitized = sanitizeBand(band, band.id || crypto.randomUUID());
-    // Local update
-    const bands = await db.getBands();
-    const index = bands.findIndex((b: Band) => b.id === sanitized.id);
-    if (index >= 0) bands[index] = sanitized;
-    else bands.push(sanitized);
+    const bands = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
+    const index = bands.findIndex((b: Band) => b.id === band.id);
+    if (index >= 0) bands[index] = band;
+    else bands.push(band);
     localStorage.setItem(KEYS.BANDS, JSON.stringify(bands));
 
     if (USE_FIREBASE && dbFirestore) {
       try {
-        await setDoc(doc(dbFirestore, FB_COLLECTIONS.BANDS, sanitized.id), { ...sanitized });
+        const bandId = band.id || crypto.randomUUID();
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.BANDS, bandId), { ...band, id: bandId });
       } catch (e) {
-         console.error("Firebase Band Save Error", e);
+         console.error(e);
       }
     }
   },
@@ -419,15 +370,12 @@ export const db = {
   // --- USERS ---
   
   saveUser: async (user: User): Promise<void> => {
-    // Ensure email is always lowercase when saving
     const normalizedUser = {
       ...user,
       email: user.email.trim().toLowerCase(),
-      // Optional: trim password here too if you want strict saving
       password: user.password?.trim() || ''
     };
 
-    // Local save
     const users = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
     const index = users.findIndex((u: User) => u.id === normalizedUser.id);
     if (index >= 0) users[index] = normalizedUser;
@@ -437,8 +385,6 @@ export const db = {
     if (USE_FIREBASE && dbFirestore) {
       try {
         const userId = normalizedUser.id || crypto.randomUUID();
-        // IMPORTANT: We save the password here so the 'manual login' check works for sub-users
-        // created by the admin who don't have Firebase Auth accounts.
         await setDoc(doc(dbFirestore, FB_COLLECTIONS.USERS, userId), { ...normalizedUser, id: userId }, { merge: true });
       } catch (e) {
         console.error("Firebase User Save Error", e);
@@ -476,7 +422,7 @@ export const db = {
        rawUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || JSON.stringify(MOCK_USERS));
     }
     
-    // Ensure Super Admin is always in the list locally for login purposes
+    // Ensure Super Admin is always in the list locally
     if (!rawUsers.find(u => u.email === 'admin')) {
       rawUsers.unshift(SUPER_ADMIN);
     }
@@ -493,8 +439,6 @@ export const db = {
         const snapshot = await getDocs(collection(dbFirestore, FB_COLLECTIONS.EVENTS));
         if (!snapshot.empty) {
            rawEvents = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        } else {
-           rawEvents = []; 
         }
       } catch (e) {
         console.warn("Firebase Read Error (Events) - Using Local:", e);
@@ -508,14 +452,12 @@ export const db = {
   },
   
   saveEvent: async (event: Event): Promise<void> => {
-    // Local save
     const localEvents = JSON.parse(localStorage.getItem(KEYS.EVENTS) || '[]');
     const index = localEvents.findIndex((e: Event) => e.id === event.id);
     if (index >= 0) localEvents[index] = event;
     else localEvents.push(event);
     localStorage.setItem(KEYS.EVENTS, JSON.stringify(localEvents));
 
-    // Firebase save
     if (USE_FIREBASE && dbFirestore) {
       try {
         const eventId = event.id || crypto.randomUUID();
@@ -560,7 +502,6 @@ export const db = {
   },
 
   saveContractor: async (contractor: Contractor): Promise<void> => {
-    // Local save
     const local = JSON.parse(localStorage.getItem(KEYS.CONTRACTORS) || '[]');
     const index = local.findIndex((c: Contractor) => c.id === contractor.id);
     if (index >= 0) local[index] = contractor;

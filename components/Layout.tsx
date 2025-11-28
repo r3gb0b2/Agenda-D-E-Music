@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase, DollarSign, Settings } from 'lucide-react';
+import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase, FileText, Kanban } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,7 +17,7 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
   // Safety fallback for user name
   const userName = user?.name || 'Usuário';
   const userInitial = (userName.charAt(0) || '?').toUpperCase();
-  const userRole = user?.role || UserRole.VIEWER;
+  const userRole = user?.role || UserRole.MEMBER;
 
   const NavItem = ({ view, icon: Icon, label }: { view: string, icon: any, label: string }) => (
     <button
@@ -54,16 +55,16 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
 
         <nav className="flex-1 px-4 py-4">
           <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
+          <NavItem view="pipeline" icon={Kanban} label="Pipeline de Vendas" />
           <NavItem view="agenda" icon={Calendar} label="Agenda" />
-          {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
-            <NavItem view="financials" icon={DollarSign} label="Financeiro" />
-          )}
           <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
-          {userRole === UserRole.ADMIN && (
-             <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
-          )}
-          {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
-            <NavItem view="settings" icon={Settings} label="Configurações" />
+          
+          {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACTS) && (
+            <>
+              <div className="my-2 border-t border-slate-800/50"></div>
+              <NavItem view="contracts_library" icon={FileText} label="Contratos Enviados" />
+              <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
+            </>
           )}
         </nav>
 
@@ -105,16 +106,16 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
         <div className="fixed inset-0 z-40 bg-slate-900 pt-24 px-4 md:hidden">
            <nav className="flex flex-col">
             <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
+            <NavItem view="pipeline" icon={Kanban} label="Pipeline de Vendas" />
             <NavItem view="agenda" icon={Calendar} label="Agenda" />
-            {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
-              <NavItem view="financials" icon={DollarSign} label="Financeiro" />
-            )}
             <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
-            {userRole === UserRole.ADMIN && (
-               <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
-            )}
-            {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
-               <NavItem view="settings" icon={Settings} label="Configurações" />
+            
+            {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACTS) && (
+              <>
+                <div className="my-2 border-t border-slate-800/50"></div>
+                <NavItem view="contracts_library" icon={FileText} label="Contratos Enviados" />
+                <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
+              </>
             )}
             
             <div className="mt-8 border-t border-slate-800 pt-4">

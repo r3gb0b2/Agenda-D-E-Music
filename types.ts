@@ -1,16 +1,4 @@
 
-
-export interface BandCompanyInfo {
-  razaoSocial: string;
-  cnpj: string;
-  endereco: string;
-  representanteLegal: string;
-  cpfRepresentante: string;
-  rgRepresentante: string;
-  email: string;
-  telefone: string;
-}
-
 export enum EventStatus {
   RESERVED = 'RESERVED',
   CONFIRMED = 'CONFIRMED',
@@ -18,11 +6,23 @@ export enum EventStatus {
   COMPLETED = 'COMPLETED'
 }
 
+export enum PipelineStage {
+  LEAD = 'LEAD',           // Prospecção / Contato Inicial
+  QUALIFICATION = 'QUALIFICATION', // Qualificação
+  PROPOSAL = 'PROPOSAL',   // Proposta Enviada
+  NEGOTIATION = 'NEGOTIATION', // Negociação
+  CONTRACT = 'CONTRACT',   // Emissão de Contrato
+  WON = 'WON',             // Fechado (Ganha)
+  LOST = 'LOST'            // Perdido
+}
+
 export enum UserRole {
   ADMIN = 'ADMIN',
-  CONTRACT = 'CONTRACT', // Access to financials and contracts
-  MANAGER = 'MANAGER', // Band Manager
-  VIEWER = 'VIEWER'    // Read-only access
+  MANAGER = 'MANAGER',   // Gerente Geral
+  SALES = 'SALES',       // Comercial (Cadastra datas)
+  CONTRACTS = 'CONTRACTS', // Contratos (Gere contratos e users visualizadores)
+  VIEWER = 'VIEWER',     // Visualizador (Só vê disponibilidade)
+  MEMBER = 'MEMBER'      // Músico (Visualização básica)
 }
 
 export enum ContractorType {
@@ -35,11 +35,10 @@ export interface Band {
   name: string;
   genre: string;
   members: number;
-  companyInfo: BandCompanyInfo; // Adicionado
 }
 
 export interface User {
-  id:string;
+  id: string;
   name: string;
   email: string;
   password?: string; // Para autenticação local
@@ -54,6 +53,24 @@ export interface Financials {
   taxes: number; // Absolute value
   netValue: number;
   currency: string;
+  notes?: string; // Informações Adicionais do Financeiro
+}
+
+export interface ContractFile {
+  name: string;
+  url: string; // In mock, this is the filename. In real app, the download URL.
+  uploadedAt: string;
+}
+
+export interface Logistics {
+  transport: string; // Van, Carro, Ônibus
+  departureTime: string;
+  returnTime: string;
+  hotel: string; // Nome do hotel / Booking
+  flights: string; // Voo detalhes
+  crew: string; // Lista da equipe técnica (Roadies, Techs)
+  rider: string; // Notas sobre Rider Técnico / Palco
+  notes: string; // Obs gerais
 }
 
 export interface Event {
@@ -70,18 +87,23 @@ export interface Event {
   notes: string;
   status: EventStatus;
   financials: Financials;
-  // New fields
+  
+  // New CRM & Logistics Fields
+  pipelineStage: PipelineStage;
+  logistics: Logistics;
+
+  // Metadata
   createdBy: string; // Name of the user who created
   createdAt: string; // ISO String of creation timestamp
   hasContract: boolean; // If false, shows warning that contract is missing
+  contractUrl?: string; // Legacy field (kept for safety)
+  contractFiles: ContractFile[]; // Support multiple files
 }
 
 export interface Contractor {
   id: string;
   type: ContractorType;
   name: string; // Nome ou Razão Social
-  cpf: string; // CPF ou CNPJ
-  rg: string; // RG
   responsibleName: string;
   phone: string;
   whatsapp: string;

@@ -1,8 +1,7 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { Band, Event, EventStatus, Contractor, User, UserRole } from '../types';
-import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag } from 'lucide-react';
+import { Band, Event, EventStatus, Contractor, User, UserRole, ContractFile, PipelineStage } from '../types';
+import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag, Upload, FileText, Trash2, Plus, Truck, Plane, Hotel, PenTool, Printer } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
 import { db } from '../services/databaseService';
 
@@ -14,11 +13,28 @@ interface EventFormProps {
   initialDate?: string;
   initialBandId?: string;
   onSave: (event: Event) => void;
+  onGenerateContract: (event: Event) => void;
   onClose: () => void;
 }
 
-const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, currentUser, initialDate, initialBandId, onSave, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'details' | 'financials' | 'ai'>('details');
+// Currency Formatter Helpers
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(value);
+};
+
+// Input Parser: converts "R$ 1.500,00" -> 1500.00
+const parseCurrencyInput = (inputValue: string) => {
+  // Remove non-digits
+  const digits = inputValue.replace(/\D/g, '');
+  // Treat as cents (divide by 100)
+  return parseFloat(digits) / 100;
+};
+
+const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent, currentUser, initialDate, initialBandId, onSave, onGenerateContract, onClose }) => {
+  const [activeTab, setActiveTab] = useState<'details' | 'logistics' | 'financials' | 'ai'>('details');
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
   
@@ -30,7 +46,14 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   // Estado local para exibir detalhes do contratante selecionado
   const [selectedContractorInfo, setSelectedContractorInfo] = useState<Contractor | undefined>(undefined);
 
-  const canEditFinancials = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.CONTRACT;
+  // Access Control logic
+  // Added UserRole.SALES to permissions list
+  const canSeeFinancials = currentUser?.role === UserRole.ADMIN || 
+                           currentUser?.role === UserRole.MANAGER || 
+                           currentUser?.role === UserRole.CONTRACTS ||
+                           currentUser?.role === UserRole.SALES;
+                           
+  const canEditContracts = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.CONTRACTS;
 
   const [formData, setFormData] = useState<Event>({
     id: existingEvent?.id || crypto.randomUUID(),
@@ -53,13 +76,27 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
       commissionValue: 10,
       taxes: 0,
       netValue: 0,
-      currency: 'BRL'
+      currency: 'BRL',
+      notes: ''
     },
     // Keep existing createdBy or set new
     createdBy: existingEvent?.createdBy || currentUser?.name || 'Sistema',
     createdAt: existingEvent?.createdAt || new Date().toISOString(),
     // Keep existing or default to false (pending contract) for new events
-    hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false 
+    hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false,
+    contractUrl: existingEvent?.contractUrl || '',
+    contractFiles: existingEvent?.contractFiles || [],
+    pipelineStage: existingEvent?.pipelineStage || PipelineStage.LEAD,
+    logistics: existingEvent?.logistics || {
+      transport: '',
+      departureTime: '',
+      returnTime: '',
+      hotel: '',
+      flights: '',
+      crew: '',
+      rider: '',
+      notes: ''
+    }
   });
 
   // Load Suggestions on Mount
@@ -71,13 +108,6 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     };
     loadSuggestions();
   }, []);
-
-  // Ensure non-authorized users can't see financials
-  useEffect(() => {
-    if (!canEditFinancials && activeTab === 'financials') {
-      setActiveTab('details');
-    }
-  }, [canEditFinancials, activeTab]);
 
   // Atualiza infos do contratante se já houver um nome preenchido (edição)
   useEffect(() => {
@@ -110,8 +140,10 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   }, [formData.financials.grossValue, formData.financials.commissionType, formData.financials.commissionValue, formData.financials.taxes]);
 
   const handleGenerateBrief = async () => {
-    // FIX: Removed check for process.env.API_KEY as it's unreliable in the browser
-    // and the service layer already handles the case where the AI client is not initialized.
+    if (!process.env.API_KEY) {
+      setAiSummary("API Key not found in environment.");
+      return;
+    }
     setIsGenerating(true);
     const band = bands.find(b => b.id === formData.bandId);
     const summary = await generateEventBrief(formData, band?.name || 'Banda');
@@ -121,6 +153,13 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
 
   const handleChange = (field: keyof Event, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleLogisticsChange = (field: keyof typeof formData.logistics, value: string) => {
+    setFormData(prev => ({
+       ...prev,
+       logistics: { ...prev.logistics, [field]: value }
+    }));
   };
 
   const handleContractorChange = (value: string) => {
@@ -137,6 +176,34 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     }
   };
 
+  // Mock file upload handler for multiple files
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles: ContractFile[] = Array.from(e.target.files).map((file: any) => ({
+        name: file.name,
+        url: file.name, // Mock URL
+        uploadedAt: new Date().toISOString()
+      }));
+
+      setFormData(prev => ({
+        ...prev,
+        contractFiles: [...(prev.contractFiles || []), ...newFiles],
+        hasContract: true // Auto check "received" if file uploaded
+      }));
+    }
+  };
+
+  const removeFile = (indexToRemove: number) => {
+    setFormData(prev => {
+        const updatedFiles = prev.contractFiles.filter((_, index) => index !== indexToRemove);
+        return {
+            ...prev,
+            contractFiles: updatedFiles,
+            hasContract: updatedFiles.length > 0 // Uncheck if no files left? Optional.
+        };
+    });
+  };
+
   const handleFinancialChange = (field: keyof typeof formData.financials, value: any) => {
     setFormData(prev => ({
       ...prev,
@@ -144,14 +211,30 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     }));
   };
 
+  // Handler specifically for currency masked inputs
+  const handleCurrencyChange = (field: keyof typeof formData.financials, inputValue: string) => {
+     const numberValue = parseCurrencyInput(inputValue);
+     handleFinancialChange(field, numberValue);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
   };
 
+  const PIPELINE_LABELS: Record<string, string> = {
+     [PipelineStage.LEAD]: 'Lead / Contato',
+     [PipelineStage.QUALIFICATION]: 'Qualificação',
+     [PipelineStage.PROPOSAL]: 'Proposta Enviada',
+     [PipelineStage.NEGOTIATION]: 'Negociação',
+     [PipelineStage.CONTRACT]: 'Emissão Contrato',
+     [PipelineStage.WON]: 'Fechado (Ganho)',
+     [PipelineStage.LOST]: 'Perdido'
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 w-full max-w-3xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up">
+      <div className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up">
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-950">
           <div>
@@ -167,33 +250,70 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
           </button>
         </div>
 
+        {/* Pipeline Status Bar (New) */}
+        <div className="bg-slate-900 px-6 pt-4 pb-2">
+           <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Status do Pipeline (CRM)</label>
+           <div className="flex items-center gap-1 overflow-x-auto pb-2 scrollbar-hide">
+              {Object.keys(PipelineStage).map((stage) => {
+                 const currentIdx = Object.keys(PipelineStage).indexOf(formData.pipelineStage);
+                 const thisIdx = Object.keys(PipelineStage).indexOf(stage);
+                 const isActive = stage === formData.pipelineStage;
+                 const isPast = thisIdx < currentIdx;
+                 
+                 let colorClass = 'bg-slate-800 text-slate-500 border-slate-700';
+                 if (isActive) colorClass = 'bg-primary-600 text-white border-primary-500';
+                 else if (isPast) colorClass = 'bg-primary-900/40 text-primary-300 border-primary-900';
+
+                 return (
+                   <button 
+                     key={stage}
+                     type="button"
+                     onClick={() => handleChange('pipelineStage', stage)}
+                     className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${colorClass}`}
+                   >
+                     {PIPELINE_LABELS[stage]}
+                   </button>
+                 )
+              })}
+           </div>
+        </div>
+
         {/* Tabs */}
-        <div className="flex border-b border-slate-800 bg-slate-900">
+        <div className="flex border-b border-slate-800 bg-slate-900 overflow-x-auto">
           <button
             onClick={() => setActiveTab('details')}
-            className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'details' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 min-w-[100px] py-4 text-sm font-medium transition-colors ${activeTab === 'details' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
           >
-            Detalhes & Logística
+            Detalhes
           </button>
-          {canEditFinancials && (
+          
+          <button
+            onClick={() => setActiveTab('logistics')}
+            className={`flex-1 min-w-[100px] py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'logistics' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
+          >
+             <Truck size={16}/> Logística
+          </button>
+
+          {canSeeFinancials && (
             <button
               onClick={() => setActiveTab('financials')}
-              className={`flex-1 py-4 text-sm font-medium transition-colors ${activeTab === 'financials' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
+              className={`flex-1 min-w-[100px] py-4 text-sm font-medium transition-colors ${activeTab === 'financials' ? 'text-primary-500 border-b-2 border-primary-500' : 'text-slate-400 hover:text-white'}`}
             >
               Financeiro
             </button>
           )}
+          
           {existingEvent && (
             <button
               onClick={() => setActiveTab('ai')}
-              className={`flex-1 py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'ai' ? 'text-accent-500 border-b-2 border-accent-500' : 'text-slate-400 hover:text-white'}`}
+              className={`flex-1 min-w-[100px] py-4 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${activeTab === 'ai' ? 'text-accent-500 border-b-2 border-accent-500' : 'text-slate-400 hover:text-white'}`}
             >
-              <Sparkles size={16} /> Assistente IA
+              <Sparkles size={16} /> IA
             </button>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <form onSubmit={handleSubmit} className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
           {activeTab === 'details' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -299,7 +419,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                 </div>
               </div>
 
-              {/* Seção de Contratante Aprimorada */}
+              {/* Seção de Contratante */}
               <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700/50">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -316,7 +436,6 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                         ))}
                       </select>
                       
-                      {/* Caso o usuário queira digitar um nome que não está na lista */}
                       <input 
                          type="text"
                          className="mt-2 w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-xs text-slate-400 placeholder-slate-600 focus:text-white focus:border-primary-500"
@@ -338,26 +457,73 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                       </select>
                     </div>
 
-                    {/* Checkbox de Contrato */}
-                    <div 
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${formData.hasContract ? 'bg-green-900/20 border-green-500/30' : 'bg-red-900/10 border-red-500/30'}`}
-                      onClick={() => handleChange('hasContract', !formData.hasContract)}
-                    >
-                      <div className={`p-2 rounded-full ${formData.hasContract ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                        {formData.hasContract ? <FileCheck size={18} /> : <FileWarning size={18} />}
+                    {/* Gestão de Contratos (Visible only for Admins & Contracts Role) */}
+                    {(canEditContracts) && (
+                      <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Gestão de Contrato</label>
+                        
+                        <div className="flex gap-2 mb-3">
+                           <button
+                             type="button"
+                             onClick={() => onGenerateContract(formData)}
+                             className="flex-1 bg-slate-800 hover:bg-slate-700 text-xs text-white py-2 rounded border border-slate-600 flex items-center justify-center gap-1"
+                             title="Gerar minuta automática"
+                           >
+                             <PenTool size={12} /> Gerar Minuta
+                           </button>
+                        </div>
+
+                        {/* Toggle Checkbox */}
+                        <div 
+                          className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-all mb-3 ${formData.hasContract ? 'bg-green-900/20' : 'bg-red-900/10'}`}
+                          onClick={() => handleChange('hasContract', !formData.hasContract)}
+                        >
+                          <div className={`p-1.5 rounded-full ${formData.hasContract ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                            {formData.hasContract ? <FileCheck size={16} /> : <FileWarning size={16} />}
+                          </div>
+                          <div className="flex-1">
+                            <span className={`block font-medium text-sm ${formData.hasContract ? 'text-green-400' : 'text-red-400'}`}>
+                              {formData.hasContract ? 'Contrato Recebido' : 'Pendente'}
+                            </span>
+                          </div>
+                          <div className={`w-8 h-5 rounded-full relative transition-colors ${formData.hasContract ? 'bg-green-500' : 'bg-slate-600'}`}>
+                            <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${formData.hasContract ? 'left-4' : 'left-1'}`} />
+                          </div>
+                        </div>
+
+                        {/* File Upload Mock (Multi-file) */}
+                        <div className="flex flex-col gap-2">
+                           <label className="flex-1 cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-600 border-dashed rounded px-3 py-2 text-center transition-colors">
+                              <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
+                                <Plus size={14}/> {formData.contractFiles.length > 0 ? 'Adicionar Outro Arquivo' : 'Enviar Contrato (PDF)'}
+                              </span>
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx" multiple onChange={handleFileUpload} />
+                           </label>
+                           
+                           {/* File List */}
+                           {formData.contractFiles.length > 0 && (
+                             <div className="space-y-1 mt-1">
+                               {formData.contractFiles.map((file, idx) => (
+                                 <div key={idx} className="flex justify-between items-center bg-slate-800 px-2 py-1 rounded text-xs">
+                                    <div className="flex items-center gap-2 text-green-400 truncate">
+                                      <FileText size={12} />
+                                      <span className="truncate max-w-[150px]">{file.name}</span>
+                                    </div>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => removeFile(idx)}
+                                      className="text-slate-500 hover:text-red-400 p-1"
+                                      title="Remover arquivo"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                 </div>
+                               ))}
+                             </div>
+                           )}
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <span className={`block font-medium ${formData.hasContract ? 'text-green-400' : 'text-red-400'}`}>
-                          {formData.hasContract ? 'Contrato Recebido' : 'Contrato Pendente'}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          {formData.hasContract ? 'Documentação ok' : 'O contratante não enviou o contrato'}
-                        </span>
-                      </div>
-                      <div className={`w-10 h-6 rounded-full relative transition-colors ${formData.hasContract ? 'bg-green-500' : 'bg-slate-600'}`}>
-                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.hasContract ? 'left-5' : 'left-1'}`} />
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -382,21 +548,64 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                   </div>
                 )}
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Informações Adicionais</label>
-                <textarea
-                  rows={4}
-                  value={formData.notes}
-                  onChange={(e) => handleChange('notes', e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none resize-none"
-                  placeholder="Detalhes técnicos, camarim, logística..."
-                ></textarea>
-              </div>
             </div>
           )}
 
-          {activeTab === 'financials' && canEditFinancials && (
+          {activeTab === 'logistics' && (
+             <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 className="text-white font-medium mb-3 flex items-center gap-2"><Truck size={18} className="text-primary-500"/> Transporte Terrestre</h4>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs text-slate-400 mb-1">Tipo de Transporte</label>
+                                <input type="text" value={formData.logistics.transport} onChange={e => handleLogisticsChange('transport', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm" placeholder="Ex: Van Executiva, Carro Próprio"/>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">Saída</label>
+                                    <input type="time" value={formData.logistics.departureTime} onChange={e => handleLogisticsChange('departureTime', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm"/>
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-slate-400 mb-1">Retorno</label>
+                                    <input type="time" value={formData.logistics.returnTime} onChange={e => handleLogisticsChange('returnTime', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 className="text-white font-medium mb-3 flex items-center gap-2"><Hotel size={18} className="text-primary-500"/> Hospedagem & Aéreo</h4>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-xs text-slate-400 mb-1">Hotel / Acomodação</label>
+                                <input type="text" value={formData.logistics.hotel} onChange={e => handleLogisticsChange('hotel', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm" placeholder="Nome do Hotel, Check-in/out"/>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-slate-400 mb-1 flex items-center gap-1"><Plane size={12}/> Voo / Detalhes</label>
+                                <input type="text" value={formData.logistics.flights} onChange={e => handleLogisticsChange('flights', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm" placeholder="Cia Aérea, Nº Voo, Horários"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="border-t border-slate-800 pt-4">
+                    <h4 className="text-white font-medium mb-3">Equipe & Técnico</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-slate-400 mb-1">Equipe (Roadies, Techs)</label>
+                            <textarea rows={3} value={formData.logistics.crew} onChange={e => handleLogisticsChange('crew', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm resize-none" placeholder="Liste os nomes da equipe..."></textarea>
+                        </div>
+                        <div>
+                             <label className="block text-xs text-slate-400 mb-1">Rider Técnico / Palco</label>
+                             <textarea rows={3} value={formData.logistics.rider} onChange={e => handleLogisticsChange('rider', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white text-sm resize-none" placeholder="Inputs, Mapa de Palco, Voltagem..."></textarea>
+                        </div>
+                    </div>
+                </div>
+             </div>
+          )}
+
+          {activeTab === 'financials' && (
             <div className="space-y-6">
               <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
                 <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2">
@@ -407,19 +616,21 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Valor Bruto (R$)</label>
                     <input
-                      type="number"
-                      value={formData.financials.grossValue}
-                      onChange={(e) => handleFinancialChange('grossValue', parseFloat(e.target.value))}
+                      type="text"
+                      value={formatCurrency(formData.financials.grossValue)}
+                      onChange={(e) => handleCurrencyChange('grossValue', e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white text-lg font-semibold outline-none"
+                      placeholder="R$ 0,00"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Impostos/Taxas (R$)</label>
                     <input
-                      type="number"
-                      value={formData.financials.taxes}
-                      onChange={(e) => handleFinancialChange('taxes', parseFloat(e.target.value))}
+                      type="text"
+                      value={formatCurrency(formData.financials.taxes)}
+                      onChange={(e) => handleCurrencyChange('taxes', e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                      placeholder="R$ 0,00"
                     />
                   </div>
                 </div>
@@ -448,33 +659,55 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                      <label className="block text-sm font-medium text-slate-400 mb-1">
                        {formData.financials.commissionType === 'PERCENTAGE' ? 'Porcentagem (%)' : 'Valor (R$)'}
                      </label>
-                     <input
-                      type="number"
-                      value={formData.financials.commissionValue}
-                      onChange={(e) => handleFinancialChange('commissionValue', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
-                    />
+                     {formData.financials.commissionType === 'PERCENTAGE' ? (
+                       <input
+                        type="number"
+                        value={formData.financials.commissionValue}
+                        onChange={(e) => handleFinancialChange('commissionValue', parseFloat(e.target.value))}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                       />
+                     ) : (
+                       <input
+                        type="text"
+                        value={formatCurrency(formData.financials.commissionValue)}
+                        onChange={(e) => handleCurrencyChange('commissionValue', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white outline-none"
+                        placeholder="R$ 0,00"
+                       />
+                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Informações Adicionais (New Field) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Informações Adicionais (Financeiro)</label>
+                <textarea
+                  rows={3}
+                  value={formData.financials.notes || ''}
+                  onChange={(e) => handleFinancialChange('notes', e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white outline-none resize-none"
+                  placeholder="Detalhes sobre pagamentos, parcelas, contas bancárias..."
+                ></textarea>
               </div>
 
               <div className="flex justify-end">
                 <div className="bg-slate-950 p-6 rounded-xl border border-slate-700 w-full md:w-1/2">
                    <div className="flex justify-between items-center mb-2">
                      <span className="text-slate-400">Bruto</span>
-                     <span className="text-white font-medium">R$ {formData.financials.grossValue.toLocaleString('pt-BR')}</span>
+                     <span className="text-white font-medium">{formatCurrency(formData.financials.grossValue)}</span>
                    </div>
                    <div className="flex justify-between items-center mb-2">
                      <span className="text-red-400">Comissão</span>
-                     <span className="text-red-400 font-medium">- R$ {(formData.financials.commissionType === 'PERCENTAGE' ? (formData.financials.grossValue * formData.financials.commissionValue / 100) : formData.financials.commissionValue).toLocaleString('pt-BR')}</span>
+                     <span className="text-red-400 font-medium">- {formatCurrency(formData.financials.commissionType === 'PERCENTAGE' ? (formData.financials.grossValue * formData.financials.commissionValue / 100) : formData.financials.commissionValue)}</span>
                    </div>
                    <div className="flex justify-between items-center mb-4">
                      <span className="text-red-400">Impostos</span>
-                     <span className="text-red-400 font-medium">- R$ {formData.financials.taxes.toLocaleString('pt-BR')}</span>
+                     <span className="text-red-400 font-medium">- {formatCurrency(formData.financials.taxes)}</span>
                    </div>
                    <div className="pt-4 border-t border-slate-800 flex justify-between items-center">
                      <span className="text-slate-300 text-lg">Líquido</span>
-                     <span className="text-green-400 text-2xl font-bold">R$ {formData.financials.netValue.toLocaleString('pt-BR')}</span>
+                     <span className="text-green-400 text-2xl font-bold">{formatCurrency(formData.financials.netValue)}</span>
                    </div>
                 </div>
               </div>
