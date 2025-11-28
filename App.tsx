@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -60,7 +61,7 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Replaced constructor with state class property to resolve type errors with `this.state` and `this.props`.
+  // FIX: Initialize state as a class property instead of in the constructor.
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -683,8 +684,7 @@ const AppContent: React.FC = () => {
                               })}
                               {dayEvents.length > 3 && (<div className="text-slate-500 font-medium text-center text-xs mt-2">+ {dayEvents.length - 3} mais</div>)}
                            </div>
-                           {/* FIX: Explicitly cast zoomLevel to Number to avoid arithmetic type errors. */}
-                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (Number(zoomLevel) - 1) * 4} /></button>
+                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (zoomLevel - 1) * 4} /></button>
                         </div>
                      );
                   })}
@@ -1040,7 +1040,6 @@ const AppContent: React.FC = () => {
       {/* MODALS */}
       {isFormOpen && (<EventForm bands={getVisibleBands()} contractors={contractors} existingEvent={editingEvent} currentUser={currentUser} initialDate={newEventDate} initialBandId={selectedBandFilter || undefined} onSave={handleSaveEvent} onClose={() => setIsFormOpen(false)} />)}
       {isContractorFormOpen && (<ContractorForm existingContractor={editingContractor} onSave={handleSaveContractor} onClose={() => setIsContractorFormOpen(false)} />)}
-      {/* FIX: Corrected typo 'setIsUserForm-open' to 'setIsUserFormOpen' to fix function call. */}
       {isUserFormOpen && (<UserForm bands={bands} existingUser={editingUser} onSave={handleSaveUser} onClose={() => setIsUserFormOpen(false)} />)}
       <DayDetailsModal />
     </Layout>

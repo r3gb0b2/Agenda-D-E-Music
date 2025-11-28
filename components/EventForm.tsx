@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { Band, Event, EventStatus, Contractor, User, UserRole } from '../types';
 import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag } from 'lucide-react';
