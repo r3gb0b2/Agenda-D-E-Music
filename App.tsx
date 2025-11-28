@@ -1,9 +1,5 @@
 
 
-
-
-
-
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor } from './types';
@@ -21,7 +17,7 @@ import {
   AlertTriangle, RefreshCcw, CalendarDays, Edit2, ChevronRight, ChevronLeft,
   List, Calendar as CalendarIcon, X, History, FileWarning, Mic2, LogIn,
   Briefcase, User as UserIcon, Phone, ZoomIn, ZoomOut, DollarSign,
-  TrendingUp, Download, Printer, FileText, Settings, Save
+  Download, Printer, FileText, Settings, Save
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -65,7 +61,9 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Initialize state as a class property.
+  // FIX: Replaced constructor with a class property for state initialization.
+  // This is a more modern syntax and resolves TypeScript errors where `this.state`
+  // was not being correctly recognized on the class instance.
   state: ErrorBoundaryState = {
     hasError: false,
     error: null,
@@ -118,13 +116,13 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
-  const [isBandFormOpen, setIsBandFormOpen] = useState(false); // Adicionado
+  const [isBandFormOpen, setIsBandFormOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false); 
   
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editingBand, setEditingBand] = useState<Band | null>(null); // Adicionado
+  const [editingBand, setEditingBand] = useState<Band | null>(null);
   
   const [filterText, setFilterText] = useState('');
   const [selectedBandFilter, setSelectedBandFilter] = useState<string | null>(null);
@@ -310,14 +308,11 @@ const AppContent: React.FC = () => {
   const handleExportICS = (event: Event) => {
     const band = bands.find(b => b.id === event.bandId);
     
-    // Ensure date and time are valid
     if (!event.date || !event.time) return;
 
-    // Create valid ISO string with timezone offset
     const startDate = new Date(`${event.date.split('T')[0]}T${event.time}:00`);
     const endDate = new Date(startDate.getTime() + (event.durationHours || 2) * 60 * 60 * 1000);
     
-    // Format for ICS (YYYYMMDDTHHmmssZ)
     const toICSDate = (date: Date) => date.toISOString().replace(/[-:]/g, "").split('.')[0] + 'Z';
 
     const icsContent = [
@@ -686,7 +681,6 @@ const AppContent: React.FC = () => {
                                     </div>
                                  )
                               })}
-                              {dayEvents.length > 3 && (<div className="text-slate-500 font-medium text-center text-xs mt-2">+ {dayEvents.length - 3} mais</div>)}
                            </div>
                            <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (zoomLevel - 1) * 4} /></button>
                         </div>
@@ -743,13 +737,16 @@ const AppContent: React.FC = () => {
       return eventYear === selectedYear && bandMatch && e.status !== EventStatus.CANCELED;
     });
 
-    // FIX: Added optional chaining, default values, and Number() coercion to prevent type errors from string values during arithmetic operations.
+    // FIX: Ensure financial values are treated as numbers to prevent string concatenation.
+    // This bug caused `totalGross` and `totalNet` to become strings, leading to an invalid
+    // arithmetic operation (string - string) when calculating `totalCommission`.
     const totalGross = filteredEvents.reduce((sum, e) => sum + Number(e.financials?.grossValue || 0), 0);
     const totalNet = filteredEvents.reduce((sum, e) => sum + Number(e.financials?.netValue || 0), 0);
     const totalCommission = totalGross - totalNet - filteredEvents.reduce((s, e) => s + Number(e.financials?.taxes || 0), 0);
 
     const monthlyData = Array.from({ length: 12 }, (_, i) => {
       const monthEvents = filteredEvents.filter(e => new Date(e.date).getMonth() === i);
+      // FIX: Also apply Number() conversion here to ensure chart data is correct.
       const gross = monthEvents.reduce((sum, e) => sum + Number(e.financials?.grossValue || 0), 0);
       const net = monthEvents.reduce((sum, e) => sum + Number(e.financials?.netValue || 0), 0);
       return { name: monthNames[i].substring(0,3), Bruto: gross, Líquido: net };
@@ -837,6 +834,109 @@ const AppContent: React.FC = () => {
     )
   }
 
+  const ContractorsView = () => {
+    return (
+      <div className="space-y-6 animate-fade-in pb-20 md:pb-0">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Briefcase className="text-primary-500"/> Contratantes</h2>
+          <button onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium">
+            <Plus size={18} /> Novo Contratante
+          </button>
+        </div>
+        <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="bg-slate-900 text-slate-400 text-xs uppercase">
+              <tr>
+                <th className="p-4">Nome / Razão Social</th><th className="p-4">Contato</th><th className="p-4">Cidade</th><th className="p-4">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800 text-sm">
+              {contractors.map(c => (
+                <tr key={c.id} className="text-slate-300 hover:bg-slate-900/50">
+                  <td className="p-4 font-medium text-white">{c.name}</td>
+                  <td className="p-4">
+                    <div className="flex items-center gap-2"><Phone size={12}/> {c.whatsapp || c.phone}</div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">{c.email}</div>
+                  </td>
+                  <td className="p-4">{c.address.city}</td>
+                  <td className="p-4">
+                    <div className="flex gap-2">
+                      <button onClick={() => openEditContractor(c)} className="p-2 hover:bg-slate-800 rounded"><Edit2 size={16} className="text-slate-400"/></button>
+                      <button onClick={() => handleDeleteContractor(c.id)} className="p-2 hover:bg-slate-800 rounded"><Trash2 size={16} className="text-red-500"/></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+  
+  const BandsAndUsersView = () => {
+    return (
+      <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Music className="text-primary-500"/> Bandas</h2>
+            <button onClick={() => { setEditingBand(null); setIsBandFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium">
+              <Plus size={18} /> Nova Banda
+            </button>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-slate-900 text-slate-400 text-xs uppercase">
+                <tr><th className="p-4">Nome</th><th className="p-4">Gênero</th><th className="p-4">Ações</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-sm">
+                {bands.map(b => (
+                  <tr key={b.id} className="text-slate-300 hover:bg-slate-900/50">
+                    <td className="p-4 font-medium text-white">{b.name}</td>
+                    <td className="p-4">{b.genre}</td>
+                    <td className="p-4">
+                      <button onClick={() => openEditBand(b)} className="p-2 hover:bg-slate-800 rounded"><Edit2 size={16} className="text-slate-400"/></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-white flex items-center gap-2"><Users className="text-accent-500"/> Usuários</h2>
+            <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="flex items-center gap-2 px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-lg font-medium">
+              <Plus size={18} /> Novo Usuário
+            </button>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-slate-900 text-slate-400 text-xs uppercase">
+                <tr><th className="p-4">Nome</th><th className="p-4">Login</th><th className="p-4">Permissão</th><th className="p-4">Ações</th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800 text-sm">
+                {users.map(u => (
+                  <tr key={u.id} className="text-slate-300 hover:bg-slate-900/50">
+                    <td className="p-4 font-medium text-white">{u.name}</td>
+                    <td className="p-4">{u.email}</td>
+                    <td className="p-4"><span className="px-2 py-1 bg-slate-800 rounded text-xs font-semibold capitalize">{u.role}</span></td>
+                    <td className="p-4">
+                      <div className="flex gap-2">
+                        <button onClick={() => openEditUser(u)} className="p-2 hover:bg-slate-800 rounded"><Edit2 size={16} className="text-slate-400"/></button>
+                        {u.role !== UserRole.ADMIN && <button onClick={() => handleDeleteUser(u.id)} className="p-2 hover:bg-slate-800 rounded"><Trash2 size={16} className="text-red-500"/></button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const SettingsView = () => {
     const [template, setTemplate] = useState(contractTemplate);
     const [isSaving, setIsSaving] = useState(false);
@@ -844,28 +944,33 @@ const AppContent: React.FC = () => {
     const handleSave = async () => {
       setIsSaving(true);
       await db.saveContractTemplate(template);
-      setContractTemplate(template); // Update app state
+      setContractTemplate(template);
       setIsSaving(false);
       alert('Modelo salvo com sucesso!');
     };
     
     const variables = [
-        { key: '{{NOME_EVENTO}}', desc: 'Nome do evento' },
-        { key: '{{TIPO_EVENTO}}', desc: 'Tipo do evento' },
-        { key: '{{DATA_EVENTO}}', desc: 'Data (DD/MM/AAAA)' },
-        { key: '{{DATA_EVENTO_EXTENSO}}', desc: 'Data por extenso' },
-        { key: '{{HORARIO_EVENTO}}', desc: 'Horário de início' },
-        { key: '{{DURACAO_EVENTO}}', desc: 'Duração em horas' },
-        { key: '{{CIDADE_EVENTO}}', desc: 'Cidade do evento' },
-        { key: '{{LOCAL_EVENTO}}', desc: 'Local/Venue do evento' },
-        { key: '{{NOME_BANDA}}', desc: 'Nome da banda' },
-        { key: '{{NOME_CONTRATANTE}}', desc: 'Nome do contratante' },
-        { key: '{{NOME_RESPONSAVEL}}', desc: 'Responsável do contratante' },
+        { key: '{{NOME_BANDA}}', desc: 'Nome da banda contratada' },
+        { key: '{{RAZAO_SOCIAL_BANDA}}', desc: 'Razão Social da banda' },
+        { key: '{{CNPJ_BANDA}}', desc: 'CNPJ da banda' },
+        { key: '{{ENDERECO_BANDA}}', desc: 'Endereço da banda' },
+        { key: '{{REPRESENTANTE_BANDA}}', desc: 'Rep. legal da banda' },
+        { key: '{{CPF_REP_BANDA}}', desc: 'CPF do rep. da banda' },
+        { key: '{{RG_REP_BANDA}}', desc: 'RG do rep. da banda' },
+        { key: '{{EMAIL_BANDA}}', desc: 'E-mail de contato da banda' },
+        { key: '{{TELEFONE_BANDA}}', desc: 'Telefone da banda' },
+        { key: '{{NOME_CONTRATANTE}}', desc: 'Nome/Razão Social do contratante' },
+        { key: '{{CPF_CNPJ_CONTRATANTE}}', desc: 'CPF ou CNPJ do contratante' },
+        { key: '{{RG_CONTRATANTE}}', desc: 'RG do contratante' },
+        { key: '{{ENDERECO_CONTRATANTE}}', desc: 'Endereço do contratante' },
+        { key: '{{EMAIL_CONTRATANTE}}', desc: 'E-mail do contratante' },
         { key: '{{TELEFONE_CONTRATANTE}}', desc: 'Telefone do contratante' },
-        { key: '{{EMAIL_CONTRATANTE}}', desc: 'Email do contratante' },
-        { key: '{{ENDERECO_CONTRATANTE}}', desc: 'Endereço completo' },
+        { key: '{{DATA_EVENTO}}', desc: 'Data (DD/MM/AAAA)' },
+        { key: '{{LOCAL_EVENTO}}', desc: 'Local/Venue do evento' },
+        { key: '{{CIDADE_EVENTO}}', desc: 'Cidade do evento' },
+        { key: '{{DURACAO_EVENTO}}', desc: 'Duração em horas' },
         { key: '{{VALOR_BRUTO_FORMATADO}}', desc: 'Cachê bruto (Ex: R$ 1.000,00)' },
-        { key: '{{VALOR_LIQUIDO_FORMATADO}}', desc: 'Cachê líquido (Ex: R$ 900,00)' },
+        { key: '{{VALOR_POR_EXTENSO}}', desc: 'Cachê por extenso' },
     ];
 
     return (
@@ -913,7 +1018,17 @@ const AppContent: React.FC = () => {
     );
   };
 
-  // --- Render ---
+  const renderView = () => {
+    switch (currentView) {
+      case 'dashboard': return <DashboardView />;
+      case 'agenda': return renderAgendaView();
+      case 'financials': return <FinancialView />;
+      case 'contractors': return <ContractorsView />;
+      case 'bands': return <BandsAndUsersView />;
+      case 'settings': return <SettingsView />;
+      default: return <DashboardView />;
+    }
+  };
 
   if (isLoading) {
     return (
@@ -949,3 +1064,69 @@ const AppContent: React.FC = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Senha</label>
+              <input type="password" required value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all" placeholder="Digite sua senha" />
+            </div>
+            {loginError && <p className="text-red-500 text-sm text-center">{loginError}</p>}
+            <button type="submit" disabled={isLoggingIn} className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-600/20 transition-all disabled:opacity-50">
+              {isLoggingIn ? <Loader2 className="animate-spin" /> : <LogIn size={18} />}
+              Entrar no Sistema
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView} onLogout={handleLogout}>
+      {renderView()}
+
+      {isFormOpen && (
+        <EventForm
+          bands={getVisibleBands()}
+          contractors={contractors}
+          existingEvent={editingEvent}
+          currentUser={currentUser}
+          initialDate={newEventDate}
+          onSave={handleSaveEvent}
+          onClose={() => { setIsFormOpen(false); setEditingEvent(null); }}
+        />
+      )}
+      
+      {isContractorFormOpen && (
+        <ContractorForm
+          existingContractor={editingContractor}
+          onSave={handleSaveContractor}
+          onClose={() => { setIsContractorFormOpen(false); setEditingContractor(null); }}
+        />
+      )}
+      
+      {isUserFormOpen && (
+        <UserForm
+          bands={bands}
+          existingUser={editingUser}
+          onSave={handleSaveUser}
+          onClose={() => { setIsUserFormOpen(false); setEditingUser(null); }}
+        />
+      )}
+      
+      {isBandFormOpen && (
+        <BandForm
+          existingBand={editingBand}
+          onSave={handleSaveBand}
+          onClose={() => { setIsBandFormOpen(false); setEditingBand(null); }}
+        />
+      )}
+
+      {selectedDateDetails && <DayDetailsModal />}
+    </Layout>
+  );
+}
+
+const App = () => (
+  <ErrorBoundary>
+    <AppContent />
+  </ErrorBoundary>
+);
+
+export default App;
