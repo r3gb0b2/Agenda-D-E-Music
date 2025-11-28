@@ -37,15 +37,27 @@ const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, co
     };
 
     for (const [key, value] of Object.entries(replacements)) {
-        // Use a global regex to replace all occurrences
         processedText = processedText.replace(new RegExp(key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), value);
     }
     
     return processedText;
   };
 
+  // Renderiza o contrato, tratando quebras de linha como parágrafos
+  const renderContractBody = () => {
+    const processedText = getProcessedTemplate();
+    return processedText.split('\n').map((line, index) => {
+      // Linhas vazias criam espaçamento entre parágrafos
+      if (line.trim() === '') {
+        return <div key={index} className="h-4" />;
+      }
+      // Renderiza cada linha de texto dentro de um parágrafo estilizado
+      return <p key={index}>{line}</p>;
+    });
+  };
+
   return (
-    <div className="bg-slate-900 min-h-screen text-slate-300 font-sans">
+    <div className="bg-slate-800 min-h-screen font-serif print:bg-white">
       {/* Floating Action Buttons (Hidden on Print) */}
       <div className="fixed top-4 right-4 space-x-2 print:hidden z-50">
         <button onClick={() => window.print()} className="p-3 bg-primary-600 text-white rounded-full shadow-lg hover:bg-primary-500 transition-colors">
@@ -56,31 +68,32 @@ const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, co
         </button>
       </div>
 
-      <div className="max-w-4xl mx-auto p-8 md:p-12 bg-slate-950 border-x border-slate-800 shadow-2xl print:shadow-none print:border-none">
+      {/* A4-like page */}
+      <div className="max-w-4xl mx-auto my-8 p-12 bg-white text-slate-900 shadow-2xl print:shadow-none print:my-0 print:p-8">
         {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start mb-10 pb-4 border-b border-slate-700">
+        <header className="flex flex-col md:flex-row justify-between items-start mb-10 pb-4 border-b border-slate-200">
           <div>
             <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white shadow-md print:hidden">
+                <div className="w-12 h-12 rounded-lg bg-slate-800 flex items-center justify-center text-white shadow-md print:hidden">
                     <Mic2 size={24} />
                 </div>
                 <div>
-                    <h1 className="text-3xl font-bold text-white">CONTRATO DE APRESENTAÇÃO</h1>
-                    <p className="text-primary-400 font-semibold">D&E MUSIC MANAGEMENT</p>
+                    <h1 className="text-3xl font-bold text-slate-900">CONTRATO DE APRESENTAÇÃO</h1>
+                    <p className="text-slate-600 font-semibold font-sans">D&E MUSIC MANAGEMENT</p>
                 </div>
             </div>
           </div>
-          <div className="text-left md:text-right mt-4 md:mt-0">
-            <p className="text-sm">Contrato Nº: <span className="font-mono">{event.id.substring(0, 8).toUpperCase()}</span></p>
-            <p className="text-sm">Data de Emissão: <span className="font-mono">{new Date().toLocaleDateString('pt-BR')}</span></p>
+          <div className="text-left md:text-right mt-4 md:mt-0 font-sans">
+            <p className="text-sm text-slate-600">Contrato Nº: <span className="font-mono font-bold text-slate-800">{event.id.substring(0, 8).toUpperCase()}</span></p>
+            <p className="text-sm text-slate-600">Data de Emissão: <span className="font-mono font-bold text-slate-800">{new Date().toLocaleDateString('pt-BR')}</span></p>
           </div>
         </header>
 
         <main>
-          {/* Render the processed template */}
-          <pre className="text-slate-300 whitespace-pre-wrap font-sans text-base leading-relaxed">
-            {getProcessedTemplate()}
-          </pre>
+          {/* Use Tailwind's typography plugin for beautiful text rendering */}
+          <div className="prose prose-slate max-w-none prose-p:mb-4 prose-headings:font-sans prose-headings:font-bold">
+            {renderContractBody()}
+          </div>
         </main>
       </div>
     </div>

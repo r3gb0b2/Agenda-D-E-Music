@@ -60,14 +60,11 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Replaced state class property with a constructor to ensure `this.props` is correctly initialized.
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-  }
+  // FIX: Replaced constructor with state class property to resolve type errors with `this.state` and `this.props`.
+  state: ErrorBoundaryState = {
+    hasError: false,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -686,8 +683,8 @@ const AppContent: React.FC = () => {
                               })}
                               {dayEvents.length > 3 && (<div className="text-slate-500 font-medium text-center text-xs mt-2">+ {dayEvents.length - 3} mais</div>)}
                            </div>
-                           {/* FIX: Removed redundant Number() cast. zoomLevel is already a number, and the cast was causing a type error. */}
-                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (zoomLevel - 1) * 4} /></button>
+                           {/* FIX: Explicitly cast zoomLevel to Number to avoid arithmetic type errors. */}
+                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (Number(zoomLevel) - 1) * 4} /></button>
                         </div>
                      );
                   })}
