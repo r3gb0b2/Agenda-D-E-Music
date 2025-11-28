@@ -372,7 +372,9 @@ const AppContent: React.FC = () => {
   // Hoisted Agenda State
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [zoomLevel, setZoomLevel] = useState(1);
+  
+  // REPLACED zoomLevel with zoomPercent for continuous 400% zoom
+  const [zoomPercent, setZoomPercent] = useState(100); 
 
   const [isLoading, setIsLoading] = useState(true);
   
@@ -1228,11 +1230,11 @@ const AppContent: React.FC = () => {
                {/* Zoom Controls */}
                {viewMode === 'calendar' && (
                 <div className="flex items-center gap-1 bg-slate-900 rounded-lg p-1 border border-slate-800 ml-0 md:ml-2">
-                    <button onClick={() => setZoomLevel(prev => Math.max(0, prev - 1))} disabled={zoomLevel === 0} className={`p-2 rounded transition-all ${zoomLevel === 0 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><ZoomOut size={18} /></button>
-                    <div className="flex gap-0.5 px-1">
-                       {[0,1,2].map(l => <div key={l} className={`w-1.5 h-1.5 rounded-full transition-colors ${zoomLevel === l ? 'bg-primary-500' : 'bg-slate-700'}`} />)}
+                    <button onClick={() => setZoomPercent(prev => Math.max(100, prev - 50))} disabled={zoomPercent <= 100} className={`p-2 rounded transition-all ${zoomPercent <= 100 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><ZoomOut size={18} /></button>
+                    <div className="px-2 text-xs font-bold text-slate-300 min-w-[3rem] text-center">
+                       {zoomPercent}%
                     </div>
-                    <button onClick={() => setZoomLevel(prev => Math.min(2, prev + 1))} disabled={zoomLevel === 2} className={`p-2 rounded transition-all ${zoomLevel === 2 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><ZoomIn size={18} /></button>
+                    <button onClick={() => setZoomPercent(prev => Math.min(400, prev + 50))} disabled={zoomPercent >= 400} className={`p-2 rounded transition-all ${zoomPercent >= 400 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><ZoomIn size={18} /></button>
                 </div>
                )}
 
@@ -1314,7 +1316,10 @@ const AppContent: React.FC = () => {
         {viewMode === 'calendar' && (
           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0 relative">
             <div className="flex-1 overflow-auto custom-scrollbar relative">
-                <div className={`flex flex-col min-h-full transition-all duration-300 ease-in-out ${zoomLevel === 2 ? 'min-w-[200vw] md:min-w-[150vw]' : 'w-full'}`}>
+                <div 
+                   className="flex flex-col min-h-full transition-all duration-300 ease-in-out"
+                   style={{ width: zoomPercent === 100 ? '100%' : `${zoomPercent}%` }}
+                >
                     
                     <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 shrink-0 sticky top-0 z-20 shadow-md">
                         {weekDays.map(day => (
@@ -1324,7 +1329,7 @@ const AppContent: React.FC = () => {
 
                     <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px">
                     {Array.from({ length: firstDay }).map((_, i) => (
-                        <div key={`empty-${i}`} className={`bg-slate-950/50 ${zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]'} transition-all duration-300`}></div>
+                        <div key={`empty-${i}`} className="bg-slate-950/50 transition-all duration-300" style={{ minHeight: `${zoomPercent * 1.2}px` }}></div>
                     ))}
 
                     {Array.from({ length: days }).map((_, i) => {
@@ -1339,17 +1344,20 @@ const AppContent: React.FC = () => {
 
                         const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
-                        // Zoom sizing
-                        let cellMinHeight = zoomLevel === 0 ? 'min-h-[80px]' : zoomLevel === 2 ? 'min-h-[200px]' : 'min-h-[120px]';
-                        let cardPadding = zoomLevel === 0 ? 'p-0.5' : zoomLevel === 2 ? 'p-3' : 'p-1.5';
-                        let titleClass = zoomLevel === 0 ? 'text-[10px] leading-tight truncate' : 'text-xs font-semibold';
-                        if (zoomLevel === 2) titleClass = 'text-sm font-bold leading-tight whitespace-normal';
+                        // Dynamic Zoom Sizing
+                        const cellHeight = `${zoomPercent * 1.2}px`; // 100% = 120px, 400% = 480px
+                        const cardPadding = zoomPercent > 150 ? 'p-3' : 'p-1.5';
+                        
+                        let titleClass = 'text-[10px] leading-tight truncate';
+                        if (zoomPercent > 120) titleClass = 'text-xs font-semibold';
+                        if (zoomPercent > 200) titleClass = 'text-sm font-bold leading-tight whitespace-normal';
                         
                         return (
                         <div 
                             key={dayNum} 
                             onClick={() => handleDayClick(dayNum)}
-                            className={`bg-slate-950 ${cellMinHeight} h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden`}
+                            className="bg-slate-950 h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden"
+                            style={{ minHeight: cellHeight }}
                         >
                             <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
                               {dayNum} {isToday && '(Hoje)'}
@@ -1372,25 +1380,25 @@ const AppContent: React.FC = () => {
                                     className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
                                     title={`${event.time} - ${displayName}`}
                                 >
-                                    <div className={`flex ${zoomLevel === 0 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
+                                    <div className={`flex ${zoomPercent <= 120 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
                                        <div className="text-[10px] font-bold whitespace-nowrap">{event.time}</div>
                                        <div className={`${titleClass} break-words`}>{displayName}</div>
                                     </div>
 
-                                    {zoomLevel > 0 && (
-                                    <div className={`mt-1 ${zoomLevel === 2 ? 'space-y-1' : ''}`}>
+                                    {zoomPercent > 120 && (
+                                    <div className={`mt-1 ${zoomPercent > 200 ? 'space-y-1' : ''}`}>
                                         <div className="text-[10px] opacity-90 leading-tight flex items-center gap-1">
-                                            {zoomLevel === 2 && <MapPin size={10} />}
+                                            {zoomPercent > 200 && <MapPin size={10} />}
                                             {event.city}
                                         </div>
                                         <div className="text-[10px] opacity-75 italic leading-tight flex items-center gap-1">
-                                            {zoomLevel === 2 && <Music size={10} />}
+                                            {zoomPercent > 200 && <Music size={10} />}
                                             {band?.name}
                                         </div>
                                     </div>
                                     )}
 
-                                    {zoomLevel === 2 && !isViewer && (
+                                    {zoomPercent > 200 && !isViewer && (
                                     <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
                                         {event.venue && (
                                             <div className="text-[10px] bg-black/20 p-1 rounded flex items-start gap-1">
