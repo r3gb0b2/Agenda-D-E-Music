@@ -6,26 +6,43 @@ interface ContractViewProps {
   event: Event;
   band: Band;
   contractor: Contractor | undefined;
+  contractTemplate: string;
   onClose: () => void;
 }
 
-const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, onClose }) => {
-  const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, contractTemplate, onClose }) => {
+  
+  const getProcessedTemplate = () => {
+    let processedText = contractTemplate;
+    const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
 
-  // FIX: Made children optional to fix "Property 'children' is missing" error.
-  const Section = ({ title, children }: { title: string, children?: React.ReactNode }) => (
-    <div className="mb-6">
-      <h2 className="text-lg font-bold border-b-2 border-slate-700 pb-2 mb-3 text-primary-400">{title}</h2>
-      {children}
-    </div>
-  );
+    const replacements: { [key: string]: string } = {
+        '{{NOME_EVENTO}}': event.name,
+        '{{TIPO_EVENTO}}': event.eventType,
+        '{{DATA_EVENTO}}': new Date(event.date).toLocaleDateString('pt-BR'),
+        '{{DATA_EVENTO_EXTENSO}}': new Date(event.date).toLocaleDateString('pt-BR', dateOptions),
+        '{{HORARIO_EVENTO}}': event.time,
+        '{{DURACAO_EVENTO}}': `${event.durationHours} horas`,
+        '{{CIDADE_EVENTO}}': event.city,
+        '{{LOCAL_EVENTO}}': event.venue,
+        '{{NOME_BANDA}}': band.name,
+        '{{NOME_CONTRATANTE}}': contractor?.name || 'Não informado',
+        '{{NOME_RESPONSAVEL}}': contractor?.responsibleName || contractor?.name || 'Não informado',
+        '{{TELEFONE_CONTRATANTE}}': contractor?.whatsapp || contractor?.phone || 'Não informado',
+        '{{EMAIL_CONTRATANTE}}': contractor?.email || 'Não informado',
+        '{{ENDERECO_CONTRATANTE}}': `${contractor?.address.street || ''}, ${contractor?.address.number || ''} - ${contractor?.address.city || ''}/${contractor?.address.state || ''}`,
+        '{{VALOR_BRUTO_FORMATADO}}': currencyFormatter.format(event.financials.grossValue),
+        '{{VALOR_LIQUIDO_FORMATADO}}': currencyFormatter.format(event.financials.netValue),
+    };
 
-  const InfoPair = ({ label, value }: { label: string, value: React.ReactNode }) => (
-    <div className="mb-2">
-      <p className="text-sm font-semibold text-slate-400">{label}</p>
-      <p className="text-base text-white">{value || 'Não informado'}</p>
-    </div>
-  );
+    for (const [key, value] of Object.entries(replacements)) {
+        // Use a global regex to replace all occurrences
+        processedText = processedText.replace(new RegExp(key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), value);
+    }
+    
+    return processedText;
+  };
 
   return (
     <div className="bg-slate-900 min-h-screen text-slate-300 font-sans">
@@ -60,78 +77,10 @@ const ContractView: React.FC<ContractViewProps> = ({ event, band, contractor, on
         </header>
 
         <main>
-          <Section title="1. PARTES CONTRATANTES">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-md font-semibold text-white mb-2">CONTRATANTE</h3>
-                <InfoPair label="Nome/Razão Social" value={contractor?.name} />
-                <InfoPair label="Responsável" value={contractor?.responsibleName} />
-                <InfoPair label="Email" value={contractor?.email} />
-                <InfoPair label="Telefone" value={contractor?.whatsapp || contractor?.phone} />
-                <InfoPair label="Endereço" value={`${contractor?.address.street || ''}, ${contractor?.address.number || ''} - ${contractor?.address.city || ''}/${contractor?.address.state || ''}`} />
-              </div>
-              <div>
-                <h3 className="text-md font-semibold text-white mb-2">CONTRATADA (ARTISTA)</h3>
-                <InfoPair label="Banda" value={band.name} />
-                <InfoPair label="Gênero" value={band.genre} />
-                <InfoPair label="Agência" value="D&E MUSIC" />
-              </div>
-            </div>
-          </Section>
-
-          <Section title="2. OBJETO DO CONTRATO">
-            <p>O presente contrato tem por objeto a prestação de serviços de apresentação musical pela CONTRATADA para a CONTRATANTE, nas condições detalhadas a seguir.</p>
-          </Section>
-
-          <Section title="3. DETALHES DO EVENTO">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <InfoPair label="Nome do Evento" value={event.name} />
-                    <InfoPair label="Tipo de Evento" value={event.eventType} />
-                    <InfoPair label="Local (Venue)" value={event.venue} />
-                    <InfoPair label="Cidade" value={event.city} />
-                </div>
-                <div>
-                    <InfoPair label="Data" value={new Date(event.date).toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} />
-                    <InfoPair label="Horário de Início" value={event.time} />
-                    <InfoPair label="Duração da Apresentação" value={`${event.durationHours} horas`} />
-                </div>
-             </div>
-          </Section>
-
-          <Section title="4. VALORES E PAGAMENTO">
-             <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-4">
-                <InfoPair label="Valor Bruto do Cachê" value={<span className="text-2xl font-bold text-green-400">{currencyFormatter.format(event.financials.grossValue)}</span>} />
-                <InfoPair label="Taxas e Impostos" value={currencyFormatter.format(event.financials.taxes)} />
-                <InfoPair label="Comissão da Agência" value={`${event.financials.commissionType === 'PERCENTAGE' ? `${event.financials.commissionValue}%` : currencyFormatter.format(event.financials.commissionValue)}`} />
-                <InfoPair label="Valor Líquido para a Banda" value={<span className="font-bold text-white">{currencyFormatter.format(event.financials.netValue)}</span>} />
-                
-                <p className="mt-4 text-xs text-slate-500">
-                    Condições de pagamento a serem acordadas entre as partes em aditivo ou via comunicação oficial.
-                </p>
-             </div>
-          </Section>
-          
-          <Section title="5. OBRIGAÇÕES E CLÁUSULAS">
-              <p className="text-sm text-slate-400">[... Inserir cláusulas padrão sobre rider técnico, camarim, alimentação, transporte, cancelamento, etc. ...]</p>
-          </Section>
-
-          <div className="mt-20 pt-10 text-center">
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <div className="border-t border-slate-600 w-3/4 mx-auto pt-2">
-                  <p className="text-white font-semibold">{contractor?.name}</p>
-                  <p className="text-xs text-slate-500">CONTRATANTE</p>
-                </div>
-              </div>
-              <div>
-                <div className="border-t border-slate-600 w-3/4 mx-auto pt-2">
-                   <p className="text-white font-semibold">D&E MUSIC</p>
-                   <p className="text-xs text-slate-500">CONTRATADA</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Render the processed template */}
+          <pre className="text-slate-300 whitespace-pre-wrap font-sans text-base leading-relaxed">
+            {getProcessedTemplate()}
+          </pre>
         </main>
       </div>
     </div>

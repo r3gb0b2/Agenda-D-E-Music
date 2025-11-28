@@ -16,7 +16,7 @@ import {
   AlertTriangle, RefreshCcw, CalendarDays, Edit2, ChevronRight, ChevronLeft,
   List, Calendar as CalendarIcon, X, History, FileWarning, Mic2, LogIn,
   Briefcase, User as UserIcon, Phone, ZoomIn, ZoomOut, DollarSign,
-  TrendingUp, Download, Printer, FileText
+  TrendingUp, Download, Printer, FileText, Settings, Save
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -60,11 +60,14 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // FIX: Reverted to class property syntax for state initialization to resolve typing errors.
-  state: ErrorBoundaryState = {
-    hasError: false,
-    error: null,
-  };
+  // FIX: Replaced state class property with a constructor to ensure `this.props` is correctly initialized.
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -141,6 +144,7 @@ const AppContent: React.FC = () => {
 
   // New Feature State
   const [contractData, setContractData] = useState<{ event: Event, band: Band, contractor?: Contractor } | null>(null);
+  const [contractTemplate, setContractTemplate] = useState('');
 
   // --- Initial Load & Data Management ---
   useEffect(() => {
@@ -170,10 +174,16 @@ const AppContent: React.FC = () => {
       setContractors(await db.getContractors());
     }
   };
+  
+  const loadTemplate = async () => {
+    const template = await db.getContractTemplate();
+    setContractTemplate(template);
+  };
 
   useEffect(() => {
     if (currentUser) {
       refreshData();
+      loadTemplate();
     }
   }, [currentUser]);
 
@@ -190,7 +200,7 @@ const AppContent: React.FC = () => {
         setCurrentUser(user);
         setCurrentView('dashboard');
       } else {
-        setLoginError('Credenciais inválidas. Tente "admin" / "admin"');
+        setLoginError('Credenciais inválidas. Verifique seu login e senha.');
       }
     } catch (err) {
       setLoginError('Erro ao conectar ao sistema.');
@@ -676,8 +686,8 @@ const AppContent: React.FC = () => {
                               })}
                               {dayEvents.length > 3 && (<div className="text-slate-500 font-medium text-center text-xs mt-2">+ {dayEvents.length - 3} mais</div>)}
                            </div>
-                           {/* FIX: Explicitly cast zoomLevel to a number to prevent type error in arithmetic operation. */}
-                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (Number(zoomLevel)-1)*4} /></button>
+                           {/* FIX: Removed redundant Number() cast. zoomLevel is already a number, and the cast was causing a type error. */}
+                           <button onClick={(e) => { e.stopPropagation(); setNewEventDate(dateStr); setEditingEvent(null); setIsFormOpen(true); }} className="absolute bottom-2 right-2 bg-primary-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110 shadow-lg p-2"><Plus size={14 + (zoomLevel - 1) * 4} /></button>
                         </div>
                      );
                   })}
@@ -825,6 +835,82 @@ const AppContent: React.FC = () => {
     )
   }
 
+  const SettingsView = () => {
+    const [template, setTemplate] = useState(contractTemplate);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleSave = async () => {
+      setIsSaving(true);
+      await db.saveContractTemplate(template);
+      setContractTemplate(template); // Update app state
+      setIsSaving(false);
+      alert('Modelo salvo com sucesso!');
+    };
+    
+    const variables = [
+        { key: '{{NOME_EVENTO}}', desc: 'Nome do evento' },
+        { key: '{{TIPO_EVENTO}}', desc: 'Tipo do evento' },
+        { key: '{{DATA_EVENTO}}', desc: 'Data (DD/MM/AAAA)' },
+        { key: '{{DATA_EVENTO_EXTENSO}}', desc: 'Data por extenso' },
+        { key: '{{HORARIO_EVENTO}}', desc: 'Horário de início' },
+        { key: '{{DURACAO_EVENTO}}', desc: 'Duração em horas' },
+        { key: '{{CIDADE_EVENTO}}', desc: 'Cidade do evento' },
+        { key: '{{LOCAL_EVENTO}}', desc: 'Local/Venue do evento' },
+        { key: '{{NOME_BANDA}}', desc: 'Nome da banda' },
+        { key: '{{NOME_CONTRATANTE}}', desc: 'Nome do contratante' },
+        { key: '{{NOME_RESPONSAVEL}}', desc: 'Responsável do contratante' },
+        { key: '{{TELEFONE_CONTRATANTE}}', desc: 'Telefone do contratante' },
+        { key: '{{EMAIL_CONTRATANTE}}', desc: 'Email do contratante' },
+        { key: '{{ENDERECO_CONTRATANTE}}', desc: 'Endereço completo' },
+        { key: '{{VALOR_BRUTO_FORMATADO}}', desc: 'Cachê bruto (Ex: R$ 1.000,00)' },
+        { key: '{{VALOR_LIQUIDO_FORMATADO}}', desc: 'Cachê líquido (Ex: R$ 900,00)' },
+    ];
+
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+          <Settings className="text-primary-500"/> Configurações do Sistema
+        </h2>
+        
+        <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
+          <h3 className="text-lg font-bold text-white mb-2">Editor de Modelo de Contrato</h3>
+          <p className="text-sm text-slate-400 mb-4">Personalize o texto padrão que será usado ao gerar contratos. Use as variáveis abaixo para inserir dados do evento automaticamente.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <textarea
+                value={template}
+                onChange={(e) => setTemplate(e.target.value)}
+                rows={25}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-4 text-white font-mono text-sm leading-6 resize-y focus:border-primary-500 outline-none"
+                placeholder="Cole ou escreva seu modelo de contrato aqui..."
+              />
+            </div>
+            <div>
+              <h4 className="text-md font-semibold text-white mb-2">Variáveis Disponíveis</h4>
+              <p className="text-xs text-slate-500 mb-3">Clique para copiar</p>
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
+                {variables.map(v => (
+                  <div key={v.key} onClick={() => navigator.clipboard.writeText(v.key)} className="bg-slate-800 p-2 rounded cursor-pointer hover:bg-slate-700">
+                    <p className="font-mono text-xs text-accent-500">{v.key}</p>
+                    <p className="text-xs text-slate-400">{v.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-6 flex justify-end">
+            <button onClick={handleSave} disabled={isSaving} className="flex items-center gap-2 px-6 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg font-medium shadow-lg shadow-primary-600/20 transition-all">
+              {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />}
+              Salvar Modelo
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // --- Render ---
 
   if (isLoading) {
@@ -836,7 +922,7 @@ const AppContent: React.FC = () => {
   }
   
   if (contractData) {
-    return <ContractView {...contractData} onClose={() => setContractData(null)} />;
+    return <ContractView {...contractData} contractTemplate={contractTemplate} onClose={() => setContractData(null)} />;
   }
 
   if (!currentUser) {
@@ -856,8 +942,8 @@ const AppContent: React.FC = () => {
 
           <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">E-mail</label>
-              <input type="text" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all" placeholder="seu@email.com" />
+              <label className="block text-sm font-medium text-slate-300 mb-1">Login / Usuário</label>
+              <input type="text" required value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all" placeholder="Digite seu usuário" />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Senha</label>
@@ -878,7 +964,8 @@ const AppContent: React.FC = () => {
     <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView} onLogout={handleLogout}>
       {currentView === 'dashboard' && <DashboardView />}
       {currentView === 'agenda' && renderAgendaView()}
-      {currentView === 'financials' && <FinancialView />}
+      {currentView === 'financials' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CONTRACT) && <FinancialView />}
+      {currentView === 'settings' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.CONTRACT) && <SettingsView />}
 
       {currentView === 'contractors' && (
         <div className="space-y-6">
@@ -908,7 +995,7 @@ const AppContent: React.FC = () => {
         </div>
       )}
 
-      {currentView === 'bands' && (
+      {currentView === 'bands' && currentUser.role === UserRole.ADMIN && (
         <div className="space-y-8">
            <div>
              <div className="flex justify-between items-center mb-4">

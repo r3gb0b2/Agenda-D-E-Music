@@ -44,8 +44,36 @@ const KEYS = {
   USERS: `${STORAGE_PREFIX}users`,
   EVENTS: `${STORAGE_PREFIX}events`,
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
-  SESSION: `${STORAGE_PREFIX}session` // Key for 24h session
+  SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
+  CONTRACT_TEMPLATE: `${STORAGE_PREFIX}contract_template`
 };
+
+const DEFAULT_CONTRACT_TEMPLATE = `CONTRATO DE APRESENTAÇÃO ARTÍSTICA
+
+Pelo presente instrumento, as partes:
+
+CONTRATANTE: {{NOME_CONTRATANTE}}
+Responsável: {{NOME_RESPONSAVEL}}
+Endereço: {{ENDERECO_CONTRATANTE}}
+
+CONTRATADA: {{NOME_BANDA}}
+Agência: D&E MUSIC
+
+Celebram o presente contrato para a apresentação artística no evento "{{NOME_EVENTO}}", a ser realizado em {{DATA_EVENTO_EXTENSO}} às {{HORARIO_EVENTO}}, no local "{{LOCAL_EVENTO}}, {{CIDADE_EVENTO}}".
+
+O valor acordado para a apresentação é de {{VALOR_BRUTO_FORMATADO}}.
+
+[... Inserir mais cláusulas sobre rider técnico, camarim, alimentação, transporte, cancelamento, etc. ...]
+
+E por estarem justos e contratados, assinam o presente em duas vias de igual teor e forma.
+
+_________________________
+{{NOME_CONTRATANTE}}
+
+_________________________
+D&E MUSIC
+`;
+
 
 // Helper to initialize local data
 const initLocalData = () => {
@@ -297,6 +325,18 @@ export const db = {
     }
 
     return Array.from(values).sort();
+  },
+
+  // --- CONTRACT TEMPLATE ---
+  getContractTemplate: async (): Promise<string> => {
+    // For now, using localStorage. Firebase would require a 'settings' collection.
+    return localStorage.getItem(KEYS.CONTRACT_TEMPLATE) || DEFAULT_CONTRACT_TEMPLATE;
+  },
+
+  saveContractTemplate: async (template: string): Promise<void> => {
+    localStorage.setItem(KEYS.CONTRACT_TEMPLATE, template);
+    // In a full implementation, you'd save this to a specific document in Firebase,
+    // e.g., db.collection('settings').doc('contract').set({ template });
   },
 
   // --- BANDS ---

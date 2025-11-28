@@ -1,6 +1,6 @@
 import React from 'react';
 import { User, UserRole } from '../types';
-import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase, DollarSign, Settings } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -62,6 +62,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
           {userRole === UserRole.ADMIN && (
              <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
           )}
+          {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
+            <NavItem view="settings" icon={Settings} label="Configurações" />
+          )}
         </nav>
 
         <div className="p-4 border-t border-slate-800">
@@ -109,6 +112,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, currentView, onChangeVi
             <NavItem view="contractors" icon={Briefcase} label="Contratantes" />
             {userRole === UserRole.ADMIN && (
                <NavItem view="bands" icon={Music} label="Bandas & Usuários" />
+            )}
+            {(userRole === UserRole.ADMIN || userRole === UserRole.CONTRACT) && (
+               <NavItem view="settings" icon={Settings} label="Configurações" />
             )}
             
             <div className="mt-8 border-t border-slate-800 pt-4">
