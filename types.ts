@@ -53,8 +53,6 @@ export interface BandBankDetails {
 export interface Band {
   id: string;
   name: string;
-  genre: string;
-  members: number;
   legalDetails?: BandLegalDetails;
   bankDetails?: BandBankDetails;
 }

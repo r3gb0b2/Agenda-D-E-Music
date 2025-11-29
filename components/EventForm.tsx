@@ -72,8 +72,8 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     status: existingEvent?.status || EventStatus.RESERVED,
     financials: existingEvent?.financials || {
       grossValue: 0,
-      commissionType: 'PERCENTAGE',
-      commissionValue: 10,
+      commissionType: 'FIXED', // Changed default
+      commissionValue: 0,      // Changed default
       taxes: 0,
       netValue: 0,
       currency: 'BRL',

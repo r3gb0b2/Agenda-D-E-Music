@@ -983,24 +983,7 @@ const AppContent: React.FC = () => {
     const showFinancialStats = !isViewer && !isSales;
 
     // Financial Chart Data Preparation
-    const financialData = React.useMemo(() => {
-       const monthlyStats: Record<string, {name: string, gross: number, net: number}> = {};
-       
-       visibleEvents.forEach(e => {
-          if (e.status === EventStatus.CANCELED) return;
-          const date = new Date(e.date);
-          const key = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
-          const label = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-          
-          if (!monthlyStats[key]) {
-             monthlyStats[key] = { name: label, gross: 0, net: 0 };
-          }
-          monthlyStats[key].gross += e.financials.grossValue;
-          monthlyStats[key].net += e.financials.netValue;
-       });
-
-       return Object.keys(monthlyStats).sort().map(k => monthlyStats[k]);
-    }, [visibleEvents]);
+    // REMOVED as requested
 
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
@@ -1071,27 +1054,7 @@ const AppContent: React.FC = () => {
           </div>
         </div>
 
-        {/* Financial Chart (New) */}
-        {showFinancialStats && financialData.length > 0 && (
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 h-80">
-                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <DollarSign className="text-green-500" size={20} /> Faturamento Mensal (R$)
-                </h3>
-                <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={financialData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$${(val/1000).toFixed(0)}k`}/>
-                        <ChartTooltip 
-                           contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#fff' }}
-                           formatter={(val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val)}
-                        />
-                        <Bar dataKey="gross" name="Bruto" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="net" name="Líquido" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </div>
-        )}
+        {/* Financial Chart REMOVED */}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Últimas Adições - For Viewers, hide sensitive info */}
@@ -1953,7 +1916,6 @@ const AppContent: React.FC = () => {
                     <div key={band.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800">
                         <div>
                             <span className="text-white font-medium block">{band.name}</span>
-                            <span className="text-xs text-slate-500">{band.members} integrantes</span>
                         </div>
                         <button 
                             onClick={() => handleEditBand(band)}
@@ -2018,72 +1980,62 @@ const AppContent: React.FC = () => {
     );
   };
 
-  // --- Render Logic ---
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950 text-white">
-        <Loader2 className="animate-spin mr-2" /> Carregando sistema...
+      <div className="flex items-center justify-center h-screen bg-slate-950">
+        <Loader2 className="animate-spin text-primary-500" size={48} />
       </div>
     );
   }
 
   if (!currentUser) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950 p-4">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-8 animate-fade-in-up">
-           <div className="text-center mb-8">
-             <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-accent-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-500/20">
-               <Mic2 size={32} className="text-white" />
-             </div>
-             <h1 className="text-2xl font-bold text-white mb-2">Agenda D&E MUSIC</h1>
-             <p className="text-slate-400">Acesse o sistema para gerenciar seus shows.</p>
+      <div className="flex items-center justify-center h-screen bg-slate-950 p-4">
+        <form onSubmit={handleLoginSubmit} className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full max-w-md animate-fade-in-up">
+           <div className="flex flex-col items-center mb-6">
+              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-primary-500/20">
+                <Mic2 size={32} />
+              </div>
+              <h1 className="text-2xl font-bold text-white">Agenda D&E MUSIC</h1>
+              <p className="text-slate-500">Acesso Restrito</p>
            </div>
+           
+           {loginError && (
+             <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-center gap-2 text-red-400 text-sm">
+               <AlertTriangle size={16} /> {loginError}
+             </div>
+           )}
 
-           <form onSubmit={handleLoginSubmit} className="space-y-4">
-              {loginError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center">
-                  {loginError}
-                </div>
-              )}
-              
+           <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1">E-mail ou Usuário</label>
                 <input 
                   type="text" 
-                  required
                   value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                  placeholder="ex: admin"
+                  onChange={e => setLoginEmail(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
+                  placeholder="admin"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
                 <input 
                   type="password" 
-                  required
                   value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
-                  placeholder="••••••••"
+                  onChange={e => setLoginPassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
+                  placeholder="••••••"
                 />
               </div>
-
               <button 
                 type="submit" 
                 disabled={isLoggingIn}
-                className="w-full bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg shadow-lg shadow-primary-600/20 transition-all flex justify-center items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold shadow-lg shadow-primary-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoggingIn ? <Loader2 className="animate-spin" size={20}/> : <><LogIn size={20} /> Entrar no Sistema</>}
               </button>
-           </form>
-
-           <div className="mt-8 text-center text-xs text-slate-600">
-             &copy; 2024 D&E Music Management
            </div>
-        </div>
+        </form>
       </div>
     );
   }
@@ -2092,87 +2044,83 @@ const AppContent: React.FC = () => {
     <Layout 
       user={currentUser} 
       currentView={currentView} 
-      onChangeView={setCurrentView}
+      onChangeView={setCurrentView} 
       onLogout={handleLogout}
     >
-      <div className="max-w-7xl mx-auto h-full">
-        {currentView === 'dashboard' && <DashboardView />}
-        {currentView === 'pipeline' && <PipelineView />}
-        {currentView === 'agenda' && renderAgendaView()}
-        {currentView === 'contractors' && <ContractorsView />}
-        {currentView === 'bands' && <BandManagerView />}
-        {currentView === 'contracts_library' && <ContractsLibraryView />}
-      </div>
+      {currentView === 'dashboard' && <DashboardView />}
+      {currentView === 'pipeline' && <PipelineView />}
+      {currentView === 'agenda' && renderAgendaView()}
+      {currentView === 'contractors' && <ContractorsView />}
+      {currentView === 'contracts_library' && <ContractsLibraryView />}
+      {currentView === 'bands' && <BandManagerView />}
 
       {/* Modals */}
-      {selectedDateDetails && <DayDetailsModal />}
-      
-      {isSendModalOpen && selectedEventForSend && (
-        <SendContractModal 
-          event={selectedEventForSend}
-          contractor={contractors.find(c => c.name === selectedEventForSend.contractor)}
-          onClose={() => setIsSendModalOpen(false)}
-        />
-      )}
-
-      {isContractGeneratorOpen && eventForContract && (
-         <ContractGeneratorModal 
-            event={eventForContract}
-            contractors={contractors}
-            bands={bands} // Pass bands to generator
-            onClose={() => setIsContractGeneratorOpen(false)}
-         />
-      )}
-      
       {isFormOpen && (
         <EventForm 
           bands={getVisibleBands()} 
           contractors={contractors}
-          existingEvent={editingEvent}
           currentUser={currentUser}
-          initialDate={newEventDate} 
-          initialBandId={selectedBandFilter || undefined} 
+          existingEvent={editingEvent}
+          initialDate={newEventDate}
+          initialBandId={selectedBandFilter || undefined}
           onSave={handleSaveEvent}
-          onGenerateContract={openContractGenerator}
           onClose={() => setIsFormOpen(false)}
+          onGenerateContract={openContractGenerator}
         />
       )}
-
+      
       {isContractorFormOpen && (
-        <ContractorForm
-          existingContractor={editingContractor}
-          onSave={handleSaveContractor}
-          onClose={() => setIsContractorFormOpen(false)}
+        <ContractorForm 
+           existingContractor={editingContractor}
+           onSave={handleSaveContractor}
+           onClose={() => setIsContractorFormOpen(false)}
         />
       )}
 
       {isUserFormOpen && (
         <UserForm
-          bands={bands}
-          existingUser={editingUser}
-          onSave={handleSaveUser}
-          onClose={() => setIsUserFormOpen(false)}
+           bands={bands}
+           existingUser={editingUser}
+           onSave={handleSaveUser}
+           onClose={() => setIsUserFormOpen(false)}
         />
       )}
 
       {isBandFormOpen && (
-          <BandForm 
-            existingBand={editingBand}
-            onSave={handleSaveBand}
-            onClose={() => setIsBandFormOpen(false)}
-          />
+        <BandForm
+           existingBand={editingBand}
+           onSave={handleSaveBand}
+           onClose={() => setIsBandFormOpen(false)}
+        />
+      )}
+
+      {isSendModalOpen && selectedEventForSend && (
+         <SendContractModal 
+            event={selectedEventForSend}
+            contractor={contractors.find(c => c.name === selectedEventForSend.contractor)}
+            onClose={() => { setIsSendModalOpen(false); setSelectedEventForSend(null); }}
+         />
+      )}
+
+      {selectedDateDetails && <DayDetailsModal />}
+      
+      {isContractGeneratorOpen && eventForContract && (
+         <ContractGeneratorModal 
+            event={eventForContract}
+            contractors={contractors}
+            bands={bands}
+            onClose={() => { setIsContractGeneratorOpen(false); setEventForContract(null); }}
+         />
       )}
 
     </Layout>
   );
 };
 
-const App: React.FC = () => {
-  return (
-    <ErrorBoundary>
-      <AppContent />
-    </ErrorBoundary>
-  );
-};
+const App = () => (
+  <ErrorBoundary>
+    <AppContent />
+  </ErrorBoundary>
+);
 
 export default App;

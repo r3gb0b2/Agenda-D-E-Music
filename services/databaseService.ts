@@ -12,8 +12,6 @@ const MOCK_BANDS: Band[] = [
   { 
     id: 'b_new_1', 
     name: 'Banda Principal', 
-    genre: 'Variado', 
-    members: 5,
     legalDetails: {
       razSocial: '', cnpj: '', address: '', repLegal: '', cpfRep: '', rgRep: '', email: '', phone: ''
     },
@@ -89,8 +87,8 @@ const sanitizeEvent = (data: any, id: string): Event => {
   // Default financials if missing
   const defaultFinancials = {
     grossValue: 0,
-    commissionType: 'PERCENTAGE',
-    commissionValue: 0,
+    commissionType: 'FIXED', // Changed default to FIXED
+    commissionValue: 0,      // Changed default to 0
     taxes: 0,
     netValue: 0,
     currency: 'BRL',

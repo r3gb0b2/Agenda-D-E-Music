@@ -38,14 +38,7 @@ const maskPhone = (value: string) => {
     .substring(0, 15);
 };
 
-const maskRG = (value: string) => {
-  return value
-    .replace(/\D/g, '')
-    .replace(/(\d{2})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d{1})$/, '$1-$2')
-    .substring(0, 12);
-};
+// RG mask removed
 
 const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onSave, onClose }) => {
   const [formData, setFormData] = useState<Contractor>(
@@ -87,7 +80,7 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
     if (field === 'phone' || field === 'whatsapp') formattedValue = maskPhone(value);
     if (field === 'cpf') formattedValue = maskCPF(value);
     if (field === 'cnpj') formattedValue = maskCNPJ(value);
-    if (field === 'rg') formattedValue = maskRG(value);
+    // RG mask removed
 
     setFormData(prev => ({ ...prev, [field]: formattedValue }));
   };
@@ -224,7 +217,7 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                       value={formData.rg || ''}
                       onChange={(e) => handleChange('rg', e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                      placeholder="00.000.000-0"
+                      placeholder=""
                     />
                   </div>
                 </>

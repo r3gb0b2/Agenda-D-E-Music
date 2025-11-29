@@ -38,14 +38,7 @@ const maskPhone = (value: string) => {
     .substring(0, 15);
 };
 
-const maskRG = (value: string) => {
-  return value
-    .replace(/\D/g, '')
-    .replace(/(\d{2})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d)/, '$1.$2')
-    .replace(/(\d{3})(\d{1})$/, '$1-$2')
-    .substring(0, 12);
-};
+// RG mask removed
 
 const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'legal' | 'bank'>('general');
@@ -55,8 +48,6 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
     existingBand || {
       id: crypto.randomUUID(),
       name: '',
-      genre: 'Geral',
-      members: 1,
       legalDetails: {
         razSocial: '', cnpj: '', address: '', repLegal: '', cpfRep: '', rgRep: '', email: '', phone: ''
       },
@@ -76,8 +67,8 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
       // Apply Masks based on field
       if (field === 'cnpj') formattedValue = maskCNPJ(value);
       if (field === 'cpfRep') formattedValue = maskCPF(value);
-      if (field === 'rgRep') formattedValue = maskRG(value);
       if (field === 'phone') formattedValue = maskPhone(value);
+      // RG mask removed
 
       setFormData(prev => ({
           ...prev,
@@ -169,26 +160,7 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
                   placeholder="Ex: Banda Show"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Gênero</label>
-                    <input
-                      type="text"
-                      value={formData.genre}
-                      onChange={(e) => handleChange('genre', e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-400 mb-1">Nº Integrantes</label>
-                    <input
-                      type="number"
-                      value={formData.members}
-                      onChange={(e) => handleChange('members', parseInt(e.target.value))}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                    />
-                  </div>
-              </div>
+              {/* Removed Genre and Members inputs */}
             </div>
           )}
 
@@ -236,7 +208,7 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
                                 value={formData.legalDetails?.rgRep || ''} 
                                 onChange={e => handleLegalChange('rgRep', e.target.value)} 
                                 className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"
-                                placeholder="00.000.000-0"
+                                placeholder=""
                               />
                           </div>
                           <div>
