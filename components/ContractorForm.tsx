@@ -1,13 +1,51 @@
 
 import React, { useState } from 'react';
 import { Contractor, ContractorType } from '../types';
-import { X, Save, MapPin, User, FileText, Phone, Loader2 } from 'lucide-react';
+import { X, Save, MapPin, User, FileText, Phone, Loader2, CreditCard } from 'lucide-react';
 
 interface ContractorFormProps {
   existingContractor?: Contractor | null;
   onSave: (contractor: Contractor) => void;
   onClose: () => void;
 }
+
+// --- Mask Helpers (Reused from BandForm) ---
+const maskCNPJ = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+    .substring(0, 18);
+};
+
+const maskCPF = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+    .replace(/(-\d{2})\d+?$/, '$1')
+    .substring(0, 14);
+};
+
+const maskPhone = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/^(\d{2})(\d)/g, '($1) $2')
+    .replace(/(\d)(\d{4})$/, '$1-$2')
+    .substring(0, 15);
+};
+
+const maskRG = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1})$/, '$1-$2')
+    .substring(0, 12);
+};
 
 const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onSave, onClose }) => {
   const [formData, setFormData] = useState<Contractor>(
@@ -16,6 +54,9 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
       type: ContractorType.FISICA,
       name: '',
       responsibleName: '',
+      cpf: '',
+      rg: '',
+      cnpj: '',
       phone: '',
       whatsapp: '',
       email: '',
@@ -40,7 +81,15 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
   const [isLoadingCep, setIsLoadingCep] = useState(false);
 
   const handleChange = (field: keyof Contractor, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    let formattedValue = value;
+
+    // Apply Masks
+    if (field === 'phone' || field === 'whatsapp') formattedValue = maskPhone(value);
+    if (field === 'cpf') formattedValue = maskCPF(value);
+    if (field === 'cnpj') formattedValue = maskCNPJ(value);
+    if (field === 'rg') formattedValue = maskRG(value);
+
+    setFormData(prev => ({ ...prev, [field]: formattedValue }));
   };
 
   const handleAddressChange = (field: keyof typeof formData.address, value: string) => {
@@ -138,7 +187,7 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
           {/* Dados Principais e Contato */}
           <div>
             <h3 className="text-lg font-medium text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-              <Phone size={18} className="text-accent-500"/> Contato e Responsável
+              <Phone size={18} className="text-accent-500"/> Contato e Documentos
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
@@ -154,42 +203,99 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                   placeholder={formData.type === ContractorType.FISICA ? "Ex: João da Silva" : "Ex: Produções Eventos LTDA"}
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Responsável</label>
-                <input
-                  type="text"
-                  value={formData.responsibleName}
-                  onChange={(e) => handleChange('responsibleName', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                  placeholder="Nome do contato principal"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">E-mail</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Telefone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => handleChange('phone', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">Whatsapp</label>
-                <input
-                  type="tel"
-                  value={formData.whatsapp}
-                  onChange={(e) => handleChange('whatsapp', e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                />
+
+              {/* Documentos Dinâmicos */}
+              {formData.type === ContractorType.FISICA ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">CPF</label>
+                    <input
+                      type="text"
+                      value={formData.cpf || ''}
+                      onChange={(e) => handleChange('cpf', e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">RG</label>
+                    <input
+                      type="text"
+                      value={formData.rg || ''}
+                      onChange={(e) => handleChange('rg', e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                      placeholder="00.000.000-0"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-1">CNPJ</label>
+                    <input
+                      type="text"
+                      value={formData.cnpj || ''}
+                      onChange={(e) => handleChange('cnpj', e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                      placeholder="00.000.000/0000-00"
+                    />
+                  </div>
+                  <div>
+                     <label className="block text-sm font-medium text-slate-400 mb-1">Inscrição Estadual / RG Rep</label>
+                     <input
+                      type="text"
+                      value={formData.rg || ''}
+                      onChange={(e) => handleChange('rg', e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                      placeholder=""
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="md:col-span-2 bg-slate-800/30 p-3 rounded border border-slate-800 mt-2">
+                 <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase">Dados de Contato</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Responsável</label>
+                        <input
+                        type="text"
+                        value={formData.responsibleName}
+                        onChange={(e) => handleChange('responsibleName', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                        placeholder="Nome do contato principal"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">E-mail</label>
+                        <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => handleChange('email', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Telefone</label>
+                        <input
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => handleChange('phone', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                        placeholder="(00) 00000-0000"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Whatsapp</label>
+                        <input
+                        type="tel"
+                        value={formData.whatsapp}
+                        onChange={(e) => handleChange('whatsapp', e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
+                        placeholder="(00) 00000-0000"
+                        />
+                    </div>
+                 </div>
               </div>
             </div>
           </div>

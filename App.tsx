@@ -400,11 +400,11 @@ const ContractGeneratorModal = ({ event, contractors, bands, onClose }: { event:
                                      </tr>
                                      <tr>
                                          <td className="font-bold">CPF/CNPJ</td>
-                                         <td>{contractor?.type === 'JURIDICA' ? 'CNPJ' : 'CPF'}: _________________</td>
+                                         <td>{contractor?.type === 'JURIDICA' ? 'CNPJ' : 'CPF'}: {contractor?.type === 'JURIDICA' ? (contractor.cnpj || '_________________') : (contractor?.cpf || '_________________')}</td>
                                      </tr>
                                      <tr>
                                          <td className="font-bold">RG</td>
-                                         <td>_________________</td>
+                                         <td>{contractor?.rg || '_________________'}</td>
                                      </tr>
                                      <tr>
                                          <td className="font-bold">ENDEREÇO</td>

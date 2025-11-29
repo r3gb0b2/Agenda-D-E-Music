@@ -127,6 +127,9 @@ export interface Contractor {
   type: ContractorType;
   name: string; // Nome ou Razão Social
   responsibleName: string;
+  cpf?: string;  // Novo
+  rg?: string;   // Novo
+  cnpj?: string; // Novo
   phone: string;
   whatsapp: string;
   email: string;
