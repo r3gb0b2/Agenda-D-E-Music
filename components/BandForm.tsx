@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Band } from '../types';
-import { X, Save, Music, Building, CreditCard, Mic2 } from 'lucide-react';
+import { X, Save, Music, Building, CreditCard, Mic2, CheckCircle } from 'lucide-react';
 
 interface BandFormProps {
   existingBand?: Band | null;
@@ -9,8 +9,47 @@ interface BandFormProps {
   onClose: () => void;
 }
 
+// --- Mask Helpers ---
+const maskCNPJ = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+    .substring(0, 18);
+};
+
+const maskCPF = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+    .replace(/(-\d{2})\d+?$/, '$1')
+    .substring(0, 14);
+};
+
+const maskPhone = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/^(\d{2})(\d)/g, '($1) $2')
+    .replace(/(\d)(\d{4})$/, '$1-$2')
+    .substring(0, 15);
+};
+
+const maskRG = (value: string) => {
+  return value
+    .replace(/\D/g, '')
+    .replace(/(\d{2})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d)/, '$1.$2')
+    .replace(/(\d{3})(\d{1})$/, '$1-$2')
+    .substring(0, 12);
+};
+
 const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'legal' | 'bank'>('general');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const [formData, setFormData] = useState<Band>(
     existingBand || {
@@ -32,27 +71,57 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
   };
 
   const handleLegalChange = (field: keyof typeof formData.legalDetails, value: string) => {
+      let formattedValue = value;
+
+      // Apply Masks based on field
+      if (field === 'cnpj') formattedValue = maskCNPJ(value);
+      if (field === 'cpfRep') formattedValue = maskCPF(value);
+      if (field === 'rgRep') formattedValue = maskRG(value);
+      if (field === 'phone') formattedValue = maskPhone(value);
+
       setFormData(prev => ({
           ...prev,
-          legalDetails: { ...prev.legalDetails, [field]: value }
+          legalDetails: { ...prev.legalDetails, [field]: formattedValue }
       } as Band));
   };
 
   const handleBankChange = (field: keyof typeof formData.bankDetails, value: string) => {
+      let formattedValue = value;
+
+      // Apply Masks based on field
+      if (field === 'cnpj') formattedValue = maskCNPJ(value); // CNPJ da conta
+
       setFormData(prev => ({
           ...prev,
-          bankDetails: { ...prev.bankDetails, [field]: value }
+          bankDetails: { ...prev.bankDetails, [field]: formattedValue }
       } as Band));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    
+    // Show Success Feedback
+    setShowSuccess(true);
+
+    // Wait 1.5s then Save & Close
+    setTimeout(() => {
+        onSave(formData);
+    }, 1500);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh]">
+      <div className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up flex flex-col max-h-[90vh] relative">
+        
+        {/* Success Overlay */}
+        {showSuccess && (
+            <div className="absolute inset-0 z-50 bg-slate-900/95 flex flex-col items-center justify-center animate-fade-in">
+                <CheckCircle size={64} className="text-green-500 mb-4 animate-bounce" />
+                <h3 className="text-2xl font-bold text-white">Salvo com Sucesso!</h3>
+                <p className="text-slate-400 mt-2">Os dados da banda foram atualizados.</p>
+            </div>
+        )}
+
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-950 shrink-0">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -134,7 +203,13 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
                           </div>
                           <div>
                               <label className="block text-xs text-slate-400 mb-1">CNPJ</label>
-                              <input type="text" value={formData.legalDetails?.cnpj || ''} onChange={e => handleLegalChange('cnpj', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"/>
+                              <input 
+                                type="text" 
+                                value={formData.legalDetails?.cnpj || ''} 
+                                onChange={e => handleLegalChange('cnpj', e.target.value)} 
+                                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"
+                                placeholder="00.000.000/0000-00"
+                              />
                           </div>
                           <div>
                               <label className="block text-xs text-slate-400 mb-1">Representante Legal</label>
@@ -146,11 +221,23 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
                           </div>
                           <div>
                               <label className="block text-xs text-slate-400 mb-1">CPF Representante</label>
-                              <input type="text" value={formData.legalDetails?.cpfRep || ''} onChange={e => handleLegalChange('cpfRep', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"/>
+                              <input 
+                                type="text" 
+                                value={formData.legalDetails?.cpfRep || ''} 
+                                onChange={e => handleLegalChange('cpfRep', e.target.value)} 
+                                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"
+                                placeholder="000.000.000-00"
+                              />
                           </div>
                           <div>
                               <label className="block text-xs text-slate-400 mb-1">RG Representante</label>
-                              <input type="text" value={formData.legalDetails?.rgRep || ''} onChange={e => handleLegalChange('rgRep', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"/>
+                              <input 
+                                type="text" 
+                                value={formData.legalDetails?.rgRep || ''} 
+                                onChange={e => handleLegalChange('rgRep', e.target.value)} 
+                                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"
+                                placeholder="00.000.000-0"
+                              />
                           </div>
                           <div>
                               <label className="block text-xs text-slate-400 mb-1">E-mail</label>
@@ -158,7 +245,13 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
                           </div>
                           <div>
                               <label className="block text-xs text-slate-400 mb-1">Telefone</label>
-                              <input type="text" value={formData.legalDetails?.phone || ''} onChange={e => handleLegalChange('phone', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"/>
+                              <input 
+                                type="text" 
+                                value={formData.legalDetails?.phone || ''} 
+                                onChange={e => handleLegalChange('phone', e.target.value)} 
+                                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"
+                                placeholder="(00) 00000-0000"
+                              />
                           </div>
                       </div>
                   </div>
@@ -192,7 +285,13 @@ const BandForm: React.FC<BandFormProps> = ({ existingBand, onSave, onClose }) =>
                           </div>
                           <div>
                               <label className="block text-xs text-slate-400 mb-1">CNPJ/CPF (Conta)</label>
-                              <input type="text" value={formData.bankDetails?.cnpj || ''} onChange={e => handleBankChange('cnpj', e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"/>
+                              <input 
+                                type="text" 
+                                value={formData.bankDetails?.cnpj || ''} 
+                                onChange={e => handleBankChange('cnpj', e.target.value)} 
+                                className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white text-sm"
+                                placeholder="00.000.000/0000-00"
+                              />
                           </div>
                       </div>
                   </div>
