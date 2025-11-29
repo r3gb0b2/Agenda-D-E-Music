@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import EventForm from './components/EventForm';
 import ContractorForm from './components/ContractorForm';
 import UserForm from './components/UserForm';
+import BandForm from './components/BandForm';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { 
   Plus, 
@@ -143,13 +144,13 @@ interface Installment {
     date: string;
 }
 
-const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event, contractors: Contractor[], onClose: () => void }) => {
+const ContractGeneratorModal = ({ event, contractors, bands, onClose }: { event: Event, contractors: Contractor[], bands: Band[], onClose: () => void }) => {
    const contractor = contractors.find(c => c.name === event.contractor);
    
    // --- Configuration State ---
    const [step, setStep] = useState<'config' | 'preview'>('config');
    
-   // Default Data from OCR Model
+   // Default Data (placeholder)
    const [contractedData, setContractedData] = useState({
        razSocial: 'DAVIZAO PRODUCOES ARTISTICAS E EVENTOS LTDA',
        cnpj: '53.318.815/0001-80',
@@ -157,7 +158,7 @@ const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event,
        repLegal: 'CAIO MACHADO VERISSIMO PINTO',
        cpf: '059.288.663-80',
        rg: '2004010341912',
-       email: '85 9745-5751', // Phone in email field in OCR? Keeping as is or correcting
+       email: '85 9745-5751', 
        phone: '85 9745-5751'
    });
 
@@ -169,6 +170,35 @@ const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event,
        cnpj: '53.318.815/0001-80',
        pix: '53318815000180'
    });
+
+   // On Mount: Try to pull data from the specific Band
+   useEffect(() => {
+      const band = bands.find(b => b.id === event.bandId);
+      if (band) {
+          if (band.legalDetails && band.legalDetails.razSocial) {
+              setContractedData({
+                  razSocial: band.legalDetails.razSocial,
+                  cnpj: band.legalDetails.cnpj,
+                  address: band.legalDetails.address,
+                  repLegal: band.legalDetails.repLegal,
+                  cpf: band.legalDetails.cpfRep,
+                  rg: band.legalDetails.rgRep,
+                  email: band.legalDetails.email,
+                  phone: band.legalDetails.phone
+              });
+          }
+          if (band.bankDetails && band.bankDetails.bank) {
+              setBankData({
+                  bank: band.bankDetails.bank,
+                  agency: band.bankDetails.agency,
+                  account: band.bankDetails.account,
+                  favored: band.bankDetails.favored,
+                  cnpj: band.bankDetails.cnpj,
+                  pix: band.bankDetails.pix
+              });
+          }
+      }
+   }, [event.bandId, bands]);
 
    // Installments Logic
    const [installments, setInstallments] = useState<Installment[]>([]);
@@ -260,7 +290,7 @@ const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event,
              {/* Header */}
              <div className="p-4 border-b border-gray-300 flex justify-between items-center bg-white rounded-t-xl shrink-0">
                  <h3 className="font-bold text-lg flex items-center gap-2 text-slate-800">
-                     <FileText className="text-primary-600"/> Gerador de Contrato (Modelo Davizão)
+                     <FileText className="text-primary-600"/> Gerador de Contrato
                  </h3>
                  <div className="flex gap-2">
                     {step === 'preview' && (
@@ -319,6 +349,7 @@ const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event,
 
                          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                              <h4 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><Settings size={20}/> Dados da Contratada & Banco</h4>
+                             <p className="text-xs text-gray-500 mb-3">Estes dados foram puxados automaticamente da banda: <strong>{bands.find(b => b.id === event.bandId)?.name}</strong>.</p>
                              <div className="grid grid-cols-2 gap-4">
                                  <div>
                                      <label className="text-xs font-bold text-gray-500">Razão Social Contratada</label>
@@ -348,7 +379,7 @@ const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event,
                          {/* HEADER LOGOS MOCK */}
                          <div className="flex justify-between items-center mb-8 px-4">
                              <div className="font-bold italic text-xl">D&E MUSIC</div>
-                             <div className="font-black text-2xl tracking-tighter">DAVIZÃO</div>
+                             <div className="font-black text-2xl tracking-tighter uppercase">{bands.find(b=>b.id === event.bandId)?.name || 'ARTISTA'}</div>
                              <div className="font-bold italic text-xl">D&E MUSIC</div>
                          </div>
 
@@ -436,7 +467,7 @@ const ContractGeneratorModal = ({ event, contractors, onClose }: { event: Event,
 
                          {/* CLAUSE 1 */}
                          <p>
-                             <span className="clause-title">CLÁUSULA PRIMEIRA:</span> É objeto deste contrato, na condição de representante exclusivo do artista <span className="font-bold underline">DAVIZÃO</span> a realização de uma apresentação artística nas cidades, datas e horários, conforme abaixo:
+                             <span className="clause-title">CLÁUSULA PRIMEIRA:</span> É objeto deste contrato, na condição de representante exclusivo do artista <span className="font-bold underline uppercase">{bands.find(b=>b.id === event.bandId)?.name}</span> a realização de uma apresentação artística nas cidades, datas e horários, conforme abaixo:
                          </p>
 
                          <table>
@@ -710,6 +741,7 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [isBandFormOpen, setIsBandFormOpen] = useState(false); // NEW
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   
   // Send Modal State
@@ -723,6 +755,7 @@ const AppContent: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingBand, setEditingBand] = useState<Band | null>(null); // NEW
   
   const [filterText, setFilterText] = useState('');
   const [selectedBandFilter, setSelectedBandFilter] = useState<string | null>(null);
@@ -868,18 +901,22 @@ const AppContent: React.FC = () => {
   }
 
   // --- Handlers: Bands/Users ---
-  const handleAddBand = async () => {
-    const name = window.prompt("Nome da nova banda:");
-    if (name) {
-      const newBand: Band = {
-        id: crypto.randomUUID(),
-        name: name,
-        genre: 'Geral',
-        members: 1
-      };
-      await db.saveBand(newBand);
-      refreshData();
-    }
+  // Updated Band Handler to use Form
+  const handleSaveBand = async (band: Band) => {
+    await db.saveBand(band);
+    refreshData();
+    setIsBandFormOpen(false);
+    setEditingBand(null);
+  };
+  
+  const handleAddBand = () => {
+      setEditingBand(null);
+      setIsBandFormOpen(true);
+  };
+
+  const handleEditBand = (band: Band) => {
+      setEditingBand(band);
+      setIsBandFormOpen(true);
   };
 
   const handleSaveUser = async (user: User) => {
@@ -1914,8 +1951,17 @@ const AppContent: React.FC = () => {
                 <div className="space-y-2">
                 {bands.map(band => (
                     <div key={band.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800">
-                        <span className="text-white font-medium">{band.name}</span>
-                        <span className="text-xs text-slate-500">{band.members} integrantes</span>
+                        <div>
+                            <span className="text-white font-medium block">{band.name}</span>
+                            <span className="text-xs text-slate-500">{band.members} integrantes</span>
+                        </div>
+                        <button 
+                            onClick={() => handleEditBand(band)}
+                            className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
+                            title="Editar Dados da Banda"
+                        >
+                            <Edit2 size={14} />
+                        </button>
                     </div>
                 ))}
                 {bands.length === 0 && <p className="text-slate-500 text-sm">Nenhuma banda cadastrada.</p>}
@@ -2073,6 +2119,7 @@ const AppContent: React.FC = () => {
          <ContractGeneratorModal 
             event={eventForContract}
             contractors={contractors}
+            bands={bands} // Pass bands to generator
             onClose={() => setIsContractGeneratorOpen(false)}
          />
       )}
@@ -2106,6 +2153,14 @@ const AppContent: React.FC = () => {
           onSave={handleSaveUser}
           onClose={() => setIsUserFormOpen(false)}
         />
+      )}
+
+      {isBandFormOpen && (
+          <BandForm 
+            existingBand={editingBand}
+            onSave={handleSaveBand}
+            onClose={() => setIsBandFormOpen(false)}
+          />
       )}
 
     </Layout>

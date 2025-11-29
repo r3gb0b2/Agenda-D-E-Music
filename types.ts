@@ -30,11 +30,33 @@ export enum ContractorType {
   JURIDICA = 'JURIDICA'
 }
 
+export interface BandLegalDetails {
+  razSocial: string;
+  cnpj: string;
+  address: string;
+  repLegal: string;
+  cpfRep: string;
+  rgRep: string;
+  email: string;
+  phone: string;
+}
+
+export interface BandBankDetails {
+  bank: string;
+  agency: string;
+  account: string;
+  favored: string; // Favorecido
+  pix: string;
+  cnpj: string; // CNPJ vinculado a conta
+}
+
 export interface Band {
   id: string;
   name: string;
   genre: string;
   members: number;
+  legalDetails?: BandLegalDetails;
+  bankDetails?: BandBankDetails;
 }
 
 export interface User {

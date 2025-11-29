@@ -9,7 +9,18 @@ const USE_FIREBASE = true;
 
 // --- DADOS MOCK (Modo Demo Limpo) ---
 const MOCK_BANDS: Band[] = [
-  { id: 'b_new_1', name: 'Banda Principal', genre: 'Variado', members: 5 }
+  { 
+    id: 'b_new_1', 
+    name: 'Banda Principal', 
+    genre: 'Variado', 
+    members: 5,
+    legalDetails: {
+      razSocial: '', cnpj: '', address: '', repLegal: '', cpfRep: '', rgRep: '', email: '', phone: ''
+    },
+    bankDetails: {
+      bank: '', agency: '', account: '', favored: '', pix: '', cnpj: ''
+    }
+  }
 ];
 
 // Admin padrão solicitado
