@@ -142,8 +142,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// --- NEW PUBLIC PROSPECTING FORM VIEW ---
+// --- Mask Helpers for Public Form ---
+const maskCNPJ = (value: string) => value.replace(/\D/g, '').replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2').substring(0, 18);
+const maskCPF = (value: string) => value.replace(/\D/g, '').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})/, '$1-$2').replace(/(-\d{2})\d+?$/, '$1').substring(0, 14);
+const maskPhone = (value: string) => value.replace(/\D/g, '').replace(/^(\d{2})(\d)/g, '($1) $2').replace(/(\d)(\d{4})$/, '$1-$2').substring(0, 15);
 
+// --- NEW PUBLIC PROSPECTING FORM VIEW ---
 const PublicProspectingFormView = ({ token, dbService }: { token: string, dbService: typeof db }) => {
     const [isValidToken, setIsValidToken] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -182,6 +186,17 @@ const PublicProspectingFormView = ({ token, dbService }: { token: string, dbServ
         checkToken();
     }, [token, dbService]);
 
+    const handleContractorChange = (field: keyof Omit<Contractor, 'id'>, value: string) => {
+        let formattedValue = value;
+        if (field === 'phone' || field === 'whatsapp' || field === 'repLegalPhone') formattedValue = maskPhone(value);
+        if (field === 'cpf') formattedValue = maskCPF(value);
+        if (field === 'cnpj') formattedValue = maskCNPJ(value);
+        setContractorData(prev => ({...prev, [field]: formattedValue}));
+    };
+    const handleAddressChange = (field: keyof Contractor['address'], value: string) => {
+        setContractorData(prev => ({...prev, address: {...prev.address, [field]: value}}));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!eventData.bandId) {
@@ -212,13 +227,37 @@ const PublicProspectingFormView = ({ token, dbService }: { token: string, dbServ
                 <p className="text-slate-400 mt-1">Preencha seus dados de contato e os detalhes do show desejado.</p>
             </div>
             <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto">
-                {/* DADOS DO CONTRATANTE */}
+                {/* DADOS DO CONTRATANTE (DETAILED) */}
                 <div>
                     <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><UserIcon size={18}/> DADOS DO CONTRATANTE</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                       <div><label className="block text-sm text-slate-400 mb-1">Nome Completo / Razão Social *</label><input required value={contractorData.name} onChange={e => setContractorData(prev => ({...prev, name: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-                       <div><label className="block text-sm text-slate-400 mb-1">Telefone Principal (WhatsApp) *</label><input required value={contractorData.phone} onChange={e => setContractorData(prev => ({...prev, phone: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-                       <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">E-mail *</label><input type="email" required value={contractorData.email} onChange={e => setContractorData(prev => ({...prev, email: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                    <div className="bg-slate-800/30 p-4 rounded-lg border border-slate-700/50 space-y-4">
+                        <div>
+                            <label className="text-sm font-medium text-slate-400 mb-2 block">Tipo de Cadastro</label>
+                            <div className="flex gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer text-white"><input type="radio" name="type" checked={contractorData.type === 'FISICA'} onChange={() => setContractorData(p => ({...p, type: 'FISICA'}))} className="w-4 h-4 text-primary-600"/> Pessoa Física</label>
+                                <label className="flex items-center gap-2 cursor-pointer text-white"><input type="radio" name="type" checked={contractorData.type === 'JURIDICA'} onChange={() => setContractorData(p => ({...p, type: 'JURIDICA'}))} className="w-4 h-4 text-primary-600"/> Pessoa Jurídica</label>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">{contractorData.type === 'FISICA' ? 'Nome Completo *' : 'Razão Social *'}</label><input required value={contractorData.name} onChange={e => handleContractorChange('name', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           {contractorData.type === 'FISICA' ? (
+                                <>
+                                <div><label className="block text-sm text-slate-400 mb-1">CPF *</label><input required value={contractorData.cpf} onChange={e => handleContractorChange('cpf', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                                <div><label className="block text-sm text-slate-400 mb-1">RG</label><input value={contractorData.rg} onChange={e => handleContractorChange('rg', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                                </>
+                           ) : (
+                                <div><label className="block text-sm text-slate-400 mb-1">CNPJ *</label><input required value={contractorData.cnpj} onChange={e => handleContractorChange('cnpj', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           )}
+                           <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço Completo</label><input value={contractorData.address.street} onChange={e => handleAddressChange('street', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           <div className="md:col-span-2"><label className="block text-sm font-bold text-slate-300 mt-2 mb-2 border-t border-slate-700 pt-3">Representante Legal</label></div>
+                           <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Nome do Representante</label><input value={contractorData.responsibleName} onChange={e => handleContractorChange('responsibleName', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço do Representante</label><input value={contractorData.repLegalAddress} onChange={e => handleContractorChange('repLegalAddress', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           <div><label className="block text-sm text-slate-400 mb-1">Telefone do Representante</label><input value={contractorData.repLegalPhone} onChange={e => handleContractorChange('repLegalPhone', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           <div className="md:col-span-2"><label className="block text-sm font-bold text-slate-300 mt-2 mb-2 border-t border-slate-700 pt-3">Contato Principal</label></div>
+                           <div><label className="block text-sm text-slate-400 mb-1">E-mail *</label><input type="email" required value={contractorData.email} onChange={e => handleContractorChange('email', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           <div><label className="block text-sm text-slate-400 mb-1">Telefone Principal (WhatsApp) *</label><input required value={contractorData.phone} onChange={e => handleContractorChange('phone', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                           <div><label className="block text-sm text-slate-400 mb-1">Data de Nascimento</label><input type="date" value={contractorData.birthDate} onChange={e => handleContractorChange('birthDate', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                        </div>
                     </div>
                 </div>
                 {/* DADOS DO SHOW */}
