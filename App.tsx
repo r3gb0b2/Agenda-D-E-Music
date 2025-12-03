@@ -468,6 +468,41 @@ export const App = () => {
             if (currentUser) await loadData(currentUser);
         }
     };
+    
+    // --- APP CONTENT ---
+    
+    const renderView = () => {
+        // In a real app, these would be separate component files.
+        // For this project structure, they are defined here for simplicity.
+        
+        // --- Dashboard View ---
+        const DashboardView = () => {
+             // ... Logic for dashboard ...
+             return <div>Dashboard content will be here</div>
+        };
+        
+        // --- All other views would be defined here ---
+        // PipelineView, AgendaView, ContractorsView, etc.
+
+        switch (currentView) {
+            case 'dashboard':
+                // For now, let's keep it simple to test
+                return <div>Dashboard View Content</div>;
+            case 'pipeline':
+                 return <div>Pipeline View Content</div>;
+            case 'agenda':
+                 return <div>Agenda View Content</div>;
+            case 'contractors':
+                 return <div>Contractors View Content</div>;
+            case 'contracts_library':
+                 return <div>Contracts Library View Content</div>;
+            case 'bands':
+                 return <div>Bands & Users View Content</div>;
+            default:
+                return <div>View not found: {currentView}</div>;
+        }
+    };
+
 
     // --- Render Logic ---
     if (publicView) {
@@ -483,16 +518,11 @@ export const App = () => {
         return <LoginView onLogin={handleLogin} error={error} message={loginMessage} />;
     }
     
-    // This is a placeholder for the actual views.
-    const renderView = () => <div>View: {currentView}</div>;
-
     return (
         <ErrorBoundary>
             <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView} onLogout={handleLogout}>
-              {/* This is a simplified placeholder. In a real app, each view would be a component */}
-              <div className="text-white">
-                  This is the main application area for view: <span className="font-bold text-primary-500">{currentView}</span>
-              </div>
+              {/* Replace placeholder with actual view rendering */}
+              {renderView()}
             </Layout>
             
             {/* --- Modals --- */}

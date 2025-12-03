@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { User, UserRole, Band } from '../types';
 import { X, Save, User as UserIcon, Lock, Shield, Music, Eye, EyeOff } from 'lucide-react';
@@ -29,7 +30,9 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
       email: '',
       password: '',
       role: UserRole.MEMBER,
-      bandIds: []
+      bandIds: [],
+      // FIX: Added the 'status' property to satisfy the User interface, defaulting to 'ACTIVE' for new users created via the form.
+      status: 'ACTIVE'
     };
   });
 
