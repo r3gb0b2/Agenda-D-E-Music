@@ -162,6 +162,8 @@ const sanitizeEvent = (data: any, id: string): Event => {
     durationHours: data?.durationHours || 0,
     city: data?.city || '',
     venue: data?.venue || '',
+    venueAddress: data?.venueAddress || '', // NEW
+    producerContact: data?.producerContact || '', // NEW
     contractor: data?.contractor || '',
     notes: data?.notes || '',
     status: data?.status || EventStatus.RESERVED,
@@ -173,7 +175,9 @@ const sanitizeEvent = (data: any, id: string): Event => {
     contractUrl: data?.contractUrl || '',
     contractFiles: safeContractFiles,
     pipelineStage: safePipelineStage,
-    logistics: safeLogistics
+    logistics: safeLogistics,
+    contractorFormToken: data?.contractorFormToken || '',
+    contractorFormStatus: data?.contractorFormStatus || 'PENDING'
   } as Event;
 };
 
@@ -184,6 +188,9 @@ const sanitizeContractor = (data: any, id: string): Contractor => {
     type: data?.type || ContractorType.FISICA,
     name: data?.name || '',
     responsibleName: data?.responsibleName || '',
+    repLegalAddress: data?.repLegalAddress || '', // NEW
+    repLegalPhone: data?.repLegalPhone || '', // NEW
+    birthDate: data?.birthDate || '', // NEW
     cpf: data?.cpf || '',
     rg: data?.rg || '',
     cnpj: data?.cnpj || '',
@@ -295,6 +302,33 @@ export const db = {
     await db.saveUser(newUser); // This will save to local and potentially Firebase
     return newUser;
   },
+
+  // --- CONTRACTOR FORM WORKFLOW ---
+  generateContractorFormToken: async (event: Event): Promise<string> => {
+    const token = `form-${crypto.randomUUID()}`;
+    const updatedEvent = {
+      ...event,
+      contractorFormToken: token,
+      // FIX: Use 'as const' to ensure TypeScript infers the literal type 'SENT' instead of the wider 'string' type, matching the 'Event' interface.
+      contractorFormStatus: 'SENT' as const
+    };
+    await db.saveEvent(updatedEvent);
+    return token;
+  },
+
+  getEventByContractorFormToken: async (token: string): Promise<{ event: Event, contractor: Contractor | null } | null> => {
+    if (!token) return null;
+    const allEvents = await db.getEvents();
+    const event = allEvents.find(e => e.contractorFormToken === token && e.contractorFormStatus !== 'COMPLETED');
+    
+    if (event) {
+      const allContractors = await db.getContractors();
+      const contractor = allContractors.find(c => c.name.toLowerCase() === event.contractor.toLowerCase());
+      return { event, contractor };
+    }
+    return null;
+  },
+
 
   // --- SUGGESTIONS (Auto-Save/Learning) ---
   getUniqueValues: async (field: 'eventType' | 'venue' | 'city' | 'contractor'): Promise<string[]> => {
