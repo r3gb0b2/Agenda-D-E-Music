@@ -1,8 +1,6 @@
-
-
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, getDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from "firebase/auth";
 
 // --- CONFIGURAÇÃO ---
@@ -46,7 +44,8 @@ const FB_COLLECTIONS = {
   BANDS: 'ad_bands',
   USERS: 'ad_users',
   EVENTS: 'ad_events',
-  CONTRACTORS: 'ad_contractors'
+  CONTRACTORS: 'ad_contractors',
+  INVITES: 'ad_invites' // New collection for invites
 };
 
 const KEYS = {
@@ -55,7 +54,7 @@ const KEYS = {
   EVENTS: `${STORAGE_PREFIX}events`,
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
   SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
-  REGISTRATION_TOKEN: `${STORAGE_PREFIX}reg_token` // Key for single-use registration
+  REGISTRATION_TOKEN: `${STORAGE_PREFIX}reg_token` // Key for single-use registration (fallback)
 };
 
 // Helper to initialize local data
@@ -269,16 +268,60 @@ export const db = {
   // --- REGISTRATION WORKFLOW ---
   generateRegistrationToken: async (): Promise<string> => {
     const token = crypto.randomUUID();
-    localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
+    
+    if (USE_FIREBASE && dbFirestore) {
+      try {
+        // Save to Firestore so it's accessible from any browser
+        await setDoc(doc(dbFirestore, FB_COLLECTIONS.INVITES, token), {
+          active: true,
+          createdAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error("Error generating token in Firestore:", e);
+        // Fallback locally just in case (though cross-browser won't work)
+        localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
+      }
+    } else {
+      localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
+    }
+    
     return token;
   },
 
   validateRegistrationToken: async (token: string): Promise<boolean> => {
-    const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
-    return storedToken !== null && storedToken === token;
+    if (USE_FIREBASE && dbFirestore) {
+      try {
+        const docRef = doc(dbFirestore, FB_COLLECTIONS.INVITES, token);
+        const docSnap = await getDoc(docRef);
+        
+        if (docSnap.exists() && docSnap.data().active === true) {
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.error("Error validating token in Firestore:", e);
+        // Fallback to local check
+        const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
+        return storedToken !== null && storedToken === token;
+      }
+    } else {
+      const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
+      return storedToken !== null && storedToken === token;
+    }
   },
 
-  invalidateRegistrationToken: async (): Promise<void> => {
+  invalidateRegistrationToken: async (token?: string): Promise<void> => {
+    if (USE_FIREBASE && dbFirestore && token) {
+      try {
+        await updateDoc(doc(dbFirestore, FB_COLLECTIONS.INVITES, token), {
+          active: false,
+          usedAt: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn("Could not invalidate token in Firestore", e);
+      }
+    }
+    // Always clear local just in case
     localStorage.removeItem(KEYS.REGISTRATION_TOKEN);
   },
 
