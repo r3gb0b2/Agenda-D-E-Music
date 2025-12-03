@@ -29,7 +29,9 @@ const UserForm: React.FC<UserFormProps> = ({ bands, existingUser, onSave, onClos
       email: '',
       password: '',
       role: UserRole.MEMBER,
-      bandIds: []
+      bandIds: [],
+      // FIX: Added missing 'status' property to satisfy the User type.
+      status: 'ACTIVE'
     };
   });
 

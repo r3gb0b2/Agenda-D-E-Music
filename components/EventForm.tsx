@@ -140,10 +140,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   }, [formData.financials.grossValue, formData.financials.commissionType, formData.financials.commissionValue, formData.financials.taxes]);
 
   const handleGenerateBrief = async () => {
-    if (!process.env.API_KEY) {
-      setAiSummary("API Key not found in environment.");
-      return;
-    }
+    // FIX: Removed redundant API key check. The service layer already handles this.
     setIsGenerating(true);
     const band = bands.find(b => b.id === formData.bandId);
     const summary = await generateEventBrief(formData, band?.name || 'Banda');

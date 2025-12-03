@@ -55,7 +55,6 @@ const KEYS = {
   EVENTS: `${STORAGE_PREFIX}events`,
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
   SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
-  REGISTRATION_TOKEN: `${STORAGE_PREFIX}reg_token` // Key for single-use registration
 };
 
 // Helper to initialize local data
@@ -267,20 +266,6 @@ export const db = {
   },
 
   // --- REGISTRATION WORKFLOW ---
-  generateRegistrationToken: async (): Promise<string> => {
-    const token = crypto.randomUUID();
-    localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
-    return token;
-  },
-
-  validateRegistrationToken: async (token: string): Promise<boolean> => {
-    const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
-    return storedToken !== null && storedToken === token;
-  },
-
-  invalidateRegistrationToken: async (): Promise<void> => {
-    localStorage.removeItem(KEYS.REGISTRATION_TOKEN);
-  },
 
   registerUser: async (userData: Pick<User, 'name' | 'email' | 'password'>): Promise<User> => {
     const newUser: User = {

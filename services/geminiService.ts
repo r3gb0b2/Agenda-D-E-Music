@@ -1,26 +1,22 @@
 import { GoogleGenAI } from "@google/genai";
 import { Event, Band } from "../types";
 
-// NOTE: In a real production app, never expose the key in frontend code.
+// NOTE: The API key should be set as an environment variable `API_KEY`.
 // This is for demonstration purposes as requested by the prompt structure.
-const getApiKey = () => {
-  try {
-    return typeof process !== 'undefined' && process.env ? (process.env.API_KEY || '') : '';
-  } catch {
-    return '';
-  }
-};
-
 let ai: GoogleGenAI | null = null;
 
 try {
-  const key = getApiKey();
-  if (key) {
-    ai = new GoogleGenAI({ apiKey: key });
+  // FIX: Directly use process.env.API_KEY as per the coding guidelines.
+  const apiKey = process.env.API_KEY;
+  if (apiKey) {
+    ai = new GoogleGenAI({ apiKey: apiKey });
+  } else {
+    console.warn("API_KEY environment variable not found. Gemini AI functionality will be disabled.");
   }
 } catch (e) {
   console.warn("Could not initialize Gemini AI:", e);
 }
+
 
 export const generateEventBrief = async (event: Event, bandName: string): Promise<string> => {
   if (!ai) {

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from './types';
@@ -778,7 +779,6 @@ const AppContent: React.FC = () => {
   
   // Registration State
   const [isRegistrationView, setIsRegistrationView] = useState(false);
-  const [registrationToken, setRegistrationToken] = useState<string | null>(null);
 
   // Role Checks
   const isViewer = currentUser?.role === UserRole.VIEWER;
@@ -797,23 +797,9 @@ const AppContent: React.FC = () => {
         setTimeout(() => preloader.remove(), 500);
       }
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('register_token');
-
-      if (token) {
-        const isValid = await db.validateRegistrationToken(token);
-        if (isValid) {
-          setIsRegistrationView(true);
-          setRegistrationToken(token);
-        } else {
-          // Token invalid or used, redirect to login
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      } else {
-        const savedUser = await db.getCurrentUser();
-        if (savedUser) {
-          setCurrentUser(savedUser);
-        }
+      const savedUser = await db.getCurrentUser();
+      if (savedUser) {
+        setCurrentUser(savedUser);
       }
 
       setIsLoading(false);
@@ -852,9 +838,11 @@ const AppContent: React.FC = () => {
   
   const handleRegistrationSubmit = async (userData: Pick<User, 'name' | 'email' | 'password'>) => {
       await db.registerUser(userData);
-      await db.invalidateRegistrationToken();
-      // Redirect to login page with a success flag in the URL
-      window.location.href = `${window.location.pathname}?registration=success`;
+      // After registration, go back to login view and show a message
+      setIsRegistrationView(false); 
+      // A mechanism to show message on login page would be ideal, e.g., using a URL param
+      window.history.replaceState({}, document.title, window.location.pathname + '?registration=success');
+      window.location.reload(); // Easiest way to re-trigger login page with param
   };
 
   const handleLogout = async () => {
@@ -1845,60 +1833,36 @@ const AppContent: React.FC = () => {
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Local</th>
                     {!isViewer && <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Contrato</th>}
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
-                    {!isViewer && <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
-                  {filteredEvents.length === 0 ? (
-                    <tr><td colSpan={6} className="p-8 text-center text-slate-500">Nenhum evento encontrado.</td></tr>
-                  ) : (
-                    filteredEvents.map(event => {
-                      const band = bands.find(b => b.id === event.bandId);
-                      const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
-                      return (
-                        <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
-                          <td className="p-4 text-slate-400 font-medium whitespace-nowrap">
-                             {event.date ? new Date(event.date + 'T00:00:00').toLocaleDateString('pt-BR') : '--'}
-                             <div className="text-xs text-slate-600">{event.time}</div>
+                <tbody>
+                  {filteredEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(event => {
+                    const band = bands.find(b => b.id === event.bandId);
+                    const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
+                    return (
+                      <tr key={event.id} onClick={() => openEditEvent(event)} className="hover:bg-slate-900 transition-colors cursor-pointer">
+                        <td className="p-4 align-top">
+                          <div className="text-white font-medium">{new Date(event.date).toLocaleDateString()}</div>
+                          <div className="text-xs text-slate-500">{event.time}</div>
+                        </td>
+                        <td className="p-4 align-top">
+                          <div className="text-white font-medium">{displayName}</div>
+                          <div className="text-xs text-slate-500">{band?.name}</div>
+                        </td>
+                        <td className="p-4 align-top text-slate-400">
+                          {isViewer ? event.city : `${event.venue ? event.venue + ', ' : ''}${event.city}`}
+                        </td>
+                        {!isViewer && (
+                          <td className="p-4 align-top text-center">
+                            {event.hasContract ? <FileCheck size={18} className="text-green-500 mx-auto" /> : <FileWarning size={18} className="text-yellow-500 mx-auto" />}
                           </td>
-                          <td className="p-4 text-white font-medium">
-                            {displayName}
-                            {!isViewer && <div className="text-xs text-slate-600">Criado por: {event.createdBy}</div>}
-                          </td>
-                          <td className="p-4 text-slate-400">
-                             {event.city}
-                             {!isViewer && <div className="text-xs text-slate-600">{event.venue}</div>}
-                          </td>
-                          {!isViewer && (
-                            <td className="p-4 text-center">
-                                {!event.hasContract ? (
-                                <span title="Pendente" className="text-red-400 flex justify-center"><FileWarning size={16} /></span>
-                                ) : (
-                                <span title="Ok" className="text-green-500/50 flex justify-center"><FileCheck size={16} /></span>
-                                )}
-                            </td>
-                          )}
-                          <td className="p-4 text-center">
-                            <StatusBadge status={event.status} />
-                          </td>
-                          {!isViewer && (
-                            <td className="p-4 text-right">
-                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => openEditEvent(event)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-white" title="Editar">
-                                    <Edit2 size={16} />
-                                </button>
-                                {isSuperAdmin && (
-                                    <button onClick={() => handleDeleteEvent(event.id)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-red-400" title="Excluir">
-                                        <Trash2 size={16} />
-                                    </button>
-                                )}
-                                </div>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })
-                  )}
+                        )}
+                        <td className="p-4 align-top text-center">
+                          <StatusBadge status={event.status} />
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1908,438 +1872,390 @@ const AppContent: React.FC = () => {
     );
   };
 
-  const BandManagerView = () => {
-    // Access Check: Admin or Contracts role
+  const BandsAndUsersView = () => {
     if (!canManageUsers) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
-                <Ban size={48} className="mb-4 text-slate-700"/>
-                <p>Acesso restrito.</p>
-            </div>
-        )
+      return (
+        <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
+          <Ban size={48} className="mb-4 text-slate-700"/>
+          <p>Acesso restrito.</p>
+        </div>
+      );
     }
-
-    const visibleUsers = users.filter(u => {
-        if (isAdmin) return true;
-        if (isContracts) return u.role === UserRole.VIEWER;
-        return false;
-    });
-
-    // New Registration State
-    const [registrationLink, setRegistrationLink] = useState<string | null>(null);
-    const [isCopied, setIsCopied] = useState(false);
-
-    const generateLink = async () => {
-        const token = await db.generateRegistrationToken();
-        const link = `${window.location.origin}${window.location.pathname}?register_token=${token}`;
-        setRegistrationLink(link);
-    };
-
-    const copyLink = () => {
-        if (registrationLink) {
-            navigator.clipboard.writeText(registrationLink);
-            setIsCopied(true);
-            setTimeout(() => setIsCopied(false), 2000);
-        }
-    };
-    
-    // Split users into pending and active for display
-    const pendingUsers = visibleUsers.filter(u => u.status === 'PENDING');
-    const activeUsers = visibleUsers.filter(u => u.status !== 'PENDING');
-
+  
+    const pendingUsers = users.filter(u => u.status === 'PENDING');
+  
     return (
       <div className="space-y-8 pb-20 md:pb-0">
-        
-        {/* Registration Link Generator (Super Admin Only) */}
-        {isSuperAdmin && (
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
-                    <KeyRound className="text-yellow-400" /> Gerador de Link de Cadastro
-                </h3>
-                <p className="text-sm text-slate-400 mb-4">
-                    Gere um link de uso único para que novos usuários possam se cadastrar. O cadastro ficará pendente até ser aprovado por um administrador.
-                </p>
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                    <button onClick={generateLink} className="w-full md:w-auto flex-shrink-0 bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-4 py-2 rounded-lg transition-colors">
-                        Gerar Novo Link
-                    </button>
-                    {registrationLink && (
-                        <div className="w-full flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1">
-                            <input 
-                                type="text" 
-                                readOnly 
-                                value={registrationLink} 
-                                className="flex-1 bg-transparent text-slate-300 text-xs px-2 outline-none" 
-                            />
-                            <button onClick={copyLink} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
-                                {isCopied ? <Check size={14}/> : <ClipboardCopy size={14}/>} {isCopied ? 'Copiado!' : 'Copiar'}
-                            </button>
-                        </div>
-                    )}
+        {pendingUsers.length > 0 && (
+          <div className="bg-yellow-900/20 border border-yellow-500/30 p-4 rounded-xl">
+            <h3 className="text-yellow-400 font-bold mb-3 flex items-center gap-2"><KeyRound size={18} /> Aprovações Pendentes ({pendingUsers.length})</h3>
+            <div className="space-y-2">
+              {pendingUsers.map(user => (
+                <div key={user.id} className="flex justify-between items-center bg-slate-900 p-2 rounded">
+                  <div>
+                    <p className="text-white text-sm font-medium">{user.name}</p>
+                    <p className="text-xs text-slate-500">{user.email}</p>
+                  </div>
+                  <button onClick={() => openEditUser(user)} className="text-xs bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-md flex items-center gap-1">
+                    <CheckCircle size={14} /> Aprovar/Editar
+                  </button>
                 </div>
-            </div>
-        )}
-
-        {/* Pending Requests Queue (Admins only) */}
-        {isAdmin && pendingUsers.length > 0 && (
-            <div className="bg-yellow-900/10 border border-yellow-800/50 rounded-xl p-6">
-                <h3 className="text-xl font-bold text-yellow-300 flex items-center gap-2 mb-4">
-                    <History size={20} /> Solicitações Pendentes ({pendingUsers.length})
-                </h3>
-                <div className="space-y-3">
-                    {pendingUsers.map(u => (
-                        <div key={u.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800 group">
-                            <div>
-                                <div className="text-white font-medium">{u.name}</div>
-                                <div className="text-xs text-slate-500">{u.email}</div>
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => openEditUser(u)} className="text-xs bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded font-medium">
-                                    Aprovar
-                                </button>
-                                <button onClick={() => handleDeleteUser(u.id)} className="text-xs bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded font-medium">
-                                    Reprovar
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          
-          {/* Gerenciar Bandas (Admin Only) */}
-          {isAdmin && (
-            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-                <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Music className="text-accent-500" /> Bandas
-                </h3>
-                <button onClick={handleAddBand} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors flex items-center gap-1">
-                    <Plus size={14} /> Adicionar Banda
-                </button>
-                </div>
-                <div className="space-y-2">
-                {bands.map(band => (
-                    <div key={band.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800 group">
-                        <div>
-                            <span className="text-white font-medium block">{band.name}</span>
-                        </div>
-                        <div className="flex gap-2">
-                            <button 
-                                onClick={() => handleEditBand(band)}
-                                className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
-                                title="Editar Dados da Banda"
-                            >
-                                <Edit2 size={14} />
-                            </button>
-                             <button 
-                                onClick={() => handleDeleteBand(band.id)}
-                                className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-red-400 transition-colors"
-                                title="Excluir Banda"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    </div>
-                ))}
-                {bands.length === 0 && <p className="text-slate-500 text-sm">Nenhuma banda cadastrada.</p>}
-                </div>
-            </div>
-          )}
-
-          {/* Gerenciar Usuários (Admin or Contracts) */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
-            <div className="flex justify-between items-center mb-6">
-               <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                 <Users className="text-green-500" /> Usuários Ativos
-               </h3>
-               <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors">
-                 + Novo Usuário
-               </button>
-            </div>
-            <div className="space-y-3">
-               {activeUsers.map(u => {
-                 const isSelf = currentUser?.id === u.id;
-                 const canBeDeleted = !isSelf && u.email !== 'admin';
-                 // Permissions: Admin can edit all. Contracts can only edit Viewers.
-                 const canEdit = isAdmin || (isContracts && u.role === UserRole.VIEWER);
-                 
-                 return (
-                 <div key={u.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800 group">
-                    <div>
-                       <div className="text-white font-medium flex items-center gap-2">
-                         {u.name}
-                         <span className={`text-[10px] px-1 rounded uppercase ${u.role === UserRole.ADMIN ? 'bg-primary-900/50 text-primary-400' : 'bg-slate-800 text-slate-400'}`}>
-                           {u.role}
-                         </span>
-                       </div>
-                       <div className="text-xs text-slate-500">{u.email}</div>
-                    </div>
-                    
-                    {canEdit && (
-                        <div className="flex gap-2">
-                           <button onClick={() => openEditUser(u)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-white transition-colors" title="Editar"><Edit2 size={14}/></button>
-                           {canBeDeleted && (
-                             <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-red-400 transition-colors" title="Excluir"><Trash2 size={14}/></button>
-                           )}
-                        </div>
-                    )}
-                 </div>
-                 );
-               })}
-               {activeUsers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">Nenhum usuário ativo encontrado.</p>}
+              ))}
             </div>
           </div>
-
+        )}
+  
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Music className="text-primary-500" /> Bandas
+            </h2>
+            <button onClick={handleAddBand} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700">
+              <Plus size={18} /> Nova Banda
+            </button>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+            <div className="divide-y divide-slate-800">
+              {bands.map(band => (
+                <div key={band.id} className="flex items-center justify-between p-4 group">
+                  <span className="font-medium text-white">{band.name}</span>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleEditBand(band)} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                      <Edit2 size={12} /> Editar
+                    </button>
+                    <button onClick={() => handleDeleteBand(band.id)} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800 hover:border-red-900">
+                      <Trash2 size={12} /> Excluir
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+  
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Users className="text-primary-500" /> Usuários
+            </h2>
+            <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700">
+              <Plus size={18} /> Novo Usuário
+            </button>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-900">
+                    <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Nome</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Permissão</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                    <th className="p-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {users.filter(u => u.status === 'ACTIVE').map(user => (
+                    <tr key={user.id} className="hover:bg-slate-900 group">
+                      <td className="p-3">
+                        <p className="text-white font-medium">{user.name}</p>
+                        <p className="text-xs text-slate-500">{user.email}</p>
+                      </td>
+                      <td className="p-3 text-slate-400 text-sm capitalize">{user.role}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${user.status === 'ACTIVE' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                          {user.status === 'ACTIVE' ? 'Ativo' : 'Pendente'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEditUser(user)} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                            <Edit2 size={12} />
+                          </button>
+                          {user.email !== 'admin' && (
+                            <button onClick={() => handleDeleteUser(user.id)} className="ml-2 text-xs text-red-400 hover:text-red-300 flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800 hover:border-red-900">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     );
   };
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
-        <Loader2 className="animate-spin text-primary-500" size={48} />
-      </div>
-    );
-  }
-
-  // --- Login & Registration Views ---
-  const LoginView = () => {
+  
+  const LoginView = ({ onLogin, onSwitchToRegister }: { onLogin: (e: string, p: string) => Promise<string | null>, onSwitchToRegister: () => void }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
-    const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-
-    useEffect(() => {
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('registration') === 'success') {
-            setShowSuccessMessage(true);
-            // Clean the URL so the message doesn't reappear on refresh
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-    }, []);
-
+    const [isSubmitting, setIsSubmitting] = useState(false);
+  
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        setIsLoggingIn(true);
-        const errorMsg = await handleLoginSubmit(email, password);
-        if (errorMsg) {
-            setError(errorMsg);
-        }
-        setIsLoggingIn(false);
+      e.preventDefault();
+      setError('');
+      setIsSubmitting(true);
+      const loginError = await onLogin(email, password);
+      if (loginError) {
+        setError(loginError);
+      }
+      setIsSubmitting(false);
     };
-
+  
     return (
-      <div className="flex items-center justify-center h-screen bg-slate-950 p-4">
-        <form onSubmit={handleSubmit} className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full max-w-md animate-fade-in-up">
-           <div className="flex flex-col items-center mb-6">
-              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-primary-500/20">
-                <Mic2 size={32} />
-              </div>
-              <h1 className="text-2xl font-bold text-white">Agenda D&E MUSIC</h1>
-              <p className="text-slate-500">Acesso Restrito</p>
-           </div>
-           
-           {showSuccessMessage && (
-             <div className="mb-4 p-3 bg-green-900/20 border border-green-900/50 rounded-lg flex items-center gap-2 text-green-400 text-sm">
-               <CheckCircle size={16} /> Solicitação enviada! Um admin revisará sua conta.
-             </div>
-           )}
-           
-           {error && (
-             <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-center gap-2 text-red-400 text-sm">
-               <AlertTriangle size={16} /> {error}
-             </div>
-           )}
-
-           <div className="space-y-4">
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 p-4">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white shadow-lg">
+              <Mic2 size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Agenda</h1>
+              <p className="text-primary-400 font-semibold">D&E MUSIC</p>
+            </div>
+          </div>
+  
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-1">E-mail ou Usuário</label>
-                <input 
-                  type="text" 
+                <label className="block text-sm font-medium text-slate-400 mb-1">Login</label>
+                <input
+                  type="text"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none"
                   placeholder="admin"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
-                  placeholder="••••••"
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none"
+                  placeholder="admin"
                 />
               </div>
-              <button 
-                type="submit" 
-                disabled={isLoggingIn}
-                className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold shadow-lg shadow-primary-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50"
               >
-                {isLoggingIn ? <Loader2 className="animate-spin" size={20}/> : <><LogIn size={20} /> Entrar no Sistema</>}
+                {isSubmitting ? <Loader2 className="animate-spin" /> : <LogIn size={18} />}
+                Entrar
               </button>
-           </div>
-        </form>
+            </form>
+            <div className="text-center mt-6">
+               <button onClick={onSwitchToRegister} className="text-sm text-slate-500 hover:text-primary-400 hover:underline">
+                 Não tem uma conta? Solicite seu acesso.
+               </button>
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
-
-  const RegistrationView = () => {
+  
+  const RegistrationView = ({ onRegister, onBackToLogin }: { onRegister: (u: Pick<User, 'name' | 'email' | 'password'>) => Promise<void>, onBackToLogin: () => void }) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
-    const [isRegistering, setIsRegistering] = useState(false);
-
+    const [isSubmitting, setIsSubmitting] = useState(false);
+  
     const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        if (password.length < 6) {
-            setError('A senha deve ter pelo menos 6 caracteres.');
-            return;
-        }
-        setIsRegistering(true);
-        try {
-            await handleRegistrationSubmit({ name, email, password });
-        } catch (err) {
-            setError('Erro ao enviar solicitação.');
-            console.error(err);
-        } finally {
-            setIsRegistering(false);
-        }
+      e.preventDefault();
+      if (password !== confirmPassword) {
+        setError('As senhas não coincidem.');
+        return;
+      }
+      if (password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
+      setError('');
+      setIsSubmitting(true);
+      await onRegister({ name, email, password });
+      setIsSubmitting(false);
     };
-
+  
     return (
-        <div className="flex items-center justify-center h-screen bg-slate-950 p-4">
-            <form onSubmit={handleSubmit} className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full max-w-md animate-fade-in-up">
-                <div className="flex flex-col items-center mb-6">
-                   <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-primary-500/20">
-                     <UserIcon size={32} />
-                   </div>
-                   <h1 className="text-2xl font-bold text-white">Solicitar Acesso</h1>
-                   <p className="text-slate-500">Preencha seus dados para se cadastrar.</p>
-                </div>
-
-                {error && (
-                    <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm">
-                        {error}
-                    </div>
-                )}
-                
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Nome Completo</label>
-                        <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white"/>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">E-mail</label>
-                        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white"/>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
-                        <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white"/>
-                    </div>
-                    <button type="submit" disabled={isRegistering} className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-                        {isRegistering ? <Loader2 className="animate-spin" /> : 'Enviar Solicitação'}
-                    </button>
-                </div>
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 p-4">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white shadow-lg">
+              <Mic2 size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Solicitar Acesso</h1>
+              <p className="text-primary-400 font-semibold">D&E MUSIC</p>
+            </div>
+          </div>
+  
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-8">
+            <p className="text-center text-slate-400 text-sm mb-4">
+              Após o cadastro, sua conta precisará ser aprovada por um administrador.
+            </p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome Completo" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="E-mail" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Senha (mínimo 6 caracteres)" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirmar Senha" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+              <button type="submit" disabled={isSubmitting} className="w-full flex justify-center bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg">
+                {isSubmitting ? <Loader2 className="animate-spin" /> : 'Registrar'}
+              </button>
             </form>
+            <div className="text-center mt-6">
+              <button onClick={onBackToLogin} className="text-sm text-slate-500 hover:text-primary-400 hover:underline">
+                Já tem uma conta? Faça login.
+              </button>
+            </div>
+          </div>
         </div>
+      </div>
     );
   };
   
+  if (isLoading) {
+    return null; // Or a loading spinner covering the whole page
+  }
+  
+  // Show registration success message
+  const registrationSuccess = window.location.search.includes('registration=success');
+  
   if (!currentUser) {
-    return isRegistrationView ? <RegistrationView /> : <LoginView />;
+    if (isRegistrationView) {
+        return <RegistrationView onRegister={handleRegistrationSubmit} onBackToLogin={() => setIsRegistrationView(false)} />;
+    }
+    return (
+      <div>
+        {registrationSuccess && (
+          <div className="bg-green-600 text-white text-center p-2">
+            Solicitação de registro enviada com sucesso! Aguarde a aprovação.
+          </div>
+        )}
+        <LoginView onLogin={handleLoginSubmit} onSwitchToRegister={() => setIsRegistrationView(true)} />
+      </div>
+    );
+  }
+
+  let viewToRender = null;
+  switch (currentView) {
+    case 'dashboard':
+      viewToRender = <DashboardView />;
+      break;
+    case 'pipeline':
+      viewToRender = <PipelineView />;
+      break;
+    case 'agenda':
+      viewToRender = renderAgendaView();
+      break;
+    case 'contractors':
+      viewToRender = <ContractorsView />;
+      break;
+    case 'contracts_library':
+      viewToRender = <ContractsLibraryView />;
+      break;
+    case 'bands':
+      viewToRender = <BandsAndUsersView />;
+      break;
+    default:
+      viewToRender = <DashboardView />;
   }
 
   return (
-    <Layout 
-      user={currentUser} 
-      currentView={currentView} 
-      onChangeView={setCurrentView} 
-      onLogout={handleLogout}
-    >
-      {currentView === 'dashboard' && <DashboardView />}
-      {currentView === 'pipeline' && <PipelineView />}
-      {currentView === 'agenda' && renderAgendaView()}
-      {currentView === 'contractors' && <ContractorsView />}
-      {currentView === 'contracts_library' && <ContractsLibraryView />}
-      {currentView === 'bands' && <BandManagerView />}
+    <div className="font-sans">
+      <Layout 
+        user={currentUser} 
+        currentView={currentView}
+        onChangeView={setCurrentView}
+        onLogout={handleLogout}
+      >
+        {viewToRender}
+      </Layout>
 
-      {/* Modals */}
       {isFormOpen && (
-        <EventForm 
-          bands={getVisibleBands()} 
+        <EventForm
+          bands={getVisibleBands()}
           contractors={contractors}
-          currentUser={currentUser}
           existingEvent={editingEvent}
+          currentUser={currentUser}
           initialDate={newEventDate}
           initialBandId={selectedBandFilter || undefined}
           onSave={handleSaveEvent}
-          onClose={() => setIsFormOpen(false)}
           onGenerateContract={openContractGenerator}
+          onClose={() => setIsFormOpen(false)}
         />
       )}
       
       {isContractorFormOpen && (
         <ContractorForm 
-           existingContractor={editingContractor}
-           onSave={handleSaveContractor}
-           onClose={() => setIsContractorFormOpen(false)}
+          existingContractor={editingContractor}
+          onSave={handleSaveContractor}
+          onClose={() => setIsContractorFormOpen(false)}
         />
       )}
 
       {isUserFormOpen && (
-        <UserForm
-           bands={bands}
-           existingUser={editingUser}
-           onSave={handleSaveUser}
-           onClose={() => setIsUserFormOpen(false)}
+        <UserForm 
+          bands={bands}
+          existingUser={editingUser}
+          onSave={handleSaveUser}
+          onClose={() => setIsUserFormOpen(false)}
         />
       )}
 
       {isBandFormOpen && (
         <BandForm
-           existingBand={editingBand}
-           onSave={handleSaveBand}
-           onClose={() => setIsBandFormOpen(false)}
+          existingBand={editingBand}
+          onSave={handleSaveBand}
+          onClose={() => setIsBandFormOpen(false)}
+        />
+      )}
+      
+      {selectedDateDetails && <DayDetailsModal />}
+
+      {isContractGeneratorOpen && eventForContract && (
+        <ContractGeneratorModal
+          event={eventForContract}
+          contractors={contractors}
+          bands={bands}
+          onClose={() => setIsContractGeneratorOpen(false)}
+        />
+      )}
+      
+      {isSendModalOpen && selectedEventForSend && (
+        <SendContractModal
+          event={selectedEventForSend}
+          contractor={contractors.find(c => c.name === selectedEventForSend.contractor)}
+          onClose={() => setIsSendModalOpen(false)}
         />
       )}
 
-      {isSendModalOpen && selectedEventForSend && (
-         <SendContractModal 
-            event={selectedEventForSend}
-            contractor={contractors.find(c => c.name === selectedEventForSend.contractor)}
-            onClose={() => { setIsSendModalOpen(false); setSelectedEventForSend(null); }}
-         />
+      {isMonthPickerOpen && (
+        <div 
+          className="fixed inset-0 z-20"
+          onClick={() => setIsMonthPickerOpen(false)}
+        ></div>
       )}
-
-      {selectedDateDetails && <DayDetailsModal />}
-      
-      {isContractGeneratorOpen && eventForContract && (
-         <ContractGeneratorModal 
-            event={eventForContract}
-            contractors={contractors}
-            bands={bands}
-            onClose={() => { setIsContractGeneratorOpen(false); setEventForContract(null); }}
-         />
-      )}
-
-    </Layout>
+    </div>
   );
 };
 
-const App = () => (
-  <ErrorBoundary>
-    <AppContent />
-  </ErrorBoundary>
-);
+const App: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  );
+};
 
 export default App;
