@@ -1258,7 +1258,6 @@ const AppContent: React.FC = () => {
   };
 
   const PipelineView = () => {
-    // Pipeline Kanban Board
     if (isViewer) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
@@ -1278,14 +1277,6 @@ const AppContent: React.FC = () => {
                     <Kanban className="text-primary-500" /> Pipeline de Vendas
                 </h2>
                 <div className="flex gap-2">
-                  {(isAdmin || isContracts) && (
-                     <button 
-                        onClick={handleGenerateProspectingLink}
-                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700 whitespace-nowrap"
-                    >
-                        <LinkIcon size={16} /> Gerar Link de Prospecção
-                    </button>
-                  )}
                   {!isViewer && (
                       <button 
                           onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
@@ -1307,7 +1298,7 @@ const AppContent: React.FC = () => {
                             <div key={stage} className="w-72 flex flex-col bg-slate-950 border border-slate-800 rounded-xl h-full">
                                 <div className="p-3 border-b border-slate-800 bg-slate-900/50 rounded-t-xl shrink-0">
                                     <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wide flex justify-between">
-                                        {stage === PipelineStage.LEAD ? 'Prospecção' : 
+                                        {stage === PipelineStage.LEAD ? 'Prospecção / Contato' : 
                                          stage === PipelineStage.QUALIFICATION ? 'Qualificação' :
                                          stage === PipelineStage.PROPOSAL ? 'Proposta' :
                                          stage === PipelineStage.NEGOTIATION ? 'Negociação' :
@@ -1345,7 +1336,6 @@ const AppContent: React.FC = () => {
   };
 
   const ContractsLibraryView = () => {
-    // Restricted Access Check
     if (!isAdmin && !isContracts) {
        return (
           <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
@@ -1355,7 +1345,6 @@ const AppContent: React.FC = () => {
        )
     }
 
-    // Filter events containing contracts (checking files array or legacy string)
     const eventsWithContracts = events.filter(e => 
       ((e.contractFiles && e.contractFiles.length > 0) || (e.contractUrl && e.contractUrl.trim() !== '')) &&
       (e.name.toLowerCase().includes(filterText.toLowerCase()) || 
@@ -1363,13 +1352,11 @@ const AppContent: React.FC = () => {
     );
 
     const handleDownload = (event: Event, file: ContractFile) => {
-      // Create a blob to simulate a real file download
       const content = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ARTÍSTICOS\n\nEvento: ${event.name}\nData: ${new Date(event.date).toLocaleDateString()}\nContratante: ${event.contractor}\nLocal: ${event.venue || event.city}\n\nArquivo Original Referenciado: ${file.name}\nData Upload: ${new Date(file.uploadedAt).toLocaleString()}\n\n(Este arquivo foi gerado automaticamente pelo sistema)`;
       const blob = new Blob([content], { type: 'text/plain' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      // Use the stored filename if possible, else default
       link.download = file.name || `Contrato_${event.name.replace(/\s+/g, '_')}.txt`;
       document.body.appendChild(link);
       link.click();
@@ -1382,7 +1369,6 @@ const AppContent: React.FC = () => {
       setIsSendModalOpen(true);
     };
 
-    // Get Bands that have contracts
     const bandsWithContracts = bands.filter(band => 
         eventsWithContracts.some(e => e.bandId === band.id)
     );
@@ -1418,7 +1404,6 @@ const AppContent: React.FC = () => {
 
                     return (
                         <div key={band.id} className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg animate-fade-in">
-                           {/* Band Header */}
                            <div className="bg-slate-900 px-6 py-4 border-b border-slate-800 flex items-center gap-2">
                                <Music className="text-accent-500" size={20} />
                                <h3 className="text-white font-bold text-lg">{band.name}</h3>
@@ -1505,24 +1490,38 @@ const AppContent: React.FC = () => {
 
      return (
        <div className="space-y-6 pb-20 md:pb-0">
-         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-           <div className="relative flex-1 w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
-              <input 
-                type="text" 
-                placeholder="Buscar contratantes..." 
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
-              />
-           </div>
-           <button 
-              onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }}
-              className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap w-full md:w-auto justify-center"
-            >
-              <Plus size={18} /> Novo Contratante
-           </button>
-         </div>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <Briefcase className="text-primary-500" /> Contratantes
+              </h2>
+              <div className="flex gap-2 w-full md:w-auto justify-start md:justify-end">
+                  {(isAdmin || isContracts) && (
+                      <button 
+                          onClick={handleGenerateProspectingLink}
+                          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700 whitespace-nowrap text-sm"
+                      >
+                          <LinkIcon size={16} /> Gerar Link de Prospecção
+                      </button>
+                  )}
+                  <button 
+                      onClick={() => { setEditingContractor(null); setIsContractorFormOpen(true); }}
+                      className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap text-sm"
+                  >
+                      <Plus size={18} /> Novo Contratante
+                  </button>
+              </div>
+          </div>
+          
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar contratantes..." 
+              value={filterText}
+              onChange={(e) => setFilterText(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
+            />
+          </div>
 
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.length === 0 && (
@@ -1689,12 +1688,10 @@ const AppContent: React.FC = () => {
   const renderAgendaView = () => {
     let visibleEvents = getVisibleEvents();
     
-    // Aplicar Filtro de Banda (se houver)
     if (selectedBandFilter) {
       visibleEvents = visibleEvents.filter(e => e.bandId === selectedBandFilter);
     }
 
-    // Filtragem por texto
     const filteredEvents = visibleEvents.filter(e => 
       e.name.toLowerCase().includes(filterText.toLowerCase()) || 
       e.city.toLowerCase().includes(filterText.toLowerCase())
@@ -1702,7 +1699,6 @@ const AppContent: React.FC = () => {
     
     const selectedBandName = bands.find(b => b.id === selectedBandFilter)?.name;
 
-    // --- Calendar Helpers ---
     const getDaysInMonth = (date: Date) => {
       const year = date.getFullYear();
       const month = date.getMonth();
@@ -1733,14 +1729,12 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col gap-4 shrink-0">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             
-            {/* Controles */}
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
                <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-800">
                   <button onClick={() => setViewMode('calendar')} className={`p-2 rounded transition-all ${viewMode === 'calendar' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}><CalendarIcon size={18} /></button>
                   <button onClick={() => setViewMode('list')} className={`p-2 rounded transition-all ${viewMode === 'list' ? 'bg-primary-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}><List size={18} /></button>
                </div>
 
-               {/* Zoom Controls */}
                {viewMode === 'calendar' && (
                 <div className="flex items-center gap-1 bg-slate-900 rounded-lg p-1 border border-slate-800 ml-0 md:ml-2">
                     <button onClick={() => setZoomPercent(prev => Math.max(100, prev - 50))} disabled={zoomPercent <= 100} className={`p-2 rounded transition-all ${zoomPercent <= 100 ? 'text-slate-600 cursor-not-allowed' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}><ZoomOut size={18} /></button>
@@ -1755,7 +1749,6 @@ const AppContent: React.FC = () => {
                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2 relative">
                    <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
                    
-                   {/* Month Picker Dropdown Trigger */}
                    <div className="relative z-30">
                       <button 
                         onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
@@ -1767,13 +1760,11 @@ const AppContent: React.FC = () => {
                       
                       {isMonthPickerOpen && (
                         <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 animate-fade-in z-50">
-                           {/* Year Control */}
                            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
                               <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year - 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={16}/></button>
                               <span className="font-bold text-white text-lg">{year}</span>
                               <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year + 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={16}/></button>
                            </div>
-                           {/* Month Grid */}
                            <div className="grid grid-cols-3 gap-2">
                               {monthNames.map((mName, idx) => (
                                 <button
@@ -1816,7 +1807,6 @@ const AppContent: React.FC = () => {
             </div>
           </div>
 
-          {/* Banner de Filtro Ativo */}
           {selectedBandFilter && (
             <div className="flex items-center justify-between bg-primary-900/20 border border-primary-900/50 p-3 rounded-lg text-primary-200">
                <span className="flex items-center gap-2 text-sm"><FilterX size={14}/> Filtrando por: <strong>{selectedBandName}</strong></span>
@@ -1825,7 +1815,6 @@ const AppContent: React.FC = () => {
           )}
         </div>
 
-        {/* MODO CALENDÁRIO */}
         {viewMode === 'calendar' && (
           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0 relative">
             <div className="flex-1 overflow-auto custom-scrollbar relative">
@@ -1856,9 +1845,7 @@ const AppContent: React.FC = () => {
                         });
 
                         const isToday = new Date().toISOString().split('T')[0] === dateStr;
-
-                        // Dynamic Zoom Sizing
-                        const cellHeight = `${zoomPercent * 1.2}px`; // 100% = 120px, 400% = 480px
+                        const cellHeight = `${zoomPercent * 1.2}px`;
                         const cardPadding = zoomPercent > 150 ? 'p-3' : 'p-1.5';
                         
                         let titleClass = 'text-[10px] leading-tight truncate';
@@ -1959,7 +1946,6 @@ const AppContent: React.FC = () => {
           </div>
         )}
 
-        {/* MODO LISTA */}
         {viewMode === 'list' && (
           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
