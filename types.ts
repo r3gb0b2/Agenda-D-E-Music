@@ -105,8 +105,6 @@ export interface Event {
   durationHours: number;
   city: string;
   venue: string; // "Local do evento"
-  venueAddress: string; // NEW: Endereço do local do evento
-  producerContact: string; // NEW: Nome e número do produtor
   contractor: string; // "Contratante"
   notes: string;
   status: EventStatus;
@@ -122,23 +120,16 @@ export interface Event {
   hasContract: boolean; // If false, shows warning that contract is missing
   contractUrl?: string; // Legacy field (kept for safety)
   contractFiles: ContractFile[]; // Support multiple files
-  
-  // Contractor Form Fields
-  contractorFormToken?: string;
-  contractorFormStatus?: 'PENDING' | 'SENT' | 'COMPLETED';
 }
 
 export interface Contractor {
   id: string;
   type: ContractorType;
   name: string; // Nome ou Razão Social
-  responsibleName: string; // Nome do Representante Legal
-  repLegalAddress?: string; // NEW
-  repLegalPhone?: string; // NEW
-  birthDate?: string; // NEW
-  cpf?: string;
-  rg?: string;
-  cnpj?: string;
+  responsibleName: string;
+  cpf?: string;  // Novo
+  rg?: string;   // Novo
+  cnpj?: string; // Novo
   phone: string;
   whatsapp: string;
   email: string;
