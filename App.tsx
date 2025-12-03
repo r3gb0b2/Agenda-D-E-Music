@@ -1082,12 +1082,11 @@ const AppContent: React.FC = () => {
                  {latestEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhuma atividade recente.</p> : (
                    latestEvents.map(event => {
                      const band = bands.find(b => b.id === event.bandId);
-                     const displayName = isViewer ? "Data Ocupada" : event.name;
+                     const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
                      return (
                        <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900 rounded border border-slate-800 hover:border-slate-600 cursor-pointer transition-colors">
                           <div className="flex justify-between items-start">
                              <div>
-                                <span className="text-xs text-primary-400 font-bold uppercase">{band?.name}</span>
                                 <h4 className="text-white text-sm font-medium">{displayName}</h4>
                                 <p className="text-xs text-slate-500">{new Date(event.date).toLocaleDateString()} - {event.city}</p>
                              </div>
@@ -1115,12 +1114,11 @@ const AppContent: React.FC = () => {
                  {upcomingEvents.length === 0 ? <p className="text-slate-500 text-sm">Nenhum show próximo agendado.</p> : (
                    upcomingEvents.map(event => {
                      const band = bands.find(b => b.id === event.bandId);
-                     const displayName = isViewer ? "Data Ocupada" : event.name;
+                     const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
                      return (
                        <div key={event.id} onClick={() => openEditEvent(event)} className="p-3 bg-slate-900/50 rounded border border-green-900/20 hover:border-green-900/50 cursor-pointer transition-colors">
                           <div className="flex justify-between items-center">
                              <div>
-                                <span className="text-xs text-slate-400">{band?.name}</span>
                                 <h4 className="text-white text-sm font-medium">{displayName}</h4>
                                 <div className="flex gap-2 text-xs text-slate-500">
                                    <span className="flex items-center gap-1"><Clock size={10}/> {event.time}</span>
@@ -1488,7 +1486,7 @@ const AppContent: React.FC = () => {
                 
                 {dayEvents.map(event => {
                    const band = bands.find(b => b.id === event.bandId);
-                   const displayName = isViewer ? "Data Ocupada" : event.name;
+                   const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
                    return (
                       <div 
                         key={event.id}
@@ -1501,8 +1499,7 @@ const AppContent: React.FC = () => {
                             </span>
                             <StatusBadge status={event.status} minimal />
                          </div>
-                         <h4 className="text-white font-bold text-base mb-1">{band?.name || 'Banda'}</h4>
-                         <p className="text-slate-300 text-sm mb-2">{displayName}</p>
+                         <h4 className="text-white font-bold text-base mb-2">{displayName}</h4>
                          
                          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
                            {(event.venue || event.city) && (
@@ -1758,7 +1755,7 @@ const AppContent: React.FC = () => {
                             <div className="flex flex-col gap-1 w-full min-w-0">
                             {dayEvents.map(event => {
                                 const band = bands.find(b => b.id === event.bandId);
-                                const displayName = isViewer ? "Data Ocupada" : event.name;
+                                const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
                                 
                                 let statusColor = "bg-slate-700 border-slate-600";
                                 if (event.status === EventStatus.CONFIRMED) statusColor = "bg-green-600/90 border-green-500";
@@ -1791,10 +1788,6 @@ const AppContent: React.FC = () => {
                                         <div className="text-[10px] opacity-90 leading-tight flex items-center gap-1">
                                             {zoomPercent > 200 && <MapPin size={10} />}
                                             {event.city}
-                                        </div>
-                                        <div className="text-[10px] opacity-75 italic leading-tight flex items-center gap-1">
-                                            {zoomPercent > 200 && <Music size={10} />}
-                                            {band?.name}
                                         </div>
                                     </div>
                                     )}
@@ -1852,7 +1845,6 @@ const AppContent: React.FC = () => {
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Data</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Local</th>
-                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Banda</th>
                     {!isViewer && <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Contrato</th>}
                     <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
                     {!isViewer && <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-right">Ações</th>}
@@ -1860,11 +1852,11 @@ const AppContent: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-800">
                   {filteredEvents.length === 0 ? (
-                    <tr><td colSpan={7} className="p-8 text-center text-slate-500">Nenhum evento encontrado.</td></tr>
+                    <tr><td colSpan={6} className="p-8 text-center text-slate-500">Nenhum evento encontrado.</td></tr>
                   ) : (
                     filteredEvents.map(event => {
                       const band = bands.find(b => b.id === event.bandId);
-                      const displayName = isViewer ? "Data Ocupada" : event.name;
+                      const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
                       return (
                         <tr key={event.id} className="hover:bg-slate-900 transition-colors group">
                           <td className="p-4 text-slate-400 font-medium whitespace-nowrap">
@@ -1879,7 +1871,6 @@ const AppContent: React.FC = () => {
                              {event.city}
                              {!isViewer && <div className="text-xs text-slate-600">{event.venue}</div>}
                           </td>
-                          <td className="p-4 text-primary-400 text-sm">{band?.name}</td>
                           {!isViewer && (
                             <td className="p-4 text-center">
                                 {!event.hasContract ? (
