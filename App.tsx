@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from './types';
@@ -143,113 +142,113 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// --- NEW PUBLIC CONTRACTOR FORM VIEW ---
+// --- NEW PUBLIC PROSPECTING FORM VIEW ---
 
-const PublicContractorFormView = ({ token, dbService }: { token: string, dbService: typeof db }) => {
-  const [contractor, setContractor] = useState<Contractor | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // State for the new Event data
-  const [eventData, setEventData] = useState<Partial<Event>>({
-     name: '',
-     date: new Date().toISOString().split('T')[0],
-     time: '21:00',
-     city: '',
-     venue: '',
-     eventType: ''
-  });
-  const [bands, setBands] = useState<Band[]>([]);
+const PublicProspectingFormView = ({ token, dbService }: { token: string, dbService: typeof db }) => {
+    const [isValidToken, setIsValidToken] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // State for the new Contractor data
+    const [contractorData, setContractorData] = useState<Omit<Contractor, 'id'>>({
+        type: ContractorType.FISICA, name: '', responsibleName: '', repLegalAddress: '', repLegalPhone: '', birthDate: '', cpf: '', rg: '', cnpj: '', phone: '', whatsapp: '', email: '',
+        address: { street: '', number: '', complement: '', neighborhood: '', zipCode: '', city: '', state: '', country: 'Brasil' },
+        additionalInfo: { event: '', venue: '', notes: '' }
+    });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const data = await dbService.getContractorByDataCollectionToken(token);
-      if (data) {
-        setContractor(data);
-        const allBands = await dbService.getBands();
-        setBands(allBands);
-        if(allBands.length > 0){
-            setEventData(prev => ({...prev, bandId: allBands[0].id}));
+    // State for the new Event data
+    const [eventData, setEventData] = useState<Partial<Event>>({
+       name: '', date: new Date().toISOString().split('T')[0], time: '21:00', city: '', venue: '', eventType: ''
+    });
+    const [bands, setBands] = useState<Band[]>([]);
+
+    useEffect(() => {
+        const checkToken = async () => {
+            const valid = await dbService.validateProspectingToken(token);
+            if (valid) {
+                setIsValidToken(true);
+                const allBands = await dbService.getBands();
+                setBands(allBands);
+                if(allBands.length > 0) {
+                    setEventData(prev => ({...prev, bandId: allBands[0].id}));
+                }
+            } else {
+                setError('Link de prospecção inválido ou já utilizado.');
+            }
+            setIsLoading(false);
+        };
+        checkToken();
+    }, [token, dbService]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!eventData.bandId) {
+            alert("Por favor, selecione um artista.");
+            return;
         }
-      } else {
-        setError('Link inválido ou já utilizado. Por favor, solicite um novo link.');
-      }
-      setIsLoading(false);
+        setIsSubmitting(true);
+        try {
+            await dbService.createProspectAndEvent({ contractor: contractorData, event: eventData });
+            await dbService.invalidateProspectingToken(token);
+            setIsSubmitted(true);
+        } catch (err: any) {
+            setError(err.message || 'Ocorreu um erro ao enviar a solicitação.');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
-    fetchData();
-  }, [token, dbService]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contractor || !eventData.bandId) return;
-    setIsSubmitting(true);
     
-    // Create the new event
-    await dbService.createEventFromPublicForm(contractor.id, eventData as Event);
-    await dbService.invalidateDataCollectionToken(token);
-    
-    setIsSubmitting(false);
-    setIsSubmitted(true);
-  };
+    if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-primary-500" size={48}/></div>;
+    if (!isValidToken || error) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><AlertTriangle className="w-12 h-12 text-red-500 mb-4"/><p>{error}</p></div>;
+    if (isSubmitted) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><CheckCircle size={64} className="text-green-500 mb-4"/><h2 className="text-2xl font-bold">Solicitação Enviada!</h2><p className="text-slate-400 mt-2">Obrigado! Sua solicitação de evento foi recebida e entraremos em contato em breve.</p></div>;
 
-  if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-primary-500" size={48}/></div>;
-  if (error) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><AlertTriangle className="w-12 h-12 text-red-500 mb-4"/><p>{error}</p></div>;
-  if (isSubmitted) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><CheckCircle size={64} className="text-green-500 mb-4"/><h2 className="text-2xl font-bold">Dados Enviados!</h2><p className="text-slate-400 mt-2">Obrigado! Sua solicitação de evento foi enviada para análise.</p></div>;
-
-  return (
-    <div className="min-h-screen bg-slate-950 flex justify-center items-center p-4">
-      <form onSubmit={handleSubmit} className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden my-8">
-        <div className="p-6 border-b border-slate-800 bg-slate-950 text-center">
-          <h1 className="text-2xl font-bold text-white">Solicitação de Evento</h1>
-          <p className="text-slate-400 mt-1">Olá, {contractor?.name}. Preencha os dados do show abaixo.</p>
-        </div>
-        <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto">
-          {/* DADOS DO SHOW */}
-          <div>
-            <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><Mic2 size={18}/> DADOS DO SHOW</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-slate-400 mb-1">ARTISTA *</label>
-                <select 
-                    value={eventData.bandId || ''} 
-                    onChange={e => setEventData(prev => ({...prev, bandId: e.target.value}))}
-                    className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"
-                >
-                    {bands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </div>
-              <div>
-                  <label className="block text-sm text-slate-400 mb-1">Nome do Evento (Opcional)</label>
-                  <input value={eventData.name} onChange={e => setEventData(prev => ({...prev, name: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" placeholder="Ex: Casamento, Aniversário"/>
-              </div>
-              <div><label className="block text-sm text-slate-400 mb-1">Data do evento *</label><input type="date" required value={eventData.date} onChange={e => setEventData(prev => ({...prev, date: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">Cidade/estado do evento *</label><input required value={eventData.city} onChange={e => setEventData(prev => ({...prev, city: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">Local do evento</label><input value={eventData.venue} onChange={e => setEventData(prev => ({...prev, venue: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">TIPO DE FESTA</label><input value={eventData.eventType} onChange={e => setEventData(prev => ({...prev, eventType: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">HORA SHOW</label><input type="time" value={eventData.time} onChange={e => setEventData(prev => ({...prev, time: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+    return (
+      <div className="min-h-screen bg-slate-950 flex justify-center items-center p-4">
+        <form onSubmit={handleSubmit} className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden my-8">
+            <div className="p-6 border-b border-slate-800 bg-slate-950 text-center">
+                <h1 className="text-2xl font-bold text-white">Solicitação de Novo Evento</h1>
+                <p className="text-slate-400 mt-1">Preencha seus dados de contato e os detalhes do show desejado.</p>
             </div>
-          </div>
-          {/* DADOS DO CONTRATANTE */}
-          <div>
-            <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><UserIcon size={18}/> DADOS DO CONTRATANTE (Confirme ou corrija)</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div><label className="block text-sm text-slate-400 mb-1">Razão Social / Nome</label><input value={contractor!.name} onChange={e => setContractor(prev => ({...prev!, name: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">Telefone Principal</label><input value={contractor!.phone} onChange={e => setContractor(prev => ({...prev!, phone: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">E-mail</label><input type="email" value={contractor!.email} onChange={e => setContractor(prev => ({...prev!, email: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+            <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto">
+                {/* DADOS DO CONTRATANTE */}
+                <div>
+                    <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><UserIcon size={18}/> DADOS DO CONTRATANTE</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div><label className="block text-sm text-slate-400 mb-1">Nome Completo / Razão Social *</label><input required value={contractorData.name} onChange={e => setContractorData(prev => ({...prev, name: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                       <div><label className="block text-sm text-slate-400 mb-1">Telefone Principal (WhatsApp) *</label><input required value={contractorData.phone} onChange={e => setContractorData(prev => ({...prev, phone: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                       <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">E-mail *</label><input type="email" required value={contractorData.email} onChange={e => setContractorData(prev => ({...prev, email: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                    </div>
+                </div>
+                {/* DADOS DO SHOW */}
+                <div>
+                    <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><Mic2 size={18}/> DADOS DO SHOW</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm text-slate-400 mb-1">ARTISTA *</label>
+                            <select value={eventData.bandId || ''} onChange={e => setEventData(prev => ({...prev, bandId: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white">
+                                {bands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                        </div>
+                        <div><label className="block text-sm text-slate-400 mb-1">Data do evento *</label><input type="date" required value={eventData.date} onChange={e => setEventData(prev => ({...prev, date: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                        <div><label className="block text-sm text-slate-400 mb-1">Cidade/estado do evento *</label><input required value={eventData.city} onChange={e => setEventData(prev => ({...prev, city: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                        <div><label className="block text-sm text-slate-400 mb-1">Local do evento</label><input value={eventData.venue} onChange={e => setEventData(prev => ({...prev, venue: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                        <div><label className="block text-sm text-slate-400 mb-1">Tipo de Festa</label><input value={eventData.eventType} onChange={e => setEventData(prev => ({...prev, eventType: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                        <div><label className="block text-sm text-slate-400 mb-1">Hora do Show</label><input type="time" value={eventData.time} onChange={e => setEventData(prev => ({...prev, time: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-        <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
-          <button type="submit" disabled={isSubmitting} className="w-full md:w-auto bg-primary-600 hover:bg-primary-500 text-white py-3 px-8 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-            {isSubmitting ? <Loader2 className="animate-spin"/> : 'Enviar Solicitação de Evento'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+            <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
+                <button type="submit" disabled={isSubmitting} className="w-full md:w-auto bg-primary-600 hover:bg-primary-500 text-white py-3 px-8 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+                    {isSubmitting ? <Loader2 className="animate-spin"/> : 'Enviar Solicitação'}
+                </button>
+            </div>
+        </form>
+      </div>
+    );
 };
+
 
 // --- Contract Generator Modal (UPDATED TO MODEL) ---
 interface Installment {
@@ -886,7 +885,7 @@ const AppContent: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   // PUBLIC VIEW STATE
-  const [publicView, setPublicView] = useState<{type: 'register' | 'form', token?: string} | null>(null);
+  const [publicView, setPublicView] = useState<{type: 'register' | 'prospect', token?: string} | null>(null);
   
   // Role Checks
   const isViewer = currentUser?.role === UserRole.VIEWER;
@@ -896,15 +895,20 @@ const AppContent: React.FC = () => {
   const isSuperAdmin = currentUser?.email === 'admin';
   const canManageUsers = isAdmin || isContracts;
 
+  // Prospecting Link Modal
+  const [isProspectingLinkModalOpen, setIsProspectingLinkModalOpen] = useState(false);
+  const [prospectingLink, setProspectingLink] = useState('');
+
+
   // Initial Load & Session/Registration Check
   useEffect(() => {
     const initApp = async () => {
       const urlParams = new URLSearchParams(window.location.search);
-      const formToken = urlParams.get('form_token');
+      const prospectToken = urlParams.get('prospect_token');
       const requestAccess = urlParams.get('request_access') === 'true';
 
-      if (formToken) {
-        setPublicView({ type: 'form', token: formToken });
+      if (prospectToken) {
+        setPublicView({ type: 'prospect', token: prospectToken });
         setIsLoading(false);
         return;
       }
@@ -1073,6 +1077,13 @@ const AppContent: React.FC = () => {
   const handleBandClick = (bandId: string) => {
     setSelectedBandFilter(bandId);
     setCurrentView('agenda');
+  };
+
+  const handleGenerateProspectingLink = async () => {
+    const token = await db.generateProspectingToken();
+    const link = `${window.location.origin}${window.location.pathname}?prospect_token=${token}`;
+    setProspectingLink(link);
+    setIsProspectingLinkModalOpen(true);
   };
 
   // --- Filter Logic based on User Role ---
@@ -1248,7 +1259,6 @@ const AppContent: React.FC = () => {
 
   const PipelineView = () => {
     // Pipeline Kanban Board
-    // Access Check
     if (isViewer) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
@@ -1267,14 +1277,24 @@ const AppContent: React.FC = () => {
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                     <Kanban className="text-primary-500" /> Pipeline de Vendas
                 </h2>
-                {!isViewer && (
-                    <button 
-                        onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
-                        className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
+                <div className="flex gap-2">
+                  {(isAdmin || isContracts) && (
+                     <button 
+                        onClick={handleGenerateProspectingLink}
+                        className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700 whitespace-nowrap"
                     >
-                        <Plus size={18} /> Novo Evento
+                        <LinkIcon size={16} /> Gerar Link de Prospecção
                     </button>
-                )}
+                  )}
+                  {!isViewer && (
+                      <button 
+                          onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
+                          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
+                      >
+                          <Plus size={18} /> Novo Evento
+                      </button>
+                  )}
+                </div>
             </div>
 
             <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
@@ -1469,7 +1489,6 @@ const AppContent: React.FC = () => {
   };
 
   const ContractorsView = () => {
-     // Access Check
      if (isViewer || isSales) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
@@ -1483,13 +1502,6 @@ const AppContent: React.FC = () => {
        c.name.toLowerCase().includes(filterText.toLowerCase()) || 
        c.responsibleName.toLowerCase().includes(filterText.toLowerCase())
      );
-
-     const handleGenerateLink = async (contractorId: string) => {
-        const token = await db.generateDataCollectionToken(contractorId);
-        const link = `${window.location.origin}${window.location.pathname}?form_token=${token}`;
-        navigator.clipboard.writeText(link);
-        alert(`Link de prospecção copiado para a área de transferência!\n\n${link}`);
-     };
 
      return (
        <div className="space-y-6 pb-20 md:pb-0">
@@ -1544,15 +1556,6 @@ const AppContent: React.FC = () => {
                  </div>
 
                  <div className="mt-4 pt-4 border-t border-slate-800 flex justify-end gap-2">
-                    {(isContracts || isAdmin) && (
-                        <button 
-                            onClick={() => handleGenerateLink(contractor.id)}
-                            className="text-xs text-primary-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800"
-                            title="Gerar link de prospecção de evento"
-                        >
-                            <LinkIcon size={12}/> Gerar Link
-                        </button>
-                    )}
                     <button onClick={() => openEditContractor(contractor)} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
                        <Edit2 size={12} /> Editar
                     </button>
@@ -2268,8 +2271,8 @@ const AppContent: React.FC = () => {
     if (publicView.type === 'register') {
       return <RegistrationView onRegister={handleRegistrationSubmit} onBackToLogin={() => { setPublicView(null); window.history.replaceState({}, document.title, window.location.pathname); }} />;
     }
-    if (publicView.type === 'form' && publicView.token) {
-      return <PublicContractorFormView token={publicView.token} dbService={db} />;
+    if (publicView.type === 'prospect' && publicView.token) {
+      return <PublicProspectingFormView token={publicView.token} dbService={db} />;
     }
   }
 
@@ -2386,6 +2389,28 @@ const AppContent: React.FC = () => {
           className="fixed inset-0 z-20"
           onClick={() => setIsMonthPickerOpen(false)}
         ></div>
+      )}
+      
+      {isProspectingLinkModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
+            <div className="bg-slate-800 w-full max-w-lg rounded-xl border border-slate-700 shadow-2xl text-center p-8">
+                <div className="w-16 h-16 bg-blue-500/10 border-4 border-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ExternalLink size={32} className="text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Link de Prospecção Gerado!</h3>
+                <p className="text-slate-400 mt-2 mb-6">Envie este link para um novo cliente solicitar um show.</p>
+                <div className="relative bg-slate-900 border border-slate-700 rounded-lg p-3">
+                    <input type="text" readOnly value={prospectingLink} className="w-full bg-transparent text-slate-300 text-sm outline-none pr-12"/>
+                    <button 
+                        onClick={() => navigator.clipboard.writeText(prospectingLink)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-white bg-slate-700 rounded"
+                    >
+                        <ClipboardCopy size={16}/>
+                    </button>
+                </div>
+                <button onClick={() => setIsProspectingLinkModalOpen(false)} className="mt-6 px-6 py-2 bg-primary-600 text-white rounded-lg font-medium">Fechar</button>
+            </div>
+        </div>
       )}
     </div>
   );

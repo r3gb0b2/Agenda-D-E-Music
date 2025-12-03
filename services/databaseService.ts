@@ -1,6 +1,3 @@
-
-
-
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
@@ -57,8 +54,7 @@ const KEYS = {
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
   SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
   FORM_TOKENS: `${STORAGE_PREFIX}form_tokens`, // Key for public form links
-  // FIX: Added new key for prospecting data collection tokens to avoid conflicts.
-  DATA_COLLECTION_TOKENS: `${STORAGE_PREFIX}data_collection_tokens`,
+  PROSPECTING_TOKENS: `${STORAGE_PREFIX}prospecting_tokens`, // Key for generic prospecting links
 };
 
 // Helper to initialize local data
@@ -539,7 +535,7 @@ export const db = {
     }
   },
   
-  // --- PUBLIC FORM TOKEN MGMT ---
+  // --- PUBLIC FORM TOKEN MGMT (Legacy for event editing) ---
   generateContractorFormToken: async (eventId: string): Promise<string> => {
     const token = `form_${crypto.randomUUID()}`;
     const tokenMap = JSON.parse(localStorage.getItem(KEYS.FORM_TOKENS) || '{}');
@@ -572,68 +568,63 @@ export const db = {
     localStorage.setItem(KEYS.FORM_TOKENS, JSON.stringify(tokenMap));
   },
   
-  // FIX: Added missing methods for the prospecting/data collection flow.
-  // --- PUBLIC DATA COLLECTION (PROSPECTING) ---
-  generateDataCollectionToken: async (contractorId: string): Promise<string> => {
-    const token = `collect_${crypto.randomUUID()}`;
-    const tokenMap = JSON.parse(localStorage.getItem(KEYS.DATA_COLLECTION_TOKENS) || '{}');
-    tokenMap[token] = contractorId;
-    localStorage.setItem(KEYS.DATA_COLLECTION_TOKENS, JSON.stringify(tokenMap));
+  // --- PUBLIC PROSPECTING FLOW ---
+  generateProspectingToken: async (): Promise<string> => {
+    const token = `prospect_${crypto.randomUUID()}`;
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.PROSPECTING_TOKENS) || '{}');
+    tokenMap[token] = { valid: true, createdAt: Date.now() }; // Store with validity
+    localStorage.setItem(KEYS.PROSPECTING_TOKENS, JSON.stringify(tokenMap));
     return token;
   },
 
-  getContractorByDataCollectionToken: async (token: string): Promise<Contractor | null> => {
-    const tokenMap = JSON.parse(localStorage.getItem(KEYS.DATA_COLLECTION_TOKENS) || '{}');
-    const contractorId = tokenMap[token];
-    if (!contractorId) return null;
-
-    const contractors = await db.getContractors();
-    return contractors.find(c => c.id === contractorId) || null;
+  validateProspectingToken: async (token: string): Promise<boolean> => {
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.PROSPECTING_TOKENS) || '{}');
+    return tokenMap[token] && tokenMap[token].valid;
+  },
+  
+  invalidateProspectingToken: async (token: string): Promise<void> => {
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.PROSPECTING_TOKENS) || '{}');
+    if (tokenMap[token]) {
+      delete tokenMap[token];
+    }
+    localStorage.setItem(KEYS.PROSPECTING_TOKENS, JSON.stringify(tokenMap));
   },
 
-  createEventFromPublicForm: async (contractorId: string, eventData: Partial<Event>): Promise<void> => {
-    const contractor = (await db.getContractors()).find(c => c.id === contractorId);
-    if (!contractor) throw new Error("Contractor not found");
+  createProspectAndEvent: async (prospectData: { contractor: Omit<Contractor, 'id'>, event: Partial<Event> }): Promise<void> => {
+    // 1. Create the new contractor
+    const newContractor: Contractor = {
+      ...prospectData.contractor,
+      id: crypto.randomUUID(),
+    };
+    await db.saveContractor(newContractor);
 
+    // 2. Create the new event and link it
     const newEvent: Event = {
       id: crypto.randomUUID(),
-      bandId: eventData.bandId || '',
-      name: eventData.name || `Evento - ${contractor.name}`,
-      eventType: eventData.eventType || 'A definir',
-      date: eventData.date || new Date().toISOString(),
-      time: eventData.time || '21:00',
+      bandId: prospectData.event.bandId || '',
+      name: prospectData.event.name || `Evento - ${newContractor.name}`,
+      eventType: prospectData.event.eventType || 'A definir',
+      date: prospectData.event.date || new Date().toISOString(),
+      time: prospectData.event.time || '21:00',
       durationHours: 2,
-      city: eventData.city || contractor.address.city || '',
-      venue: eventData.venue || '',
+      city: prospectData.event.city || newContractor.address.city || '',
+      venue: prospectData.event.venue || '',
       venueAddress: '',
       producerContact: '',
-      contractor: contractor.name,
+      contractor: newContractor.name, // Link to the new contractor
       notes: 'Evento criado via formulário público de prospecção.',
       status: EventStatus.RESERVED,
       financials: {
-        grossValue: 0,
-        commissionType: 'FIXED',
-        commissionValue: 0,
-        taxes: 0,
-        netValue: 0,
-        currency: 'BRL',
-        notes: ''
+        grossValue: 0, commissionType: 'FIXED', commissionValue: 0, taxes: 0, netValue: 0, currency: 'BRL', notes: ''
       },
       createdBy: 'Formulário Público',
       createdAt: new Date().toISOString(),
       hasContract: false,
       contractFiles: [],
-      pipelineStage: PipelineStage.LEAD,
+      pipelineStage: PipelineStage.LEAD, // Add to the start of the pipeline
       logistics: { transport: '', departureTime: '', returnTime: '', hotel: '', flights: '', crew: '', rider: '', notes: '' },
-      contractorFormStatus: 'PENDING',
+      contractorFormStatus: 'COMPLETED', // The form was just completed
     };
-    
     await db.saveEvent(newEvent);
-  },
-
-  invalidateDataCollectionToken: async (token: string): Promise<void> => {
-    const tokenMap = JSON.parse(localStorage.getItem(KEYS.DATA_COLLECTION_TOKENS) || '{}');
-    delete tokenMap[token];
-    localStorage.setItem(KEYS.DATA_COLLECTION_TOKENS, JSON.stringify(tokenMap));
   },
 };
