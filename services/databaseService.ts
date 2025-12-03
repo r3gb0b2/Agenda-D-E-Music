@@ -1,6 +1,8 @@
+
+
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
 import { signInWithEmailAndPassword } from "firebase/auth";
 
 // --- CONFIGURAÇÃO ---
@@ -44,8 +46,7 @@ const FB_COLLECTIONS = {
   BANDS: 'ad_bands',
   USERS: 'ad_users',
   EVENTS: 'ad_events',
-  CONTRACTORS: 'ad_contractors',
-  INVITES: 'ad_invites' // New collection for invites
+  CONTRACTORS: 'ad_contractors'
 };
 
 const KEYS = {
@@ -54,7 +55,7 @@ const KEYS = {
   EVENTS: `${STORAGE_PREFIX}events`,
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
   SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
-  REGISTRATION_TOKEN: `${STORAGE_PREFIX}reg_token` // Key for single-use registration (fallback)
+  REGISTRATION_TOKEN: `${STORAGE_PREFIX}reg_token` // Key for single-use registration
 };
 
 // Helper to initialize local data
@@ -268,60 +269,16 @@ export const db = {
   // --- REGISTRATION WORKFLOW ---
   generateRegistrationToken: async (): Promise<string> => {
     const token = crypto.randomUUID();
-    
-    if (USE_FIREBASE && dbFirestore) {
-      try {
-        // Save to Firestore so it's accessible from any browser
-        await setDoc(doc(dbFirestore, FB_COLLECTIONS.INVITES, token), {
-          active: true,
-          createdAt: new Date().toISOString()
-        });
-      } catch (e) {
-        console.error("Error generating token in Firestore:", e);
-        // Fallback locally just in case (though cross-browser won't work)
-        localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
-      }
-    } else {
-      localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
-    }
-    
+    localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
     return token;
   },
 
   validateRegistrationToken: async (token: string): Promise<boolean> => {
-    if (USE_FIREBASE && dbFirestore) {
-      try {
-        const docRef = doc(dbFirestore, FB_COLLECTIONS.INVITES, token);
-        const docSnap = await getDoc(docRef);
-        
-        if (docSnap.exists() && docSnap.data().active === true) {
-          return true;
-        }
-        return false;
-      } catch (e) {
-        console.error("Error validating token in Firestore:", e);
-        // Fallback to local check
-        const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
-        return storedToken !== null && storedToken === token;
-      }
-    } else {
-      const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
-      return storedToken !== null && storedToken === token;
-    }
+    const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
+    return storedToken !== null && storedToken === token;
   },
 
-  invalidateRegistrationToken: async (token?: string): Promise<void> => {
-    if (USE_FIREBASE && dbFirestore && token) {
-      try {
-        await updateDoc(doc(dbFirestore, FB_COLLECTIONS.INVITES, token), {
-          active: false,
-          usedAt: new Date().toISOString()
-        });
-      } catch (e) {
-        console.warn("Could not invalidate token in Firestore", e);
-      }
-    }
-    // Always clear local just in case
+  invalidateRegistrationToken: async (): Promise<void> => {
     localStorage.removeItem(KEYS.REGISTRATION_TOKEN);
   },
 
@@ -403,6 +360,20 @@ export const db = {
         await setDoc(doc(dbFirestore, FB_COLLECTIONS.BANDS, bandId), { ...band, id: bandId });
       } catch (e) {
          console.error(e);
+      }
+    }
+  },
+
+  deleteBand: async (bandId: string): Promise<void> => {
+    const bands = JSON.parse(localStorage.getItem(KEYS.BANDS) || '[]');
+    const newBands = bands.filter((b: Band) => b.id !== bandId);
+    localStorage.setItem(KEYS.BANDS, JSON.stringify(newBands));
+
+    if (USE_FIREBASE && dbFirestore) {
+      try {
+        await deleteDoc(doc(dbFirestore, FB_COLLECTIONS.BANDS, bandId));
+      } catch (e) {
+        console.error("Firebase Band Delete Error", e);
       }
     }
   },
