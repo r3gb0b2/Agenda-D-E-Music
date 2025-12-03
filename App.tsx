@@ -785,6 +785,7 @@ const AppContent: React.FC = () => {
   const isSales = currentUser?.role === UserRole.SALES;
   const isAdmin = currentUser?.role === UserRole.ADMIN;
   const isContracts = currentUser?.role === UserRole.CONTRACTS;
+  const isSuperAdmin = currentUser?.email === 'admin';
   const canManageUsers = isAdmin || isContracts;
 
   // Initial Load & Session/Registration Check
@@ -874,7 +875,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleDeleteEvent = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este evento?')) {
+    if (confirm('Tem certeza que deseja excluir este evento permanentemente?')) {
       await db.deleteEvent(id);
       refreshData();
     }
@@ -1492,7 +1493,7 @@ const AppContent: React.FC = () => {
                       <div 
                         key={event.id}
                         onClick={() => { setSelectedDateDetails(null); openEditEvent(event); }}
-                        className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg p-3 transition-all cursor-pointer group"
+                        className="bg-slate-800/40 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-lg p-3 transition-all cursor-pointer group relative"
                       >
                          <div className="flex justify-between items-start mb-2">
                             <span className="text-xs font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 flex items-center gap-1">
@@ -1523,6 +1524,20 @@ const AppContent: React.FC = () => {
                                 <span>Add: {event.createdBy}</span>
                                 <span className="text-primary-400 group-hover:underline flex items-center gap-1">Editar <Edit2 size={10}/></span>
                             </div>
+                         )}
+
+                         {isSuperAdmin && (
+                            <button
+                                onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteEvent(event.id);
+                                setSelectedDateDetails(null); // Close modal after delete
+                                }}
+                                className="absolute top-2 right-2 p-1.5 bg-red-900/50 hover:bg-red-700 text-red-400 rounded-full transition-colors opacity-0 group-hover:opacity-100"
+                                title="Excluir Permanentemente"
+                            >
+                                <Trash2 size={14} />
+                            </button>
                          )}
                       </div>
                    )
@@ -1757,6 +1772,15 @@ const AppContent: React.FC = () => {
                                     className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
                                     title={`${event.time} - ${displayName}`}
                                 >
+                                    {isSuperAdmin && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }}
+                                            className="absolute top-1 right-1 p-1 bg-red-900/50 hover:bg-red-800 text-red-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            title="Excluir evento permanentemente"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    )}
                                     <div className={`flex ${zoomPercent <= 120 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
                                        <div className="text-[10px] font-bold whitespace-nowrap">{event.time}</div>
                                        <div className={`${titleClass} break-words`}>{displayName}</div>
@@ -1874,9 +1898,11 @@ const AppContent: React.FC = () => {
                                 <button onClick={() => openEditEvent(event)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-white" title="Editar">
                                     <Edit2 size={16} />
                                 </button>
-                                <button onClick={() => handleDeleteEvent(event.id)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-red-400" title="Excluir">
-                                    <Trash2 size={16} />
-                                </button>
+                                {isSuperAdmin && (
+                                    <button onClick={() => handleDeleteEvent(event.id)} className="p-2 hover:bg-slate-800 rounded text-slate-400 hover:text-red-400" title="Excluir">
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
                                 </div>
                             </td>
                           )}
@@ -1936,7 +1962,7 @@ const AppContent: React.FC = () => {
       <div className="space-y-8 pb-20 md:pb-0">
         
         {/* Registration Link Generator (Super Admin Only) */}
-        {currentUser?.email === 'admin' && (
+        {isSuperAdmin && (
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
                     <KeyRound className="text-yellow-400" /> Gerador de Link de Cadastro
@@ -2047,7 +2073,7 @@ const AppContent: React.FC = () => {
             <div className="space-y-3">
                {activeUsers.map(u => {
                  const isSelf = currentUser?.id === u.id;
-                 const isSuperAdmin = u.email === 'admin';
+                 const canBeDeleted = !isSelf && u.email !== 'admin';
                  // Permissions: Admin can edit all. Contracts can only edit Viewers.
                  const canEdit = isAdmin || (isContracts && u.role === UserRole.VIEWER);
                  
@@ -2066,7 +2092,7 @@ const AppContent: React.FC = () => {
                     {canEdit && (
                         <div className="flex gap-2">
                            <button onClick={() => openEditUser(u)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-white transition-colors" title="Editar"><Edit2 size={14}/></button>
-                           {!isSuperAdmin && !isSelf && (
+                           {canBeDeleted && (
                              <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 bg-slate-800 rounded text-slate-400 hover:text-red-400 transition-colors" title="Excluir"><Trash2 size={14}/></button>
                            )}
                         </div>
