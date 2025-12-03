@@ -1,5 +1,6 @@
 
 
+
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
@@ -56,6 +57,8 @@ const KEYS = {
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
   SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
   FORM_TOKENS: `${STORAGE_PREFIX}form_tokens`, // Key for public form links
+  // FIX: Added new key for prospecting data collection tokens to avoid conflicts.
+  DATA_COLLECTION_TOKENS: `${STORAGE_PREFIX}data_collection_tokens`,
 };
 
 // Helper to initialize local data
@@ -567,5 +570,70 @@ export const db = {
     const tokenMap = JSON.parse(localStorage.getItem(KEYS.FORM_TOKENS) || '{}');
     delete tokenMap[token];
     localStorage.setItem(KEYS.FORM_TOKENS, JSON.stringify(tokenMap));
+  },
+  
+  // FIX: Added missing methods for the prospecting/data collection flow.
+  // --- PUBLIC DATA COLLECTION (PROSPECTING) ---
+  generateDataCollectionToken: async (contractorId: string): Promise<string> => {
+    const token = `collect_${crypto.randomUUID()}`;
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.DATA_COLLECTION_TOKENS) || '{}');
+    tokenMap[token] = contractorId;
+    localStorage.setItem(KEYS.DATA_COLLECTION_TOKENS, JSON.stringify(tokenMap));
+    return token;
+  },
+
+  getContractorByDataCollectionToken: async (token: string): Promise<Contractor | null> => {
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.DATA_COLLECTION_TOKENS) || '{}');
+    const contractorId = tokenMap[token];
+    if (!contractorId) return null;
+
+    const contractors = await db.getContractors();
+    return contractors.find(c => c.id === contractorId) || null;
+  },
+
+  createEventFromPublicForm: async (contractorId: string, eventData: Partial<Event>): Promise<void> => {
+    const contractor = (await db.getContractors()).find(c => c.id === contractorId);
+    if (!contractor) throw new Error("Contractor not found");
+
+    const newEvent: Event = {
+      id: crypto.randomUUID(),
+      bandId: eventData.bandId || '',
+      name: eventData.name || `Evento - ${contractor.name}`,
+      eventType: eventData.eventType || 'A definir',
+      date: eventData.date || new Date().toISOString(),
+      time: eventData.time || '21:00',
+      durationHours: 2,
+      city: eventData.city || contractor.address.city || '',
+      venue: eventData.venue || '',
+      venueAddress: '',
+      producerContact: '',
+      contractor: contractor.name,
+      notes: 'Evento criado via formulário público de prospecção.',
+      status: EventStatus.RESERVED,
+      financials: {
+        grossValue: 0,
+        commissionType: 'FIXED',
+        commissionValue: 0,
+        taxes: 0,
+        netValue: 0,
+        currency: 'BRL',
+        notes: ''
+      },
+      createdBy: 'Formulário Público',
+      createdAt: new Date().toISOString(),
+      hasContract: false,
+      contractFiles: [],
+      pipelineStage: PipelineStage.LEAD,
+      logistics: { transport: '', departureTime: '', returnTime: '', hotel: '', flights: '', crew: '', rider: '', notes: '' },
+      contractorFormStatus: 'PENDING',
+    };
+    
+    await db.saveEvent(newEvent);
+  },
+
+  invalidateDataCollectionToken: async (token: string): Promise<void> => {
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.DATA_COLLECTION_TOKENS) || '{}');
+    delete tokenMap[token];
+    localStorage.setItem(KEYS.DATA_COLLECTION_TOKENS, JSON.stringify(tokenMap));
   },
 };

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from './types';
@@ -58,7 +57,8 @@ import {
   ClipboardCopy,
   Check,
   CheckCircle,
-  ExternalLink
+  ExternalLink,
+  Link as LinkIcon,
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -145,59 +145,50 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 // --- NEW PUBLIC CONTRACTOR FORM VIEW ---
 
-const PublicContractorFormView = ({ token }: { token: string }) => {
-  const [event, setEvent] = useState<Event | null>(null);
+const PublicContractorFormView = ({ token, dbService }: { token: string, dbService: typeof db }) => {
   const [contractor, setContractor] = useState<Contractor | null>(null);
-  const [band, setBand] = useState<Band | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // State for the new Event data
+  const [eventData, setEventData] = useState<Partial<Event>>({
+     name: '',
+     date: new Date().toISOString().split('T')[0],
+     time: '21:00',
+     city: '',
+     venue: '',
+     eventType: ''
+  });
+  const [bands, setBands] = useState<Band[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
-      const data = await db.getEventByContractorFormToken(token);
-      if (data && data.event && data.event.contractorFormStatus !== 'COMPLETED') {
-        setEvent(data.event);
-        setContractor(data.contractor || {
-          id: crypto.randomUUID(),
-          type: ContractorType.FISICA,
-          name: data.event.contractor,
-          responsibleName: '',
-          repLegalAddress: '',
-          repLegalPhone: '',
-          birthDate: '',
-          cpf: '', rg: '', cnpj: '', phone: '', whatsapp: '', email: '',
-          address: { street: '', number: '', complement: '', neighborhood: '', zipCode: '', city: '', state: '', country: 'Brasil' },
-          additionalInfo: { event: '', venue: '', notes: '' }
-        });
-        setBand(data.band);
+      const data = await dbService.getContractorByDataCollectionToken(token);
+      if (data) {
+        setContractor(data);
+        const allBands = await dbService.getBands();
+        setBands(allBands);
+        if(allBands.length > 0){
+            setEventData(prev => ({...prev, bandId: allBands[0].id}));
+        }
       } else {
         setError('Link inválido ou já utilizado. Por favor, solicite um novo link.');
       }
       setIsLoading(false);
     };
     fetchData();
-  }, [token]);
-  
-  const handleEventChange = (field: keyof Event, value: any) => {
-    if(event) setEvent(prev => ({ ...prev!, [field]: value }));
-  };
-  
-  const handleContractorChange = (field: keyof Contractor, value: any) => {
-     if(contractor) setContractor(prev => ({...prev!, [field]: value}));
-  };
+  }, [token, dbService]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!event || !contractor) return;
+    if (!contractor || !eventData.bandId) return;
     setIsSubmitting(true);
     
-    const updatedEvent = { ...event, contractorFormStatus: 'COMPLETED' as const };
-    
-    await db.saveEvent(updatedEvent);
-    await db.saveContractor(contractor);
-    await db.invalidateContractorFormToken(token); // Invalidate the token after use
+    // Create the new event
+    await dbService.createEventFromPublicForm(contractor.id, eventData as Event);
+    await dbService.invalidateDataCollectionToken(token);
     
     setIsSubmitting(false);
     setIsSubmitted(true);
@@ -205,50 +196,54 @@ const PublicContractorFormView = ({ token }: { token: string }) => {
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-primary-500" size={48}/></div>;
   if (error) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><AlertTriangle className="w-12 h-12 text-red-500 mb-4"/><p>{error}</p></div>;
-  if (isSubmitted) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><CheckCircle size={64} className="text-green-500 mb-4"/><h2 className="text-2xl font-bold">Dados Enviados!</h2><p className="text-slate-400 mt-2">Obrigado! Suas informações foram recebidas com sucesso.</p></div>;
+  if (isSubmitted) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><CheckCircle size={64} className="text-green-500 mb-4"/><h2 className="text-2xl font-bold">Dados Enviados!</h2><p className="text-slate-400 mt-2">Obrigado! Sua solicitação de evento foi enviada para análise.</p></div>;
 
   return (
     <div className="min-h-screen bg-slate-950 flex justify-center items-center p-4">
       <form onSubmit={handleSubmit} className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden my-8">
         <div className="p-6 border-b border-slate-800 bg-slate-950 text-center">
-          <h1 className="text-2xl font-bold text-white">Formulário de Dados do Evento</h1>
-          <p className="text-slate-400 mt-1">Por favor, preencha ou confirme as informações abaixo.</p>
+          <h1 className="text-2xl font-bold text-white">Solicitação de Evento</h1>
+          <p className="text-slate-400 mt-1">Olá, {contractor?.name}. Preencha os dados do show abaixo.</p>
         </div>
         <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto">
           {/* DADOS DO SHOW */}
           <div>
             <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><Mic2 size={18}/> DADOS DO SHOW</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className="block text-sm text-slate-400 mb-1">ARTISTA</label><input disabled value={band?.name || ''} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-slate-300"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">Data do evento</label><input disabled value={new Date(event!.date).toLocaleDateString()} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-slate-300"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">Cidade/estado do evento</label><input value={event!.city} onChange={e => handleEventChange('city', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">Local do evento</label><input value={event!.venue} onChange={e => handleEventChange('venue', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">TIPO DE FESTA</label><input value={event!.eventType} onChange={e => handleEventChange('eventType', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div><label className="block text-sm text-slate-400 mb-1">HORA SHOW</label><input type="time" value={event!.time} onChange={e => handleEventChange('time', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço do local</label><input value={event!.venueAddress} onChange={e => handleEventChange('venueAddress', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-              <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">CONTATO PRODUTOR (NOME E NÚMERO)</label><input value={event!.producerContact} onChange={e => handleEventChange('producerContact', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">ARTISTA *</label>
+                <select 
+                    value={eventData.bandId || ''} 
+                    onChange={e => setEventData(prev => ({...prev, bandId: e.target.value}))}
+                    className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"
+                >
+                    {bands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                  <label className="block text-sm text-slate-400 mb-1">Nome do Evento (Opcional)</label>
+                  <input value={eventData.name} onChange={e => setEventData(prev => ({...prev, name: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white" placeholder="Ex: Casamento, Aniversário"/>
+              </div>
+              <div><label className="block text-sm text-slate-400 mb-1">Data do evento *</label><input type="date" required value={eventData.date} onChange={e => setEventData(prev => ({...prev, date: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">Cidade/estado do evento *</label><input required value={eventData.city} onChange={e => setEventData(prev => ({...prev, city: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">Local do evento</label><input value={eventData.venue} onChange={e => setEventData(prev => ({...prev, venue: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">TIPO DE FESTA</label><input value={eventData.eventType} onChange={e => setEventData(prev => ({...prev, eventType: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">HORA SHOW</label><input type="time" value={eventData.time} onChange={e => setEventData(prev => ({...prev, time: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
             </div>
           </div>
           {/* DADOS DO CONTRATANTE */}
           <div>
-            <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><UserIcon size={18}/> DADOS DO CONTRATANTE</h3>
+            <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><UserIcon size={18}/> DADOS DO CONTRATANTE (Confirme ou corrija)</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div><label className="block text-sm text-slate-400 mb-1">Razão Social / Nome</label><input value={contractor!.name} onChange={e => handleContractorChange('name', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">CNPJ/CPF</label><input value={contractor!.cnpj || contractor!.cpf || ''} onChange={e => handleContractorChange(contractor!.type === 'JURIDICA' ? 'cnpj' : 'cpf', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço completo</label><input value={contractor!.address.street} onChange={e => setContractor(prev => ({...prev!, address: {...prev!.address, street: e.target.value}}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">Nome do Representante Legal</label><input value={contractor!.responsibleName} onChange={e => handleContractorChange('responsibleName', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço completo do Representante Legal</label><input value={contractor!.repLegalAddress} onChange={e => handleContractorChange('repLegalAddress', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">Telefone do Representante Legal</label><input value={contractor!.repLegalPhone} onChange={e => handleContractorChange('repLegalPhone', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">CPF (Rep. Legal)</label><input value={contractor!.cpf} onChange={e => handleContractorChange('cpf', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">RG (Rep. Legal)</label><input value={contractor!.rg} onChange={e => handleContractorChange('rg', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">E-mail</label><input type="email" value={contractor!.email} onChange={e => handleContractorChange('email', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
-               <div><label className="block text-sm text-slate-400 mb-1">Data de nascimento</label><input type="date" value={contractor!.birthDate} onChange={e => handleContractorChange('birthDate', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">Razão Social / Nome</label><input value={contractor!.name} onChange={e => setContractor(prev => ({...prev!, name: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">Telefone Principal</label><input value={contractor!.phone} onChange={e => setContractor(prev => ({...prev!, phone: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">E-mail</label><input type="email" value={contractor!.email} onChange={e => setContractor(prev => ({...prev!, email: e.target.value}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
             </div>
           </div>
         </div>
         <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
           <button type="submit" disabled={isSubmitting} className="w-full md:w-auto bg-primary-600 hover:bg-primary-500 text-white py-3 px-8 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
-            {isSubmitting ? <Loader2 className="animate-spin"/> : 'Enviar Dados'}
+            {isSubmitting ? <Loader2 className="animate-spin"/> : 'Enviar Solicitação de Evento'}
           </button>
         </div>
       </form>
@@ -1489,6 +1484,13 @@ const AppContent: React.FC = () => {
        c.responsibleName.toLowerCase().includes(filterText.toLowerCase())
      );
 
+     const handleGenerateLink = async (contractorId: string) => {
+        const token = await db.generateDataCollectionToken(contractorId);
+        const link = `${window.location.origin}${window.location.pathname}?form_token=${token}`;
+        navigator.clipboard.writeText(link);
+        alert(`Link de prospecção copiado para a área de transferência!\n\n${link}`);
+     };
+
      return (
        <div className="space-y-6 pb-20 md:pb-0">
          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -1541,7 +1543,16 @@ const AppContent: React.FC = () => {
                     </div>
                  </div>
 
-                 <div className="mt-4 pt-4 border-t border-slate-800 flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                 <div className="mt-4 pt-4 border-t border-slate-800 flex justify-end gap-2">
+                    {(isContracts || isAdmin) && (
+                        <button 
+                            onClick={() => handleGenerateLink(contractor.id)}
+                            className="text-xs text-primary-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800"
+                            title="Gerar link de prospecção de evento"
+                        >
+                            <LinkIcon size={12}/> Gerar Link
+                        </button>
+                    )}
                     <button onClick={() => openEditContractor(contractor)} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
                        <Edit2 size={12} /> Editar
                     </button>
@@ -2258,7 +2269,7 @@ const AppContent: React.FC = () => {
       return <RegistrationView onRegister={handleRegistrationSubmit} onBackToLogin={() => { setPublicView(null); window.history.replaceState({}, document.title, window.location.pathname); }} />;
     }
     if (publicView.type === 'form' && publicView.token) {
-      return <PublicContractorFormView token={publicView.token} />;
+      return <PublicContractorFormView token={publicView.token} dbService={db} />;
     }
   }
 
