@@ -1,4 +1,5 @@
 
+
 export enum EventStatus {
   RESERVED = 'RESERVED',
   CONFIRMED = 'CONFIRMED',
@@ -64,6 +65,7 @@ export interface User {
   password?: string; // Para autenticação local
   role: UserRole;
   bandIds: string[]; // Access to specific bands
+  status: 'ACTIVE' | 'PENDING'; // To manage registration approval
 }
 
 export interface Financials {

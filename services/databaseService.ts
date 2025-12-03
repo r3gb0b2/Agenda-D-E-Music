@@ -1,4 +1,5 @@
 
+
 import { Band, Event, EventStatus, User, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from '../types';
 import { dbFirestore, auth } from './firebaseConfig';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, setDoc } from 'firebase/firestore';
@@ -28,7 +29,8 @@ const SUPER_ADMIN: User = {
   email: 'admin', // Login simplificado
   password: 'admin', // Senha simplificada
   role: UserRole.ADMIN, 
-  bandIds: [] // Admin vê tudo
+  bandIds: [], // Admin vê tudo
+  status: 'ACTIVE'
 };
 
 const MOCK_USERS: User[] = [
@@ -52,7 +54,8 @@ const KEYS = {
   USERS: `${STORAGE_PREFIX}users`,
   EVENTS: `${STORAGE_PREFIX}events`,
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
-  SESSION: `${STORAGE_PREFIX}session` // Key for 24h session
+  SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
+  REGISTRATION_TOKEN: `${STORAGE_PREFIX}reg_token` // Key for single-use registration
 };
 
 // Helper to initialize local data
@@ -78,7 +81,8 @@ const sanitizeUser = (data: any, id: string): User => {
     email: (data?.email || 'sem-email@dne.music').toLowerCase(),
     password: data?.password || '',
     role: data?.role || UserRole.MEMBER,
-    bandIds: data?.bandIds || []
+    bandIds: data?.bandIds || [],
+    status: data?.status || 'ACTIVE' // Default to active for backward compatibility
   };
 };
 
@@ -243,72 +247,53 @@ export const db = {
   },
 
   login: async (loginInput: string, passwordInput: string): Promise<User | null> => {
-    // Normalização para minúsculo (Case Insensitive)
     const normalizedLogin = loginInput.trim().toLowerCase();
-    const cleanPassword = passwordInput.trim(); 
+    const cleanPassword = passwordInput.trim();
 
-    // 1. Check Special Super Admin Hardcoded
-    if (normalizedLogin === 'admin' && passwordInput === 'admin') {
-      return SUPER_ADMIN;
-    }
-
-    // 2. Try Local Mock Data (Simulated Backend)
-    const localUsers = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
-    const localMatch = localUsers.find((u: User) => 
-      (u.email.toLowerCase() === normalizedLogin || (normalizedLogin === 'admin' && u.email.toLowerCase() === 'admin')) && 
-      (u.password === passwordInput || u.password === cleanPassword)
-    );
+    const allUsers = await db.getUsers();
     
-    if (localMatch) {
-      return sanitizeUser(localMatch, localMatch.id);
-    }
+    // Find user by email and check password and status
+    const user = allUsers.find(u => 
+      u.email.toLowerCase() === normalizedLogin && 
+      u.password === cleanPassword
+    );
 
-    // 3. Try Firebase
-    if (USE_FIREBASE && dbFirestore) {
-      // 3a. Try Firebase Auth
-      if (auth && normalizedLogin.includes('@')) {
-        try {
-          const userCredential = await signInWithEmailAndPassword(auth, normalizedLogin, passwordInput);
-          const snapshot = await getDocs(query(collection(dbFirestore, FB_COLLECTIONS.USERS), where("email", "==", normalizedLogin)));
-          if (!snapshot.empty) {
-            const doc = snapshot.docs[0];
-            return sanitizeUser(doc.data(), doc.id);
-          } else {
-             return {
-               id: userCredential.user.uid,
-               name: userCredential.user.displayName || 'Usuário Firebase',
-               email: normalizedLogin,
-               role: UserRole.MEMBER,
-               bandIds: []
-             };
-          }
-        } catch (e) {
-          // Auth failed, proceed to check manual collection
-        }
-      }
-
-      // 3b. Try Manual Firestore Collection
-      try {
-        const usersRef = collection(dbFirestore, FB_COLLECTIONS.USERS);
-        const q = query(usersRef, where("email", "==", normalizedLogin));
-        const querySnapshot = await getDocs(q);
-        
-        if (!querySnapshot.empty) {
-          const userDoc = querySnapshot.docs.find(doc => {
-            const data = doc.data();
-            return data.password === passwordInput || data.password === cleanPassword;
-          });
-
-          if (userDoc) {
-            return sanitizeUser(userDoc.data(), userDoc.id);
-          }
-        }
-      } catch (e) {
-        console.warn("Firestore manual login check failed:", e);
-      }
+    // Only allow login if user exists and is ACTIVE
+    if (user && user.status === 'ACTIVE') {
+      return sanitizeUser(user, user.id);
     }
 
     return null;
+  },
+
+  // --- REGISTRATION WORKFLOW ---
+  generateRegistrationToken: async (): Promise<string> => {
+    const token = crypto.randomUUID();
+    localStorage.setItem(KEYS.REGISTRATION_TOKEN, token);
+    return token;
+  },
+
+  validateRegistrationToken: async (token: string): Promise<boolean> => {
+    const storedToken = localStorage.getItem(KEYS.REGISTRATION_TOKEN);
+    return storedToken !== null && storedToken === token;
+  },
+
+  invalidateRegistrationToken: async (): Promise<void> => {
+    localStorage.removeItem(KEYS.REGISTRATION_TOKEN);
+  },
+
+  registerUser: async (userData: Pick<User, 'name' | 'email' | 'password'>): Promise<User> => {
+    const newUser: User = {
+        id: crypto.randomUUID(),
+        name: userData.name,
+        email: userData.email.trim().toLowerCase(),
+        password: userData.password?.trim() || '',
+        role: UserRole.MEMBER, // Default role
+        bandIds: [],
+        status: 'PENDING' // Start as pending approval
+    };
+    await db.saveUser(newUser); // This will save to local and potentially Firebase
+    return newUser;
   },
 
   // --- SUGGESTIONS (Auto-Save/Learning) ---

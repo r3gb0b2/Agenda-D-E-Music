@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from './types';
@@ -52,7 +53,10 @@ import {
   DollarSign,
   Printer,
   Settings,
-  CreditCard
+  CreditCard,
+  KeyRound,
+  ClipboardCopy,
+  Check
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -741,7 +745,7 @@ const AppContent: React.FC = () => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isContractorFormOpen, setIsContractorFormOpen] = useState(false);
   const [isUserFormOpen, setIsUserFormOpen] = useState(false);
-  const [isBandFormOpen, setIsBandFormOpen] = useState(false); // NEW
+  const [isBandFormOpen, setIsBandFormOpen] = useState(false);
   const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
   
   // Send Modal State
@@ -755,7 +759,7 @@ const AppContent: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingContractor, setEditingContractor] = useState<Contractor | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editingBand, setEditingBand] = useState<Band | null>(null); // NEW
+  const [editingBand, setEditingBand] = useState<Band | null>(null);
   
   const [filterText, setFilterText] = useState('');
   const [selectedBandFilter, setSelectedBandFilter] = useState<string | null>(null);
@@ -768,16 +772,13 @@ const AppContent: React.FC = () => {
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   
-  // REPLACED zoomLevel with zoomPercent for continuous 400% zoom
   const [zoomPercent, setZoomPercent] = useState(100); 
 
   const [isLoading, setIsLoading] = useState(true);
   
-  // Login State
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  // Registration State
+  const [isRegistrationView, setIsRegistrationView] = useState(false);
+  const [registrationToken, setRegistrationToken] = useState<string | null>(null);
 
   // Role Checks
   const isViewer = currentUser?.role === UserRole.VIEWER;
@@ -786,7 +787,7 @@ const AppContent: React.FC = () => {
   const isContracts = currentUser?.role === UserRole.CONTRACTS;
   const canManageUsers = isAdmin || isContracts;
 
-  // Initial Load & Session Check
+  // Initial Load & Session/Registration Check
   useEffect(() => {
     const initApp = async () => {
       const preloader = document.getElementById('initial-loader');
@@ -795,9 +796,23 @@ const AppContent: React.FC = () => {
         setTimeout(() => preloader.remove(), 500);
       }
 
-      const savedUser = await db.getCurrentUser();
-      if (savedUser) {
-        setCurrentUser(savedUser);
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('register_token');
+
+      if (token) {
+        const isValid = await db.validateRegistrationToken(token);
+        if (isValid) {
+          setIsRegistrationView(true);
+          setRegistrationToken(token);
+        } else {
+          // Token invalid or used, redirect to login
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } else {
+        const savedUser = await db.getCurrentUser();
+        if (savedUser) {
+          setCurrentUser(savedUser);
+        }
       }
 
       setIsLoading(false);
@@ -821,34 +836,31 @@ const AppContent: React.FC = () => {
     }
   }, [currentUser]);
 
-  // --- Handlers: Login ---
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoggingIn(true);
-    
-    try {
-      const user = await db.login(loginEmail, loginPassword);
-      if (user) {
-        await db.createSession(user);
-        setCurrentUser(user);
-        setCurrentView('dashboard');
-      } else {
-        setLoginError('Credenciais inválidas.');
-      }
-    } catch (err) {
-      setLoginError('Erro ao conectar ao sistema.');
-      console.error(err);
-    } finally {
-      setIsLoggingIn(false);
+  // --- Handlers: Login & Registration ---
+  const handleLoginSubmit = async (email: string, pass: string) => {
+    const user = await db.login(email, pass);
+    if (user) {
+      await db.createSession(user);
+      setCurrentUser(user);
+      setCurrentView('dashboard');
+      return null;
+    } else {
+      return 'Credenciais inválidas ou conta pendente de aprovação.';
     }
+  };
+  
+  const handleRegistrationSubmit = async (userData: Pick<User, 'name' | 'email' | 'password'>) => {
+      await db.registerUser(userData);
+      await db.invalidateRegistrationToken();
+      // Redirect to login after registration
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setIsRegistrationView(false);
+      alert("Solicitação de cadastro enviada! Um administrador irá revisar sua conta.");
   };
 
   const handleLogout = async () => {
     await db.clearSession();
     setCurrentUser(null);
-    setLoginEmail('');
-    setLoginPassword('');
     setEvents([]);
     setCurrentView('dashboard');
   }
@@ -901,7 +913,6 @@ const AppContent: React.FC = () => {
   }
 
   // --- Handlers: Bands/Users ---
-  // Updated Band Handler to use Form
   const handleSaveBand = async (band: Band) => {
     await db.saveBand(band);
     refreshData();
@@ -920,14 +931,21 @@ const AppContent: React.FC = () => {
   };
 
   const handleSaveUser = async (user: User) => {
-    await db.saveUser(user);
+    const userToSave = { ...user };
+    
+    // On save from an edit form, if the user was pending, they become active.
+    if (editingUser && editingUser.status === 'PENDING') {
+      userToSave.status = 'ACTIVE';
+    }
+
+    await db.saveUser(userToSave);
     refreshData();
     setIsUserFormOpen(false);
     setEditingUser(null);
   }
   
   const handleDeleteUser = async (id: string) => {
-    if (confirm('Tem certeza que deseja remover este usuário?')) {
+    if (confirm('Tem certeza que deseja remover este usuário? Esta ação não pode ser desfeita.')) {
       await db.deleteUser(id);
       refreshData();
     }
@@ -981,9 +999,6 @@ const AppContent: React.FC = () => {
 
     // Stats visibility based on role
     const showFinancialStats = !isViewer && !isSales;
-
-    // Financial Chart Data Preparation
-    // REMOVED as requested
 
     return (
       <div className="space-y-8 animate-fade-in pb-20 md:pb-0">
@@ -1053,8 +1068,6 @@ const AppContent: React.FC = () => {
              <p className="text-2xl font-bold text-white mt-1">{new Set(visibleEvents.map(e => e.city)).size}</p>
           </div>
         </div>
-
-        {/* Financial Chart REMOVED */}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Últimas Adições - For Viewers, hide sensitive info */}
@@ -1889,15 +1902,94 @@ const AppContent: React.FC = () => {
         )
     }
 
-    // Filter users: Contracts role only sees Viewers (and maybe themselves in a real list, but here strict management is better)
     const visibleUsers = users.filter(u => {
         if (isAdmin) return true;
         if (isContracts) return u.role === UserRole.VIEWER;
         return false;
     });
 
+    // New Registration State
+    const [registrationLink, setRegistrationLink] = useState<string | null>(null);
+    const [isCopied, setIsCopied] = useState(false);
+
+    const generateLink = async () => {
+        const token = await db.generateRegistrationToken();
+        const link = `${window.location.origin}${window.location.pathname}?register_token=${token}`;
+        setRegistrationLink(link);
+    };
+
+    const copyLink = () => {
+        if (registrationLink) {
+            navigator.clipboard.writeText(registrationLink);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        }
+    };
+    
+    // Split users into pending and active for display
+    const pendingUsers = visibleUsers.filter(u => u.status === 'PENDING');
+    const activeUsers = visibleUsers.filter(u => u.status !== 'PENDING');
+
     return (
       <div className="space-y-8 pb-20 md:pb-0">
+        
+        {/* Registration Link Generator (Super Admin Only) */}
+        {currentUser?.email === 'admin' && (
+            <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
+                <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-2">
+                    <KeyRound className="text-yellow-400" /> Gerador de Link de Cadastro
+                </h3>
+                <p className="text-sm text-slate-400 mb-4">
+                    Gere um link de uso único para que novos usuários possam se cadastrar. O cadastro ficará pendente até ser aprovado por um administrador.
+                </p>
+                <div className="flex flex-col md:flex-row gap-4 items-center">
+                    <button onClick={generateLink} className="w-full md:w-auto flex-shrink-0 bg-yellow-600 hover:bg-yellow-500 text-black font-bold px-4 py-2 rounded-lg transition-colors">
+                        Gerar Novo Link
+                    </button>
+                    {registrationLink && (
+                        <div className="w-full flex items-center bg-slate-900 border border-slate-700 rounded-lg p-1">
+                            <input 
+                                type="text" 
+                                readOnly 
+                                value={registrationLink} 
+                                className="flex-1 bg-transparent text-slate-300 text-xs px-2 outline-none" 
+                            />
+                            <button onClick={copyLink} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1">
+                                {isCopied ? <Check size={14}/> : <ClipboardCopy size={14}/>} {isCopied ? 'Copiado!' : 'Copiar'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* Pending Requests Queue (Admins only) */}
+        {isAdmin && pendingUsers.length > 0 && (
+            <div className="bg-yellow-900/10 border border-yellow-800/50 rounded-xl p-6">
+                <h3 className="text-xl font-bold text-yellow-300 flex items-center gap-2 mb-4">
+                    <History size={20} /> Solicitações Pendentes ({pendingUsers.length})
+                </h3>
+                <div className="space-y-3">
+                    {pendingUsers.map(u => (
+                        <div key={u.id} className="flex justify-between items-center p-3 bg-slate-900 rounded border border-slate-800 group">
+                            <div>
+                                <div className="text-white font-medium">{u.name}</div>
+                                <div className="text-xs text-slate-500">{u.email}</div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={() => openEditUser(u)} className="text-xs bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded font-medium">
+                                    Aprovar
+                                </button>
+                                <button onClick={() => handleDeleteUser(u.id)} className="text-xs bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded font-medium">
+                                    Reprovar
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           
           {/* Gerenciar Bandas (Admin Only) */}
@@ -1935,14 +2027,14 @@ const AppContent: React.FC = () => {
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-6">
             <div className="flex justify-between items-center mb-6">
                <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                 <Users className="text-green-500" /> Usuários
+                 <Users className="text-green-500" /> Usuários Ativos
                </h3>
                <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded border border-slate-700 transition-colors">
                  + Novo Usuário
                </button>
             </div>
             <div className="space-y-3">
-               {visibleUsers.map(u => {
+               {activeUsers.map(u => {
                  const isSelf = currentUser?.id === u.id;
                  const isSuperAdmin = u.email === 'admin';
                  // Permissions: Admin can edit all. Contracts can only edit Viewers.
@@ -1971,7 +2063,7 @@ const AppContent: React.FC = () => {
                  </div>
                  );
                })}
-               {visibleUsers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">Nenhum usuário encontrado.</p>}
+               {activeUsers.length === 0 && <p className="text-slate-500 text-sm text-center py-4">Nenhum usuário ativo encontrado.</p>}
             </div>
           </div>
 
@@ -1988,10 +2080,27 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!currentUser) {
+  // --- Login & Registration Views ---
+  const LoginView = () => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setIsLoggingIn(true);
+        const errorMsg = await handleLoginSubmit(email, password);
+        if (errorMsg) {
+            setError(errorMsg);
+        }
+        setIsLoggingIn(false);
+    };
+
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950 p-4">
-        <form onSubmit={handleLoginSubmit} className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full max-w-md animate-fade-in-up">
+        <form onSubmit={handleSubmit} className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full max-w-md animate-fade-in-up">
            <div className="flex flex-col items-center mb-6">
               <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-primary-500/20">
                 <Mic2 size={32} />
@@ -2000,9 +2109,9 @@ const AppContent: React.FC = () => {
               <p className="text-slate-500">Acesso Restrito</p>
            </div>
            
-           {loginError && (
+           {error && (
              <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-center gap-2 text-red-400 text-sm">
-               <AlertTriangle size={16} /> {loginError}
+               <AlertTriangle size={16} /> {error}
              </div>
            )}
 
@@ -2011,8 +2120,8 @@ const AppContent: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-400 mb-1">E-mail ou Usuário</label>
                 <input 
                   type="text" 
-                  value={loginEmail}
-                  onChange={e => setLoginEmail(e.target.value)}
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
                   placeholder="admin"
                 />
@@ -2021,8 +2130,8 @@ const AppContent: React.FC = () => {
                 <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
                 <input 
                   type="password" 
-                  value={loginPassword}
-                  onChange={e => setLoginPassword(e.target.value)}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:border-primary-500 outline-none transition-colors"
                   placeholder="••••••"
                 />
@@ -2038,6 +2147,74 @@ const AppContent: React.FC = () => {
         </form>
       </div>
     );
+  };
+
+  const RegistrationView = () => {
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isRegistering, setIsRegistering] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        if (password.length < 6) {
+            setError('A senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
+        setIsRegistering(true);
+        try {
+            await handleRegistrationSubmit({ name, email, password });
+        } catch (err) {
+            setError('Erro ao enviar solicitação.');
+            console.error(err);
+        } finally {
+            setIsRegistering(false);
+        }
+    };
+
+    return (
+        <div className="flex items-center justify-center h-screen bg-slate-950 p-4">
+            <form onSubmit={handleSubmit} className="bg-slate-900 p-8 rounded-xl border border-slate-800 shadow-2xl w-full max-w-md animate-fade-in-up">
+                <div className="flex flex-col items-center mb-6">
+                   <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white mb-4 shadow-lg shadow-primary-500/20">
+                     <UserIcon size={32} />
+                   </div>
+                   <h1 className="text-2xl font-bold text-white">Solicitar Acesso</h1>
+                   <p className="text-slate-500">Preencha seus dados para se cadastrar.</p>
+                </div>
+
+                {error && (
+                    <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm">
+                        {error}
+                    </div>
+                )}
+                
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Nome Completo</label>
+                        <input type="text" required value={name} onChange={e => setName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white"/>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">E-mail</label>
+                        <input type="email" required value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white"/>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
+                        <input type="password" required value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white"/>
+                    </div>
+                    <button type="submit" disabled={isRegistering} className="w-full bg-primary-600 hover:bg-primary-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+                        {isRegistering ? <Loader2 className="animate-spin" /> : 'Enviar Solicitação'}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+  };
+  
+  if (!currentUser) {
+    return isRegistrationView ? <RegistrationView /> : <LoginView />;
   }
 
   return (
