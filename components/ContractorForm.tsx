@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Contractor, ContractorType } from '../types';
-import { X, Save, MapPin, User, FileText, Phone, Loader2, CreditCard } from 'lucide-react';
+import { X, Save, MapPin, User, FileText, Phone, Loader2, CreditCard, Building } from 'lucide-react';
 
 interface ContractorFormProps {
   existingContractor?: Contractor | null;
@@ -47,6 +47,9 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
       type: ContractorType.FISICA,
       name: '',
       responsibleName: '',
+      repLegalAddress: '',
+      repLegalPhone: '',
+      birthDate: '',
       cpf: '',
       rg: '',
       cnpj: '',
@@ -77,7 +80,7 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
     let formattedValue = value;
 
     // Apply Masks
-    if (field === 'phone' || field === 'whatsapp') formattedValue = maskPhone(value);
+    if (field === 'phone' || field === 'whatsapp' || field === 'repLegalPhone') formattedValue = maskPhone(value);
     if (field === 'cpf') formattedValue = maskCPF(value);
     if (field === 'cnpj') formattedValue = maskCNPJ(value);
     // RG mask removed
@@ -104,7 +107,7 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
              ...prev,
              address: {
                ...prev.address,
-               street: data.logradouro,
+               street: data.logouro,
                neighborhood: data.bairro,
                city: data.localidade,
                state: data.uf,
@@ -234,11 +237,9 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                     />
                   </div>
                   <div>
-                     <label className="block text-sm font-medium text-slate-400 mb-1">Inscrição Estadual / RG Rep</label>
+                     <label className="block text-sm font-medium text-slate-400 mb-1">Inscrição Estadual</label>
                      <input
                       type="text"
-                      value={formData.rg || ''}
-                      onChange={(e) => handleChange('rg', e.target.value)}
                       className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
                       placeholder=""
                     />
@@ -250,16 +251,6 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                  <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase">Dados de Contato</h4>
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-slate-400 mb-1">Responsável</label>
-                        <input
-                        type="text"
-                        value={formData.responsibleName}
-                        onChange={(e) => handleChange('responsibleName', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
-                        placeholder="Nome do contato principal"
-                        />
-                    </div>
-                    <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">E-mail</label>
                         <input
                         type="email"
@@ -267,6 +258,10 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                         onChange={(e) => handleChange('email', e.target.value)}
                         className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
                         />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Data de Nascimento</label>
+                        <input type="date" value={formData.birthDate} onChange={(e) => handleChange('birthDate', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"/>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-400 mb-1">Telefone</label>
@@ -287,6 +282,24 @@ const ContractorForm: React.FC<ContractorFormProps> = ({ existingContractor, onS
                         className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white focus:border-primary-500 outline-none"
                         placeholder="(00) 00000-0000"
                         />
+                    </div>
+                 </div>
+              </div>
+              
+              <div className="md:col-span-2 bg-slate-800/30 p-3 rounded border border-slate-800 mt-2">
+                 <h4 className="text-sm font-bold text-slate-500 mb-2 uppercase flex items-center gap-2"><Building size={14}/> Representante Legal</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Nome do Representante</label>
+                        <input type="text" value={formData.responsibleName} onChange={(e) => handleChange('responsibleName', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white" />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Endereço do Representante</label>
+                        <input type="text" value={formData.repLegalAddress} onChange={(e) => handleChange('repLegalAddress', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"/>
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-slate-400 mb-1">Telefone do Representante</label>
+                        <input type="tel" value={formData.repLegalPhone} onChange={(e) => handleChange('repLegalPhone', e.target.value)} className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white"/>
                     </div>
                  </div>
               </div>

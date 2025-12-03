@@ -55,6 +55,7 @@ const KEYS = {
   EVENTS: `${STORAGE_PREFIX}events`,
   CONTRACTORS: `${STORAGE_PREFIX}contractors`,
   SESSION: `${STORAGE_PREFIX}session`, // Key for 24h session
+  FORM_TOKENS: `${STORAGE_PREFIX}form_tokens`, // Key for public form links
 };
 
 // Helper to initialize local data
@@ -161,6 +162,8 @@ const sanitizeEvent = (data: any, id: string): Event => {
     durationHours: data?.durationHours || 0,
     city: data?.city || '',
     venue: data?.venue || '',
+    venueAddress: data?.venueAddress || '',
+    producerContact: data?.producerContact || '',
     contractor: data?.contractor || '',
     notes: data?.notes || '',
     status: data?.status || EventStatus.RESERVED,
@@ -172,7 +175,9 @@ const sanitizeEvent = (data: any, id: string): Event => {
     contractUrl: data?.contractUrl || '',
     contractFiles: safeContractFiles,
     pipelineStage: safePipelineStage,
-    logistics: safeLogistics
+    logistics: safeLogistics,
+    contractorFormToken: data?.contractorFormToken || '',
+    contractorFormStatus: data?.contractorFormStatus || 'PENDING'
   } as Event;
 };
 
@@ -183,6 +188,9 @@ const sanitizeContractor = (data: any, id: string): Contractor => {
     type: data?.type || ContractorType.FISICA,
     name: data?.name || '',
     responsibleName: data?.responsibleName || '',
+    repLegalAddress: data?.repLegalAddress || '',
+    repLegalPhone: data?.repLegalPhone || '',
+    birthDate: data?.birthDate || '',
     cpf: data?.cpf || '',
     rg: data?.rg || '',
     cnpj: data?.cnpj || '',
@@ -526,5 +534,38 @@ export const db = {
         console.warn("Firebase delete failed:", e);
       }
     }
-  }
+  },
+  
+  // --- PUBLIC FORM TOKEN MGMT ---
+  generateContractorFormToken: async (eventId: string): Promise<string> => {
+    const token = `form_${crypto.randomUUID()}`;
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.FORM_TOKENS) || '{}');
+    tokenMap[token] = eventId;
+    localStorage.setItem(KEYS.FORM_TOKENS, JSON.stringify(tokenMap));
+    return token;
+  },
+
+  getEventByContractorFormToken: async (token: string): Promise<{ event: Event, contractor: Contractor | null, band: Band | null } | null> => {
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.FORM_TOKENS) || '{}');
+    const eventId = tokenMap[token];
+    if (!eventId) return null;
+
+    const events = await db.getEvents();
+    const event = events.find(e => e.id === eventId);
+    if (!event) return null;
+    
+    const contractors = await db.getContractors();
+    const contractor = contractors.find(c => c.name.toLowerCase() === event.contractor.toLowerCase());
+    
+    const bands = await db.getBands();
+    const band = bands.find(b => b.id === event.bandId);
+
+    return { event, contractor, band };
+  },
+
+  invalidateContractorFormToken: async (token: string): Promise<void> => {
+    const tokenMap = JSON.parse(localStorage.getItem(KEYS.FORM_TOKENS) || '{}');
+    delete tokenMap[token];
+    localStorage.setItem(KEYS.FORM_TOKENS, JSON.stringify(tokenMap));
+  },
 };

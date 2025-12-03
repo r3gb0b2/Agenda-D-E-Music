@@ -57,7 +57,8 @@ import {
   KeyRound,
   ClipboardCopy,
   Check,
-  CheckCircle
+  CheckCircle,
+  ExternalLink
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -109,7 +110,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     error: null
   };
   
-  // Explicitly declare props to avoid TS errors in strict mode
   public declare props: Readonly<ErrorBoundaryProps> & Readonly<{ children?: ReactNode }>;
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -142,6 +142,119 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     return this.props.children;
   }
 }
+
+// --- NEW PUBLIC CONTRACTOR FORM VIEW ---
+
+const PublicContractorFormView = ({ token }: { token: string }) => {
+  const [event, setEvent] = useState<Event | null>(null);
+  const [contractor, setContractor] = useState<Contractor | null>(null);
+  const [band, setBand] = useState<Band | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await db.getEventByContractorFormToken(token);
+      if (data && data.event && data.event.contractorFormStatus !== 'COMPLETED') {
+        setEvent(data.event);
+        setContractor(data.contractor || {
+          id: crypto.randomUUID(),
+          type: ContractorType.FISICA,
+          name: data.event.contractor,
+          responsibleName: '',
+          repLegalAddress: '',
+          repLegalPhone: '',
+          birthDate: '',
+          cpf: '', rg: '', cnpj: '', phone: '', whatsapp: '', email: '',
+          address: { street: '', number: '', complement: '', neighborhood: '', zipCode: '', city: '', state: '', country: 'Brasil' },
+          additionalInfo: { event: '', venue: '', notes: '' }
+        });
+        setBand(data.band);
+      } else {
+        setError('Link inválido ou já utilizado. Por favor, solicite um novo link.');
+      }
+      setIsLoading(false);
+    };
+    fetchData();
+  }, [token]);
+  
+  const handleEventChange = (field: keyof Event, value: any) => {
+    if(event) setEvent(prev => ({ ...prev!, [field]: value }));
+  };
+  
+  const handleContractorChange = (field: keyof Contractor, value: any) => {
+     if(contractor) setContractor(prev => ({...prev!, [field]: value}));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!event || !contractor) return;
+    setIsSubmitting(true);
+    
+    const updatedEvent = { ...event, contractorFormStatus: 'COMPLETED' as const };
+    
+    await db.saveEvent(updatedEvent);
+    await db.saveContractor(contractor);
+    await db.invalidateContractorFormToken(token); // Invalidate the token after use
+    
+    setIsSubmitting(false);
+    setIsSubmitted(true);
+  };
+
+  if (isLoading) return <div className="h-screen flex items-center justify-center bg-slate-950"><Loader2 className="animate-spin text-primary-500" size={48}/></div>;
+  if (error) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><AlertTriangle className="w-12 h-12 text-red-500 mb-4"/><p>{error}</p></div>;
+  if (isSubmitted) return <div className="h-screen flex flex-col items-center justify-center bg-slate-950 text-white text-center p-4"><CheckCircle size={64} className="text-green-500 mb-4"/><h2 className="text-2xl font-bold">Dados Enviados!</h2><p className="text-slate-400 mt-2">Obrigado! Suas informações foram recebidas com sucesso.</p></div>;
+
+  return (
+    <div className="min-h-screen bg-slate-950 flex justify-center items-center p-4">
+      <form onSubmit={handleSubmit} className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden my-8">
+        <div className="p-6 border-b border-slate-800 bg-slate-950 text-center">
+          <h1 className="text-2xl font-bold text-white">Formulário de Dados do Evento</h1>
+          <p className="text-slate-400 mt-1">Por favor, preencha ou confirme as informações abaixo.</p>
+        </div>
+        <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto">
+          {/* DADOS DO SHOW */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><Mic2 size={18}/> DADOS DO SHOW</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label className="block text-sm text-slate-400 mb-1">ARTISTA</label><input disabled value={band?.name || ''} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-slate-300"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">Data do evento</label><input disabled value={new Date(event!.date).toLocaleDateString()} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-slate-300"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">Cidade/estado do evento</label><input value={event!.city} onChange={e => handleEventChange('city', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">Local do evento</label><input value={event!.venue} onChange={e => handleEventChange('venue', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">TIPO DE FESTA</label><input value={event!.eventType} onChange={e => handleEventChange('eventType', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div><label className="block text-sm text-slate-400 mb-1">HORA SHOW</label><input type="time" value={event!.time} onChange={e => handleEventChange('time', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço do local</label><input value={event!.venueAddress} onChange={e => handleEventChange('venueAddress', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+              <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">CONTATO PRODUTOR (NOME E NÚMERO)</label><input value={event!.producerContact} onChange={e => handleEventChange('producerContact', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+            </div>
+          </div>
+          {/* DADOS DO CONTRATANTE */}
+          <div>
+            <h3 className="text-lg font-medium text-white mb-4 border-b border-slate-800 pb-2 flex items-center gap-2"><UserIcon size={18}/> DADOS DO CONTRATANTE</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div><label className="block text-sm text-slate-400 mb-1">Razão Social / Nome</label><input value={contractor!.name} onChange={e => handleContractorChange('name', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">CNPJ/CPF</label><input value={contractor!.cnpj || contractor!.cpf || ''} onChange={e => handleContractorChange(contractor!.type === 'JURIDICA' ? 'cnpj' : 'cpf', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço completo</label><input value={contractor!.address.street} onChange={e => setContractor(prev => ({...prev!, address: {...prev!.address, street: e.target.value}}))} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">Nome do Representante Legal</label><input value={contractor!.responsibleName} onChange={e => handleContractorChange('responsibleName', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div className="md:col-span-2"><label className="block text-sm text-slate-400 mb-1">Endereço completo do Representante Legal</label><input value={contractor!.repLegalAddress} onChange={e => handleContractorChange('repLegalAddress', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">Telefone do Representante Legal</label><input value={contractor!.repLegalPhone} onChange={e => handleContractorChange('repLegalPhone', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">CPF (Rep. Legal)</label><input value={contractor!.cpf} onChange={e => handleContractorChange('cpf', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">RG (Rep. Legal)</label><input value={contractor!.rg} onChange={e => handleContractorChange('rg', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">E-mail</label><input type="email" value={contractor!.email} onChange={e => handleContractorChange('email', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+               <div><label className="block text-sm text-slate-400 mb-1">Data de nascimento</label><input type="date" value={contractor!.birthDate} onChange={e => handleContractorChange('birthDate', e.target.value)} className="w-full bg-slate-800 p-2 rounded border border-slate-700 text-white"/></div>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 bg-slate-950 border-t border-slate-800 flex justify-end">
+          <button type="submit" disabled={isSubmitting} className="w-full md:w-auto bg-primary-600 hover:bg-primary-500 text-white py-3 px-8 rounded-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50">
+            {isSubmitting ? <Loader2 className="animate-spin"/> : 'Enviar Dados'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
 
 // --- Contract Generator Modal (UPDATED TO MODEL) ---
 interface Installment {
@@ -777,9 +890,9 @@ const AppContent: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(true);
   
-  // Registration State
-  const [isRegistrationView, setIsRegistrationView] = useState(false);
-
+  // PUBLIC VIEW STATE
+  const [publicView, setPublicView] = useState<{type: 'register' | 'form', token?: string} | null>(null);
+  
   // Role Checks
   const isViewer = currentUser?.role === UserRole.VIEWER;
   const isSales = currentUser?.role === UserRole.SALES;
@@ -791,10 +904,19 @@ const AppContent: React.FC = () => {
   // Initial Load & Session/Registration Check
   useEffect(() => {
     const initApp = async () => {
-      const preloader = document.getElementById('initial-loader');
-      if (preloader) {
-        preloader.style.opacity = '0';
-        setTimeout(() => preloader.remove(), 500);
+      const urlParams = new URLSearchParams(window.location.search);
+      const formToken = urlParams.get('form_token');
+      const requestAccess = urlParams.get('request_access') === 'true';
+
+      if (formToken) {
+        setPublicView({ type: 'form', token: formToken });
+        setIsLoading(false);
+        return;
+      }
+      if (requestAccess) {
+        setPublicView({ type: 'register' });
+        setIsLoading(false);
+        return;
       }
 
       const savedUser = await db.getCurrentUser();
@@ -803,6 +925,12 @@ const AppContent: React.FC = () => {
       }
 
       setIsLoading(false);
+
+      const preloader = document.getElementById('initial-loader');
+      if (preloader) {
+        preloader.style.opacity = '0';
+        setTimeout(() => preloader.remove(), 500);
+      }
     };
 
     initApp();
@@ -838,11 +966,7 @@ const AppContent: React.FC = () => {
   
   const handleRegistrationSubmit = async (userData: Pick<User, 'name' | 'email' | 'password'>) => {
       await db.registerUser(userData);
-      // After registration, go back to login view and show a message
-      setIsRegistrationView(false); 
-      // A mechanism to show message on login page would be ideal, e.g., using a URL param
-      window.history.replaceState({}, document.title, window.location.pathname + '?registration=success');
-      window.location.reload(); // Easiest way to re-trigger login page with param
+      window.location.href = `${window.location.pathname}?registration=success`;
   };
 
   const handleLogout = async () => {
@@ -2125,24 +2249,30 @@ const AppContent: React.FC = () => {
   };
   
   if (isLoading) {
-    return null; // Or a loading spinner covering the whole page
+    return null;
   }
-  
-  // Show registration success message
+
+  // --- TOP LEVEL RENDER LOGIC ---
+  if (publicView) {
+    if (publicView.type === 'register') {
+      return <RegistrationView onRegister={handleRegistrationSubmit} onBackToLogin={() => { setPublicView(null); window.history.replaceState({}, document.title, window.location.pathname); }} />;
+    }
+    if (publicView.type === 'form' && publicView.token) {
+      return <PublicContractorFormView token={publicView.token} />;
+    }
+  }
+
   const registrationSuccess = window.location.search.includes('registration=success');
   
   if (!currentUser) {
-    if (isRegistrationView) {
-        return <RegistrationView onRegister={handleRegistrationSubmit} onBackToLogin={() => setIsRegistrationView(false)} />;
-    }
     return (
       <div>
         {registrationSuccess && (
-          <div className="bg-green-600 text-white text-center p-2">
+          <div className="bg-green-600 text-white text-center p-2 fixed top-0 w-full z-50">
             Solicitação de registro enviada com sucesso! Aguarde a aprovação.
           </div>
         )}
-        <LoginView onLogin={handleLoginSubmit} onSwitchToRegister={() => setIsRegistrationView(true)} />
+        <LoginView onLogin={handleLoginSubmit} onSwitchToRegister={() => window.location.search = '?request_access=true'} />
       </div>
     );
   }

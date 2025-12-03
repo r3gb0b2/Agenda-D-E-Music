@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Band, Event, EventStatus, Contractor, User, UserRole, ContractFile, PipelineStage } from '../types';
-import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag, Upload, FileText, Trash2, Plus, Truck, Plane, Hotel, PenTool, Printer } from 'lucide-react';
+import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag, Upload, FileText, Trash2, Plus, Truck, Plane, Hotel, PenTool, Printer, ExternalLink, ClipboardCopy } from 'lucide-react';
 import { generateEventBrief } from '../services/geminiService';
 import { db } from '../services/databaseService';
 
@@ -46,8 +46,11 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   // Estado local para exibir detalhes do contratante selecionado
   const [selectedContractorInfo, setSelectedContractorInfo] = useState<Contractor | undefined>(undefined);
 
+  // Link Sharing Modal State
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareableLink, setShareableLink] = useState('');
+
   // Access Control logic
-  // Added UserRole.SALES to permissions list
   const canSeeFinancials = currentUser?.role === UserRole.ADMIN || 
                            currentUser?.role === UserRole.MANAGER || 
                            currentUser?.role === UserRole.CONTRACTS ||
@@ -67,6 +70,8 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     durationHours: existingEvent?.durationHours || 2,
     city: existingEvent?.city || '',
     venue: existingEvent?.venue || '',
+    venueAddress: existingEvent?.venueAddress || '',
+    producerContact: existingEvent?.producerContact || '',
     contractor: existingEvent?.contractor || '',
     notes: existingEvent?.notes || '',
     status: existingEvent?.status || EventStatus.RESERVED,
@@ -79,10 +84,8 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
       currency: 'BRL',
       notes: ''
     },
-    // Keep existing createdBy or set new
     createdBy: existingEvent?.createdBy || currentUser?.name || 'Sistema',
     createdAt: existingEvent?.createdAt || new Date().toISOString(),
-    // Keep existing or default to false (pending contract) for new events
     hasContract: existingEvent?.hasContract !== undefined ? existingEvent.hasContract : false,
     contractUrl: existingEvent?.contractUrl || '',
     contractFiles: existingEvent?.contractFiles || [],
@@ -96,7 +99,9 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
       crew: '',
       rider: '',
       notes: ''
-    }
+    },
+    contractorFormToken: existingEvent?.contractorFormToken || '',
+    contractorFormStatus: existingEvent?.contractorFormStatus || 'PENDING'
   });
 
   // Load Suggestions on Mount
@@ -140,7 +145,6 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   }, [formData.financials.grossValue, formData.financials.commissionType, formData.financials.commissionValue, formData.financials.taxes]);
 
   const handleGenerateBrief = async () => {
-    // FIX: Removed redundant API key check. The service layer already handles this.
     setIsGenerating(true);
     const band = bands.find(b => b.id === formData.bandId);
     const summary = await generateEventBrief(formData, band?.name || 'Banda');
@@ -161,7 +165,6 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
 
   const handleContractorChange = (value: string) => {
     handleChange('contractor', value);
-    // Tenta encontrar dados adicionais para auto-preencher cidade se estiver vazio
     const match = contractors.find(c => c.name === value);
     if (match) {
       if (!formData.city && match.address.city) {
@@ -173,7 +176,6 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     }
   };
 
-  // Mock file upload handler for multiple files
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles: ContractFile[] = Array.from(e.target.files).map((file: any) => ({
@@ -196,7 +198,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
         return {
             ...prev,
             contractFiles: updatedFiles,
-            hasContract: updatedFiles.length > 0 // Uncheck if no files left? Optional.
+            hasContract: updatedFiles.length > 0
         };
     });
   };
@@ -208,10 +210,19 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
     }));
   };
 
-  // Handler specifically for currency masked inputs
   const handleCurrencyChange = (field: keyof typeof formData.financials, inputValue: string) => {
      const numberValue = parseCurrencyInput(inputValue);
      handleFinancialChange(field, numberValue);
+  };
+  
+  const handleGenerateShareLink = async () => {
+    const token = await db.generateContractorFormToken(formData.id);
+    const updatedEvent = { ...formData, contractorFormToken: token, contractorFormStatus: 'SENT' as const };
+    await onSave(updatedEvent); // Save event with token
+    setFormData(updatedEvent); // Update local form state
+    const link = `${window.location.origin}${window.location.pathname}?form_token=${token}`;
+    setShareableLink(link);
+    setIsShareModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -230,6 +241,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-slate-900 w-full max-w-4xl rounded-xl border border-slate-700 shadow-2xl overflow-hidden animate-fade-in-up">
         {/* Header */}
@@ -414,6 +426,14 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                      {venueSuggestions.map((v, i) => <option key={i} value={v} />)}
                    </datalist>
                 </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Endereço do Local</label>
+                  <input type="text" value={formData.venueAddress} onChange={(e) => handleChange('venueAddress', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-400 mb-1">Contato do Produtor (Nome e Número)</label>
+                  <input type="text" value={formData.producerContact} onChange={(e) => handleChange('producerContact', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+                </div>
               </div>
 
               {/* Seção de Contratante */}
@@ -467,6 +487,14 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
                              title="Gerar minuta automática"
                            >
                              <PenTool size={12} /> Gerar Minuta
+                           </button>
+                           <button
+                             type="button"
+                             onClick={handleGenerateShareLink}
+                             className="flex-1 bg-blue-800 hover:bg-blue-700 text-xs text-white py-2 rounded border border-blue-600 flex items-center justify-center gap-1"
+                             title="Gerar link para o contratante preencher os dados"
+                           >
+                             <ExternalLink size={12} /> Gerar Link p/ Contratante
                            </button>
                         </div>
 
@@ -763,6 +791,29 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
         </form>
       </div>
     </div>
+    
+    {isShareModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
+            <div className="bg-slate-800 w-full max-w-lg rounded-xl border border-slate-700 shadow-2xl text-center p-8">
+                <div className="w-16 h-16 bg-blue-500/10 border-4 border-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ExternalLink size={32} className="text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Link Gerado com Sucesso!</h3>
+                <p className="text-slate-400 mt-2 mb-6">Envie este link para o contratante preencher os dados do evento.</p>
+                <div className="relative bg-slate-900 border border-slate-700 rounded-lg p-3">
+                    <input type="text" readOnly value={shareableLink} className="w-full bg-transparent text-slate-300 text-sm outline-none pr-12"/>
+                    <button 
+                        onClick={() => navigator.clipboard.writeText(shareableLink)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-white bg-slate-700 rounded"
+                    >
+                        <ClipboardCopy size={16}/>
+                    </button>
+                </div>
+                <button onClick={() => setIsShareModalOpen(false)} className="mt-6 px-6 py-2 bg-primary-600 text-white rounded-lg font-medium">Fechar</button>
+            </div>
+        </div>
+    )}
+    </>
   );
 };
 
