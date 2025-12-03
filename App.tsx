@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from './types';
@@ -56,7 +55,8 @@ import {
   CreditCard,
   KeyRound,
   ClipboardCopy,
-  Check
+  Check,
+  CheckCircle
 } from 'lucide-react';
 
 // --- Helper Components ---
@@ -853,10 +853,8 @@ const AppContent: React.FC = () => {
   const handleRegistrationSubmit = async (userData: Pick<User, 'name' | 'email' | 'password'>) => {
       await db.registerUser(userData);
       await db.invalidateRegistrationToken();
-      // Redirect to login after registration
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setIsRegistrationView(false);
-      alert("Solicitação de cadastro enviada! Um administrador irá revisar sua conta.");
+      // Redirect to login page with a success flag in the URL
+      window.location.href = `${window.location.pathname}?registration=success`;
   };
 
   const handleLogout = async () => {
@@ -2114,6 +2112,16 @@ const AppContent: React.FC = () => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('registration') === 'success') {
+            setShowSuccessMessage(true);
+            // Clean the URL so the message doesn't reappear on refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -2136,6 +2144,12 @@ const AppContent: React.FC = () => {
               <h1 className="text-2xl font-bold text-white">Agenda D&E MUSIC</h1>
               <p className="text-slate-500">Acesso Restrito</p>
            </div>
+           
+           {showSuccessMessage && (
+             <div className="mb-4 p-3 bg-green-900/20 border border-green-900/50 rounded-lg flex items-center gap-2 text-green-400 text-sm">
+               <CheckCircle size={16} /> Solicitação enviada! Um admin revisará sua conta.
+             </div>
+           )}
            
            {error && (
              <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-center gap-2 text-red-400 text-sm">
