@@ -252,10 +252,10 @@ export const db = {
 
     const allUsers = await db.getUsers();
     
-    // Find user by email and check password and status
+    // Find user by email and check password (case-insensitive) and status
     const user = allUsers.find(u => 
       u.email.toLowerCase() === normalizedLogin && 
-      u.password === cleanPassword
+      u.password?.toLowerCase() === cleanPassword.toLowerCase()
     );
 
     // Only allow login if user exists and is ACTIVE
