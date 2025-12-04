@@ -17,9 +17,23 @@ type ParsedRow = {
   lineNumber: number;
 };
 
+// Helper to normalize strings for accent-insensitive comparison
+const normalizeString = (str: string | undefined): string => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .normalize('NFD') // Decompose combined graphemes into base characters and diacritics
+    .replace(/[\u0300-\u036f]/g, ''); // Remove the diacritics
+};
+
 // Helper to parse Brazilian currency format like "400.000,00"
 const parseBrazilianCurrency = (value: string | undefined): number => {
   if (!value || typeof value !== 'string') return 0;
+  // Handle cases where the value might already be a simple number string
+  if (!value.includes(',') && !value.includes('.')) {
+    const simpleNumber = parseFloat(value);
+    return isNaN(simpleNumber) ? 0 : simpleNumber;
+  }
   const numberString = value
     .replace(/\./g, '')  // remove thousand separators
     .replace(',', '.'); // replace decimal comma with a dot
@@ -67,9 +81,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
         const errors: string[] = [];
         const data: Partial<Omit<Event, 'id' | 'createdAt' | 'createdBy'>> = {};
 
-        // 1. Validate Band
+        // 1. Validate Band (with normalization for accent-insensitivity)
         const bandName = rowData['Artista'];
-        const band = bands.find(b => b.name.toLowerCase() === bandName?.toLowerCase());
+        const normalizedCsvBandName = normalizeString(bandName);
+        const band = bands.find(b => normalizeString(b.name) === normalizedCsvBandName);
+        
         if (!bandName) errors.push('Coluna "Artista" não encontrada.');
         else if (!band) errors.push(`Artista "${bandName}" não encontrado no sistema.`);
         else data.bandId = band.id;
