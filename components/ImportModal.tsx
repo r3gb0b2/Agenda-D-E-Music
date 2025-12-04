@@ -17,7 +17,7 @@ type ParsedRow = {
   lineNumber: number;
 };
 
-// Helper to parse Brazilian currency format like "1.500,00"
+// Helper to parse Brazilian currency format like "400.000,00"
 const parseBrazilianCurrency = (value: string | undefined): number => {
   if (!value || typeof value !== 'string') return 0;
   const numberString = value
@@ -120,16 +120,16 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
         // 5. Optional Fields
         data.time = '21:00'; // Default time
         
-        // FIX: Combine Cidade and Estado
+        // Combine Cidade and Estado
         const city = rowData['Cidade'] || '';
         const state = rowData['Estado'] || '';
         data.city = [city, state].filter(Boolean).join(' - ');
 
         data.venue = rowData['Local'] || '';
         data.contractor = rowData['Contratante'] || '';
-        data.notes = rowData['Info. Adicionais'] || '';
-        
-        // FIX: Use correct currency parser
+        data.notes = ''; // Main notes are now separate
+
+        // Use correct currency parser for Cachê
         const grossValue = parseBrazilianCurrency(rowData['Cachê']);
         data.financials = {
             grossValue: grossValue,
@@ -138,7 +138,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
             taxes: 0, 
             netValue: grossValue, // Set net value initially to gross
             currency: 'BRL', 
-            notes: ''
+            // Map "Info. Adicionais" to financial notes
+            notes: rowData['Info. Adicionais'] || ''
         };
 
         return { original: rowData, data, errors, lineNumber: index + 2 };
@@ -196,7 +197,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-slate-900 w-full max-w-4xl h-[90vh] rounded-xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
+      <div className="bg-slate-900 w-full max-w-6xl h-[90vh] rounded-xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center shrink-0">
           <h3 className="text-white font-bold text-lg flex items-center gap-2">
             <UploadCloud size={18} className="text-primary-500"/> Importar Agenda via CSV
@@ -238,25 +239,39 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
                     </div>
                     <div className="max-h-[60vh] overflow-auto border border-slate-800 rounded-lg">
                         <table className="w-full text-xs">
-                            <thead className="sticky top-0 bg-slate-950">
+                            <thead className="sticky top-0 bg-slate-950 z-10">
                                 <tr>
                                     <th className="p-2">#</th>
                                     <th className="p-2 text-left">Artista</th>
+                                    <th className="p-2 text-left">Evento (Título)</th>
                                     <th className="p-2 text-left">Data</th>
+                                    <th className="p-2 text-left">Cidade</th>
+                                    <th className="p-2 text-left">Cachê</th>
                                     <th className="p-2 text-left">Status</th>
                                     <th className="p-2 text-left">Erros</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
                                 {parsedRows.map(row => (
-                                    <tr key={row.lineNumber} className={row.errors.length > 0 ? 'bg-red-900/20' : 'bg-green-900/10'}>
+                                    <tr key={row.lineNumber} className={row.errors.length > 0 ? 'bg-red-900/20' : ''}>
                                         <td className="p-2 text-slate-500">{row.lineNumber}</td>
                                         <td className="p-2">{row.original['Artista']}</td>
+                                        <td className="p-2 text-white">{row.data?.name || row.original['Título']}</td>
                                         <td className="p-2">{row.original['Data']}</td>
-                                        <td className="p-2">{row.original['Status']}</td>
-                                        <td className="p-2 text-red-400">
-                                            {row.errors.join(', ')}
+                                        <td className="p-2">{row.data?.city}</td>
+                                        <td className="p-2 text-right">{row.data?.financials?.grossValue ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.data.financials.grossValue) : '-'}</td>
+                                        <td className="p-2">
+                                            {row.data?.status ? (
+                                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                                    row.data.status === 'CONFIRMED' ? 'bg-green-500/10 text-green-400' :
+                                                    row.data.status === 'RESERVED' ? 'bg-yellow-500/10 text-yellow-400' :
+                                                    row.data.status === 'CANCELED' ? 'bg-red-500/10 text-red-400' : 'bg-slate-700 text-slate-300'
+                                                }`}>
+                                                    {row.data.status}
+                                                </span>
+                                            ) : <span className="text-slate-500">{row.original['Status']}</span>}
                                         </td>
+                                        <td className="p-2 text-red-400 font-medium">{row.errors.join(', ')}</td>
                                     </tr>
                                 ))}
                             </tbody>
