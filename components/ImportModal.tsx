@@ -17,6 +17,17 @@ type ParsedRow = {
   lineNumber: number;
 };
 
+// Helper to parse Brazilian currency format like "1.500,00"
+const parseBrazilianCurrency = (value: string | undefined): number => {
+  if (!value || typeof value !== 'string') return 0;
+  const numberString = value
+    .replace(/\./g, '')  // remove thousand separators
+    .replace(',', '.'); // replace decimal comma with a dot
+  const parsed = parseFloat(numberString);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, bands, currentUser }) => {
   const [step, setStep] = useState<'upload' | 'validate' | 'importing' | 'complete'>('upload');
   const [file, setFile] = useState<File | null>(null);
@@ -108,15 +119,26 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
 
         // 5. Optional Fields
         data.time = '21:00'; // Default time
-        data.city = rowData['Cidade'] || '';
+        
+        // FIX: Combine Cidade and Estado
+        const city = rowData['Cidade'] || '';
+        const state = rowData['Estado'] || '';
+        data.city = [city, state].filter(Boolean).join(' - ');
+
         data.venue = rowData['Local'] || '';
         data.contractor = rowData['Contratante'] || '';
         data.notes = rowData['Info. Adicionais'] || '';
         
-        const grossValue = parseFloat(rowData['Cachê']?.replace(',', '.') || '0');
+        // FIX: Use correct currency parser
+        const grossValue = parseBrazilianCurrency(rowData['Cachê']);
         data.financials = {
-            grossValue: isNaN(grossValue) ? 0 : grossValue,
-            commissionType: 'FIXED', commissionValue: 0, taxes: 0, netValue: isNaN(grossValue) ? 0 : grossValue, currency: 'BRL', notes: ''
+            grossValue: grossValue,
+            commissionType: 'FIXED', 
+            commissionValue: 0, 
+            taxes: 0, 
+            netValue: grossValue, // Set net value initially to gross
+            currency: 'BRL', 
+            notes: ''
         };
 
         return { original: rowData, data, errors, lineNumber: index + 2 };
@@ -153,7 +175,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
   };
   
   const handleDownloadTemplate = () => {
-    const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPIM","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","-","-","-","20000.00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
+    const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPIM","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","-","-","-","20.000,00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     if (link.download !== undefined) {
