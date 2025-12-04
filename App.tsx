@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from './types';
@@ -879,9 +880,7 @@ const SendContractModal = ({
 };
 
 // --- Main App Component ---
-
-// FIX: Rename AppContent to App to match the usage in index.tsx
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState('dashboard');
   
@@ -1811,7 +1810,688 @@ const App: React.FC = () => {
                {viewMode === 'calendar' && (
                  <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2 relative">
                    <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
-]--></content>
-  </change>
-</changes>
-```
+                   
+                   <div className="relative z-30">
+                      <button 
+                        onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                        className="flex items-center justify-center gap-2 font-semibold text-white min-w-[160px] text-center uppercase tracking-wide hover:bg-slate-800 py-1 px-2 rounded transition-colors"
+                      >
+                        {monthNames[month]} {year}
+                        <ChevronDown size={14} className={`transition-transform ${isMonthPickerOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      
+                      {isMonthPickerOpen && (
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 animate-fade-in z-50">
+                           <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+                              <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year - 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={16}/></button>
+                              <span className="font-bold text-white text-lg">{year}</span>
+                              <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year + 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={16}/></button>
+                           </div>
+                           <div className="grid grid-cols-3 gap-2">
+                              {monthNames.map((mName, idx) => (
+                                <button
+                                  key={mName}
+                                  onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year, idx, 1)); setIsMonthPickerOpen(false); }}
+                                  className={`text-xs py-2 rounded font-medium transition-colors ${idx === month ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                                >
+                                  {mName.substring(0, 3)}
+                                </button>
+                              ))}
+                           </div>
+                        </div>
+                      )}
+                   </div>
+
+                   <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
+                 </div>
+               )}
+            </div>
+
+            <div className="flex gap-2 w-full md:w-auto">
+               <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-500" size={18} />
+                <input 
+                  type="text" 
+                  placeholder="Buscar..." 
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-white outline-none focus:border-primary-500 transition-colors"
+                />
+              </div>
+              {!isViewer && (
+                <>
+                  <button 
+                      onClick={() => setIsImportModalOpen(true)}
+                      className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg font-medium transition-colors border border-slate-700"
+                      title="Importar Agenda de um arquivo CSV"
+                  >
+                      <UploadCloud size={18} /> <span className="hidden md:inline">Importar</span>
+                  </button>
+                  <button 
+                      onClick={() => { setEditingEvent(null); setNewEventDate(new Date().toISOString().split('T')[0]); setIsFormOpen(true); }}
+                      className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-lg shadow-primary-600/20 whitespace-nowrap"
+                  >
+                      <Plus size={18} /> <span className="hidden md:inline">Novo</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {selectedBandFilter && (
+            <div className="flex items-center justify-between bg-primary-900/20 border border-primary-900/50 p-3 rounded-lg text-primary-200">
+               <span className="flex items-center gap-2 text-sm"><FilterX size={14}/> Filtrando por: <strong>{selectedBandName}</strong></span>
+               <button onClick={() => setSelectedBandFilter(null)} className="text-xs hover:text-white underline">Limpar filtro</button>
+            </div>
+          )}
+        </div>
+
+        {viewMode === 'calendar' && (
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex-1 flex flex-col min-h-0 relative">
+            <div className="flex-1 overflow-auto custom-scrollbar relative">
+                <div 
+                   className="flex flex-col min-h-full transition-all duration-300 ease-in-out"
+                   style={{ width: zoomPercent === 100 ? '100%' : `${zoomPercent}%` }}
+                >
+                    
+                    <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-900 shrink-0 sticky top-0 z-20 shadow-md">
+                        {weekDays.map(day => (
+                            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-900">{day}</div>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 auto-rows-auto flex-1 bg-slate-900 gap-px">
+                    {Array.from({ length: firstDay }).map((_, i) => (
+                        <div key={`empty-${i}`} className="bg-slate-950/50 transition-all duration-300" style={{ minHeight: `${zoomPercent * 1.2}px` }}></div>
+                    ))}
+
+                    {Array.from({ length: days }).map((_, i) => {
+                        const dayNum = i + 1;
+                        const d = String(dayNum).padStart(2, '0');
+                        const m = String(month + 1).padStart(2, '0');
+                        const dateStr = `${year}-${m}-${d}`;
+                        const dayEvents = filteredEvents.filter(e => {
+                           if (!e.date) return false;
+                           return (e.date.includes('T') ? e.date.split('T')[0] : e.date) === dateStr;
+                        });
+
+                        const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                        const cellHeight = `${zoomPercent * 1.2}px`;
+                        const cardPadding = zoomPercent > 150 ? 'p-3' : 'p-1.5';
+                        
+                        let titleClass = 'text-[10px] leading-tight truncate';
+                        if (zoomPercent > 120) titleClass = 'text-xs font-semibold';
+                        if (zoomPercent > 200) titleClass = 'text-sm font-bold leading-tight whitespace-normal';
+                        
+                        return (
+                        <div 
+                            key={dayNum} 
+                            onClick={() => handleDayClick(dayNum)}
+                            className="bg-slate-950 h-full p-1.5 border-r border-b border-slate-800 hover:bg-slate-900 transition-all duration-300 ease-in-out cursor-pointer relative group flex flex-col gap-1 min-w-0 overflow-hidden"
+                            style={{ minHeight: cellHeight }}
+                        >
+                            <span className={`text-sm font-bold mb-1 ${isToday ? 'text-primary-400' : 'text-slate-600'}`}>
+                              {dayNum} {isToday && '(Hoje)'}
+                            </span>
+                            
+                            <div className="flex flex-col gap-1 w-full min-w-0">
+                            {dayEvents.map(event => {
+                                const band = bands.find(b => b.id === event.bandId);
+                                const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
+                                
+                                let statusColor = "bg-slate-700 border-slate-600";
+                                if (event.status === EventStatus.CONFIRMED) statusColor = "bg-green-600/90 border-green-500";
+                                if (event.status === EventStatus.RESERVED) statusColor = "bg-yellow-600/90 border-yellow-500";
+                                if (event.status === EventStatus.CANCELED) statusColor = "bg-red-600/90 border-red-500";
+                                
+                                return (
+                                <div 
+                                    key={event.id}
+                                    onClick={(e) => { e.stopPropagation(); openEditEvent(event); }}
+                                    className={`${cardPadding} rounded border shadow-sm cursor-pointer hover:scale-[1.02] transition-all ${statusColor} text-white w-full h-auto relative block overflow-hidden`}
+                                    title={`${event.time} - ${displayName}`}
+                                >
+                                    {isSuperAdmin && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteEvent(event.id); }}
+                                            className="absolute top-1 right-1 p-1 bg-red-900/50 hover:bg-red-800 text-red-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                            title="Excluir evento permanentemente"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    )}
+                                    <div className={`flex ${zoomPercent <= 120 ? 'flex-row items-center gap-2' : 'flex-col gap-0.5'}`}>
+                                       <div className="text-[10px] font-bold whitespace-nowrap">{event.time}</div>
+                                       <div className={`${titleClass} break-words`}>{displayName}</div>
+                                    </div>
+
+                                    {zoomPercent > 120 && (
+                                    <div className={`mt-1 ${zoomPercent > 200 ? 'space-y-1' : ''}`}>
+                                        <div className="text-[10px] opacity-90 leading-tight flex items-center gap-1">
+                                            {zoomPercent > 200 && <MapPin size={10} />}
+                                            {event.city}
+                                        </div>
+                                    </div>
+                                    )}
+
+                                    {zoomPercent > 200 && !isViewer && (
+                                    <div className="mt-2 pt-2 border-t border-white/10 space-y-2">
+                                        {event.venue && (
+                                            <div className="text-[10px] bg-black/20 p-1 rounded flex items-start gap-1">
+                                                <MapPin size={10} className="mt-0.5 shrink-0" /> 
+                                                <span className="leading-tight">{event.venue}</span>
+                                            </div>
+                                        )}
+                                        {event.contractor && (
+                                            <div className="text-[10px] bg-black/20 p-1 rounded flex items-center gap-1">
+                                                <UserIcon size={10} className="shrink-0" />
+                                                <span className="truncate">{event.contractor}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-end gap-1">
+                                            {!event.hasContract && event.status !== EventStatus.CANCELED && (
+                                                <div title="Contrato Pendente" className="bg-red-500 text-white rounded-full p-0.5">
+                                                    <FileWarning size={10} />
+                                                </div>
+                                            )}
+                                            {event.hasContract && <div className="text-green-300"><FileCheck size={12}/></div>}
+                                        </div>
+                                    </div>
+                                    )}
+                                </div>
+                                )
+                            })}
+                            </div>
+                            
+                            {!isViewer && (
+                                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Plus size={14} className="text-primary-500" />
+                                </div>
+                            )}
+                        </div>
+                        );
+                    })}
+                    </div>
+                </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === 'list' && (
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-900 border-b border-slate-800">
+                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Data</th>
+                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Evento</th>
+                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Local</th>
+                    {!isViewer && <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Contrato</th>}
+                    <th className="p-4 text-xs font-semibold text-slate-500 uppercase text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).map(event => {
+                    const band = bands.find(b => b.id === event.bandId);
+                    const displayName = isViewer ? "Data Ocupada" : `${band?.name || 'Banda'} - ${event.name}`;
+                    return (
+                      <tr key={event.id} onClick={() => openEditEvent(event)} className="hover:bg-slate-900 transition-colors cursor-pointer">
+                        <td className="p-4 align-top">
+                          <div className="text-white font-medium">{new Date(event.date).toLocaleDateString()}</div>
+                          <div className="text-xs text-slate-500">{event.time}</div>
+                        </td>
+                        <td className="p-4 align-top">
+                          <div className="text-white font-medium">{displayName}</div>
+                          <div className="text-xs text-slate-500">{band?.name}</div>
+                        </td>
+                        <td className="p-4 align-top text-slate-400">
+                          {isViewer ? event.city : `${event.venue ? event.venue + ', ' : ''}${event.city}`}
+                        </td>
+                        {!isViewer && (
+                          <td className="p-4 align-top text-center">
+                            {event.hasContract ? <FileCheck size={18} className="text-green-500 mx-auto" /> : <FileWarning size={18} className="text-yellow-500 mx-auto" />}
+                          </td>
+                        )}
+                        <td className="p-4 align-top text-center">
+                          <StatusBadge status={event.status} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const BandsAndUsersView = () => {
+    if (!canManageUsers) {
+      return (
+        <div className="flex flex-col items-center justify-center h-[50vh] text-slate-500">
+          <Ban size={48} className="mb-4 text-slate-700"/>
+          <p>Acesso restrito.</p>
+        </div>
+      );
+    }
+  
+    const pendingUsers = users.filter(u => u.status === 'PENDING');
+  
+    return (
+      <div className="space-y-8 pb-20 md:pb-0">
+        {pendingUsers.length > 0 && (
+          <div className="bg-yellow-900/20 border border-yellow-500/30 p-4 rounded-xl">
+            <h3 className="text-yellow-400 font-bold mb-3 flex items-center gap-2"><KeyRound size={18} /> Aprovações Pendentes ({pendingUsers.length})</h3>
+            <div className="space-y-2">
+              {pendingUsers.map(user => (
+                <div key={user.id} className="flex justify-between items-center bg-slate-900 p-2 rounded">
+                  <div>
+                    <p className="text-white text-sm font-medium">{user.name}</p>
+                    <p className="text-xs text-slate-500">{user.email}</p>
+                  </div>
+                  <button onClick={() => openEditUser(user)} className="text-xs bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-md flex items-center gap-1">
+                    <CheckCircle size={14} /> Aprovar/Editar
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+  
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Music className="text-primary-500" /> Bandas
+            </h2>
+            <button onClick={handleAddBand} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700">
+              <Plus size={18} /> Nova Banda
+            </button>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+            <div className="divide-y divide-slate-800">
+              {bands.map(band => (
+                <div key={band.id} className="flex items-center justify-between p-4 group">
+                  <span className="font-medium text-white">{band.name}</span>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleEditBand(band)} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                      <Edit2 size={12} /> Editar
+                    </button>
+                    <button onClick={() => handleDeleteBand(band.id)} className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800 hover:border-red-900">
+                      <Trash2 size={12} /> Excluir
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+  
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Users className="text-primary-500" /> Usuários
+            </h2>
+            <button onClick={() => { setEditingUser(null); setIsUserFormOpen(true); }} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700">
+              <Plus size={18} /> Novo Usuário
+            </button>
+          </div>
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-900">
+                    <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Nome</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Permissão</th>
+                    <th className="p-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                    <th className="p-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {users.filter(u => u.status === 'ACTIVE').map(user => (
+                    <tr key={user.id} className="hover:bg-slate-900 group">
+                      <td className="p-3">
+                        <p className="text-white font-medium">{user.name}</p>
+                        <p className="text-xs text-slate-500">{user.email}</p>
+                      </td>
+                      <td className="p-3 text-slate-400 text-sm capitalize">{user.role}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${user.status === 'ACTIVE' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                          {user.status === 'ACTIVE' ? 'Ativo' : 'Pendente'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEditUser(user)} className="text-xs text-slate-400 hover:text-white flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                            <Edit2 size={12} />
+                          </button>
+                          {user.email !== 'admin' && (
+                            <button onClick={() => handleDeleteUser(user.id)} className="ml-2 text-xs text-red-400 hover:text-red-300 flex items-center gap-1 bg-slate-900 px-2 py-1 rounded border border-slate-800 hover:border-red-900">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  const LoginView = ({ onLogin, onSwitchToRegister }: { onLogin: (e: string, p: string) => Promise<string | null>, onSwitchToRegister: () => void }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+  
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError('');
+      setIsSubmitting(true);
+      const loginError = await onLogin(email, password);
+      if (loginError) {
+        setError(loginError);
+      }
+      setIsSubmitting(false);
+    };
+  
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 p-4">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white shadow-lg">
+              <Mic2 size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Agenda</h1>
+              <p className="text-primary-400 font-semibold">D&E MUSIC</p>
+            </div>
+          </div>
+  
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Login</label>
+                <input
+                  type="text"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none"
+                  placeholder="admin"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Senha</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-primary-500 outline-none"
+                  placeholder="admin"
+                />
+              </div>
+              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" /> : <LogIn size={18} />}
+                Entrar
+              </button>
+            </form>
+            <div className="text-center mt-6">
+               <button onClick={onSwitchToRegister} className="text-sm text-slate-500 hover:text-primary-400 hover:underline">
+                 Não tem uma conta? Solicite seu acesso.
+               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  const RegistrationView = ({ onRegister, onBackToLogin }: { onRegister: (u: Pick<User, 'name' | 'email' | 'password'>) => Promise<void>, onBackToLogin: () => void }) => {
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+  
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (password !== confirmPassword) {
+        setError('As senhas não coincidem.');
+        return;
+      }
+      if (password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres.');
+        return;
+      }
+      setError('');
+      setIsSubmitting(true);
+      await onRegister({ name, email, password });
+      setIsSubmitting(false);
+    };
+  
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-950 p-4">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white shadow-lg">
+              <Mic2 size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Solicitar Acesso</h1>
+              <p className="text-primary-400 font-semibold">D&E MUSIC</p>
+            </div>
+          </div>
+  
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-8">
+            <p className="text-center text-slate-400 text-sm mb-4">
+              Após o cadastro, sua conta precisará ser aprovada por um administrador.
+            </p>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Nome Completo" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="E-mail" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Senha (mínimo 6 caracteres)" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirmar Senha" required className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white" />
+              {error && <p className="text-red-400 text-sm text-center">{error}</p>}
+              <button type="submit" disabled={isSubmitting} className="w-full flex justify-center bg-primary-600 hover:bg-primary-500 text-white font-bold py-3 rounded-lg">
+                {isSubmitting ? <Loader2 className="animate-spin" /> : 'Registrar'}
+              </button>
+            </form>
+            <div className="text-center mt-6">
+              <button onClick={onBackToLogin} className="text-sm text-slate-500 hover:text-primary-400 hover:underline">
+                Já tem uma conta? Faça login.
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
+  if (isLoading) {
+    return null;
+  }
+
+  // --- TOP LEVEL RENDER LOGIC ---
+  if (publicView) {
+    if (publicView.type === 'register') {
+      return <RegistrationView onRegister={handleRegistrationSubmit} onBackToLogin={() => { setPublicView(null); window.history.replaceState({}, document.title, window.location.pathname); }} />;
+    }
+    if (publicView.type === 'prospect' && publicView.token) {
+      return <PublicProspectingFormView token={publicView.token} dbService={db} />;
+    }
+  }
+
+  const registrationSuccess = window.location.search.includes('registration=success');
+  
+  if (!currentUser) {
+    return (
+      <div>
+        {registrationSuccess && (
+          <div className="bg-green-600 text-white text-center p-2 fixed top-0 w-full z-50">
+            Solicitação de registro enviada com sucesso! Aguarde a aprovação.
+          </div>
+        )}
+        <LoginView onLogin={handleLoginSubmit} onSwitchToRegister={() => window.location.search = '?request_access=true'} />
+      </div>
+    );
+  }
+
+  let viewToRender = null;
+  switch (currentView) {
+    case 'dashboard':
+      viewToRender = <DashboardView />;
+      break;
+    case 'pipeline':
+      viewToRender = <PipelineView />;
+      break;
+    case 'agenda':
+      viewToRender = renderAgendaView();
+      break;
+    case 'contractors':
+      viewToRender = <ContractorsView />;
+      break;
+    case 'contracts_library':
+      viewToRender = <ContractsLibraryView />;
+      break;
+    case 'bands':
+      viewToRender = <BandsAndUsersView />;
+      break;
+    default:
+      viewToRender = <DashboardView />;
+  }
+
+  return (
+    <div className="font-sans">
+      <Layout 
+        user={currentUser} 
+        currentView={currentView}
+        onChangeView={setCurrentView}
+        onLogout={handleLogout}
+      >
+        {viewToRender}
+      </Layout>
+
+      {isFormOpen && (
+        <EventForm
+          bands={getVisibleBands()}
+          contractors={contractors}
+          existingEvent={editingEvent}
+          currentUser={currentUser}
+          initialDate={newEventDate}
+          initialBandId={selectedBandFilter || undefined}
+          onSave={handleSaveEvent}
+          onGenerateContract={openContractGenerator}
+          onClose={() => setIsFormOpen(false)}
+        />
+      )}
+      
+      {isContractorFormOpen && (
+        <ContractorForm 
+          existingContractor={editingContractor}
+          onSave={handleSaveContractor}
+          onClose={() => setIsContractorFormOpen(false)}
+        />
+      )}
+
+      {isUserFormOpen && (
+        <UserForm 
+          bands={bands}
+          existingUser={editingUser}
+          onSave={handleSaveUser}
+          onClose={() => setIsUserFormOpen(false)}
+        />
+      )}
+
+      {isBandFormOpen && (
+        <BandForm
+          existingBand={editingBand}
+          onSave={handleSaveBand}
+          onClose={() => setIsBandFormOpen(false)}
+        />
+      )}
+      
+      {selectedDateDetails && <DayDetailsModal />}
+
+      {isContractGeneratorOpen && eventForContract && (
+        <ContractGeneratorModal
+          event={eventForContract}
+          contractors={contractors}
+          bands={bands}
+          onClose={() => setIsContractGeneratorOpen(false)}
+        />
+      )}
+      
+      {isSendModalOpen && selectedEventForSend && (
+        <SendContractModal
+          event={selectedEventForSend}
+          contractor={contractors.find(c => c.name === selectedEventForSend.contractor)}
+          onClose={() => setIsSendModalOpen(false)}
+        />
+      )}
+
+      {isMonthPickerOpen && (
+        <div 
+          className="fixed inset-0 z-20"
+          onClick={() => setIsMonthPickerOpen(false)}
+        ></div>
+      )}
+      
+      {isProspectingLinkModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4">
+            <div className="bg-slate-800 w-full max-w-lg rounded-xl border border-slate-700 shadow-2xl text-center p-8">
+                <div className="w-16 h-16 bg-blue-500/10 border-4 border-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ExternalLink size={32} className="text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Link de Prospecção Gerado!</h3>
+                <p className="text-slate-400 mt-2 mb-6">Envie este link para um novo cliente solicitar um show.</p>
+                <div className="relative bg-slate-900 border border-slate-700 rounded-lg p-3">
+                    <input type="text" readOnly value={prospectingLink} className="w-full bg-transparent text-slate-300 text-sm outline-none pr-12"/>
+                    <button 
+                        onClick={() => navigator.clipboard.writeText(prospectingLink)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-white bg-slate-700 rounded"
+                    >
+                        <ClipboardCopy size={16}/>
+                    </button>
+                </div>
+                <button onClick={() => setIsProspectingLinkModalOpen(false)} className="mt-6 px-6 py-2 bg-primary-600 text-white rounded-lg font-medium">Fechar</button>
+            </div>
+        </div>
+      )}
+      
+      {isImportModalOpen && currentUser && (
+        <ImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onImport={handleImportEvents}
+          bands={bands}
+          currentUser={{ name: currentUser.name }}
+        />
+      )}
+    </div>
+  );
+};
+
+// FIX: This wrapper component is necessary because AppContent uses hooks,
+// and ErrorBoundary is a class component.
+const AppWrapper: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  );
+};
+
+// FIX: Export the wrapper as the default export.
+export default AppWrapper;
