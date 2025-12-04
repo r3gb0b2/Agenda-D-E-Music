@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, UserRole, Band } from '../types';
 import { X, Save, User as UserIcon, Lock, Shield, Music, Eye, EyeOff } from 'lucide-react';

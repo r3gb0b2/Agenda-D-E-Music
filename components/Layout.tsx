@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { User, UserRole } from '../types';
 import { LayoutDashboard, Calendar, Music, LogOut, Menu, X, Mic2, Briefcase, FileText, Kanban } from 'lucide-react';

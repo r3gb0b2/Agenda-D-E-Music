@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Band, Event, EventStatus, Contractor, User, UserRole, ContractFile, PipelineStage } from '../types';
 import { X, Calculator, Sparkles, User as UserIcon, Phone, MapPin, Mail, FileCheck, FileWarning, Tag, Upload, FileText, Trash2, Plus, Truck, Plane, Hotel, PenTool, Printer, ExternalLink, ClipboardCopy } from 'lucide-react';
@@ -147,6 +146,7 @@ const EventForm: React.FC<EventFormProps> = ({ bands, contractors, existingEvent
   const handleGenerateBrief = async () => {
     setIsGenerating(true);
     const band = bands.find(b => b.id === formData.bandId);
+    // FIX: Removed redundant API key check. The service handles initialization.
     const summary = await generateEventBrief(formData, band?.name || 'Banda');
     setAiSummary(summary);
     setIsGenerating(false);

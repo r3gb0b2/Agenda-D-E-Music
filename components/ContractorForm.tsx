@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Contractor, ContractorType } from '../types';
 import { X, Save, MapPin, User, FileText, Phone, Loader2, CreditCard, Building } from 'lucide-react';

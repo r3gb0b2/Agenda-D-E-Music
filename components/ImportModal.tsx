@@ -99,7 +99,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
         const grossValue = parseFloat(rowData['Valor Bruto']?.replace(',', '.') || '0');
         data.financials = {
             grossValue: isNaN(grossValue) ? 0 : grossValue,
-            commissionType: 'FIXED', commissionValue: 0, taxes: 0, netValue: isNaN(grossValue) ? 0 : grossValue, currency: 'BRL'
+            commissionType: 'FIXED', commissionValue: 0, taxes: 0, netValue: isNaN(grossValue) ? 0 : grossValue, currency: 'BRL', notes: ''
         };
 
         return { original: rowData, data, errors, lineNumber: index + 2 };

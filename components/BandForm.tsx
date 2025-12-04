@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Band } from '../types';
 import { X, Save, Music, Building, CreditCard, Mic2, CheckCircle } from 'lucide-react';
