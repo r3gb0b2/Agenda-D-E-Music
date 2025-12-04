@@ -1,5 +1,4 @@
 
-
 export enum EventStatus {
   RESERVED = 'RESERVED',
   CONFIRMED = 'CONFIRMED',
