@@ -35,19 +35,21 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
 
   const parseAndValidate = (csvText: string) => {
     const lines = csvText.trim().split('\n');
-    const header = lines[0].split(',').map(h => h.trim());
+    const header = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
     const rows = lines.slice(1);
     
-    const requiredHeaders = ['Banda', 'Nome do Evento', 'Data (DD/MM/AAAA)', 'Status'];
+    const requiredHeaders = ['Artista', 'Data', 'Status'];
     if (!requiredHeaders.every(h => header.includes(h))) {
-        alert(`Arquivo CSV inválido. O cabeçalho deve conter as colunas: ${requiredHeaders.join(', ')}`);
+        alert(`Arquivo CSV inválido. O cabeçalho deve conter pelo menos as colunas: ${requiredHeaders.join(', ')}`);
         return;
     }
 
     const results: ParsedRow[] = rows.map((rowStr, index) => {
-        const values = rowStr.split(',');
+        // Handle commas inside quoted fields
+        const values = rowStr.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/"/g, ''));
+        
         const rowData: Record<string, string> = header.reduce((obj, h, i) => {
-            obj[h] = values[i] ? values[i].trim() : '';
+            obj[h] = values[i] || '';
             return obj;
         }, {} as Record<string, string>);
 
@@ -55,26 +57,28 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
         const data: Partial<Omit<Event, 'id' | 'createdAt' | 'createdBy'>> = {};
 
         // 1. Validate Band
-        const bandName = rowData['Banda'];
+        const bandName = rowData['Artista'];
         const band = bands.find(b => b.name.toLowerCase() === bandName?.toLowerCase());
-        if (!band) errors.push(`Banda "${bandName}" não encontrada no sistema.`);
+        if (!bandName) errors.push('Coluna "Artista" não encontrada.');
+        else if (!band) errors.push(`Artista "${bandName}" não encontrado no sistema.`);
         else data.bandId = band.id;
 
-        // 2. Validate Event Name
-        data.name = rowData['Nome do Evento'];
-        if (!data.name) errors.push('Nome do Evento é obrigatório.');
+        // 2. Validate Event Name (using Título or fallback)
+        data.name = rowData['Título'] || rowData['Evento'] || `Show ${bandName}`;
+        if (!data.name) errors.push('Nome do Evento (coluna "Título" ou "Evento") é obrigatório.');
 
-        // 3. Validate Date
-        const dateStr = rowData['Data (DD/MM/AAAA)'];
+        // 3. Validate Date (DD-MM-YYYY)
+        const dateStr = rowData['Data'];
         if (!dateStr) {
-            errors.push('Data é obrigatória.');
+            errors.push('Coluna "Data" é obrigatória.');
         } else {
-            const dateParts = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+            const dateParts = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
             if (!dateParts) {
-                errors.push('Formato de data inválido. Use DD/MM/AAAA.');
+                errors.push('Formato de data inválido. Use DD-MM-AAAA.');
             } else {
                 const [, day, month, year] = dateParts;
-                const isoDate = new Date(`${year}-${month}-${day}T12:00:00.000Z`);
+                // JavaScript months are 0-indexed
+                const isoDate = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12, 0, 0));
                 if (isNaN(isoDate.getTime())) {
                     errors.push('Data inválida.');
                 } else {
@@ -83,20 +87,33 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
             }
         }
         
-        // 4. Validate Status
+        // 4. Validate and Translate Status
         const statusStr = rowData['Status']?.toUpperCase();
-        if (Object.values(EventStatus).includes(statusStr as EventStatus)) {
-            data.status = statusStr as EventStatus;
+        const statusMap: Record<string, EventStatus> = {
+            'CONFIRMADO': EventStatus.CONFIRMED,
+            'RESERVA': EventStatus.RESERVED,
+            'CANCELADO': EventStatus.CANCELED,
+            'REALIZADO': EventStatus.COMPLETED,
+            'RESERVED': EventStatus.RESERVED,
+            'CONFIRMED': EventStatus.CONFIRMED,
+            'CANCELED': EventStatus.CANCELED,
+            'COMPLETED': EventStatus.COMPLETED,
+        };
+        if (!statusStr) errors.push('Coluna "Status" é obrigatória.');
+        else if (statusMap[statusStr]) {
+            data.status = statusMap[statusStr];
         } else {
-            errors.push(`Status "${statusStr}" inválido. Use: ${Object.values(EventStatus).join(', ')}.`);
+            errors.push(`Status "${statusStr}" inválido.`);
         }
 
         // 5. Optional Fields
-        data.time = rowData['Hora'] || '21:00';
+        data.time = '21:00'; // Default time
         data.city = rowData['Cidade'] || '';
         data.venue = rowData['Local'] || '';
         data.contractor = rowData['Contratante'] || '';
-        const grossValue = parseFloat(rowData['Valor Bruto']?.replace(',', '.') || '0');
+        data.notes = rowData['Info. Adicionais'] || '';
+        
+        const grossValue = parseFloat(rowData['Cachê']?.replace(',', '.') || '0');
         data.financials = {
             grossValue: isNaN(grossValue) ? 0 : grossValue,
             commissionType: 'FIXED', commissionValue: 0, taxes: 0, netValue: isNaN(grossValue) ? 0 : grossValue, currency: 'BRL', notes: ''
@@ -110,7 +127,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
   };
 
   const handleFile = (selectedFile: File) => {
-    if (selectedFile && selectedFile.type === 'text/csv') {
+    if (selectedFile && (selectedFile.type === 'text/csv' || selectedFile.name.endsWith('.csv'))) {
       setFile(selectedFile);
       const reader = new FileReader();
       reader.onload = (e) => parseAndValidate(e.target?.result as string);
@@ -136,13 +153,13 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
   };
   
   const handleDownloadTemplate = () => {
-    const csvContent = "Banda,Nome do Evento,Data (DD/MM/AAAA),Hora,Cidade,Local,Status,Contratante,Valor Bruto\nExemplo Banda,Casamento Teste,25/12/2024,22:00,São Paulo,Buffet Exemplo,CONFIRMED,João da Silva,5000.00";
+    const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPIM","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","-","-","-","20000.00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     if (link.download !== undefined) {
         const url = URL.createObjectURL(blob);
         link.setAttribute("href", url);
-        link.setAttribute("download", "modelo_importacao.csv");
+        link.setAttribute("download", "modelo_importacao_agenda.csv");
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -181,7 +198,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
                         Selecionar Arquivo
                     </label>
                     <p className="text-xs text-slate-600 mt-6 max-w-sm">
-                        Para garantir que os dados sejam lidos corretamente, use o nosso modelo.
+                        Para garantir que os dados sejam lidos corretamente, use o nosso modelo ou um arquivo com as colunas necessárias.
                     </p>
                     <button onClick={handleDownloadTemplate} className="text-xs text-primary-400 hover:underline mt-1 flex items-center gap-1">
                       <Download size={12}/> Baixar modelo CSV
@@ -202,8 +219,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
                             <thead className="sticky top-0 bg-slate-950">
                                 <tr>
                                     <th className="p-2">#</th>
-                                    <th className="p-2 text-left">Banda</th>
-                                    <th className="p-2 text-left">Evento</th>
+                                    <th className="p-2 text-left">Artista</th>
                                     <th className="p-2 text-left">Data</th>
                                     <th className="p-2 text-left">Status</th>
                                     <th className="p-2 text-left">Erros</th>
@@ -213,9 +229,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
                                 {parsedRows.map(row => (
                                     <tr key={row.lineNumber} className={row.errors.length > 0 ? 'bg-red-900/20' : 'bg-green-900/10'}>
                                         <td className="p-2 text-slate-500">{row.lineNumber}</td>
-                                        <td className="p-2">{row.original['Banda']}</td>
-                                        <td className="p-2">{row.original['Nome do Evento']}</td>
-                                        <td className="p-2">{row.original['Data (DD/MM/AAAA)']}</td>
+                                        <td className="p-2">{row.original['Artista']}</td>
+                                        <td className="p-2">{row.original['Data']}</td>
                                         <td className="p-2">{row.original['Status']}</td>
                                         <td className="p-2 text-red-400">
                                             {row.errors.join(', ')}
