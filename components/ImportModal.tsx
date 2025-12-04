@@ -211,7 +211,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
   
   const handleDownloadTemplate = () => {
     const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPÃO","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","-","-","-","20.000,00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Add BOM for Excel compatibility
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     if (link.download !== undefined) {
         const url = URL.createObjectURL(blob);
