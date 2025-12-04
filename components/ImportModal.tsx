@@ -170,7 +170,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
       setFile(selectedFile);
       const reader = new FileReader();
       reader.onload = (e) => parseAndValidate(e.target?.result as string);
-      reader.readAsText(selectedFile);
+      // Explicitly read the file as UTF-8 to correctly handle special characters like 'ã'.
+      reader.readAsText(selectedFile, 'UTF-8');
     } else {
       alert('Por favor, selecione um arquivo CSV.');
     }
@@ -192,7 +193,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
   };
   
   const handleDownloadTemplate = () => {
-    const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPIM","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","-","-","-","20.000,00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
+    const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPÃO","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","-","-","-","20.000,00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     if (link.download !== undefined) {
@@ -238,6 +239,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
                     </label>
                     <p className="text-xs text-slate-600 mt-6 max-w-sm">
                         Para garantir que os dados sejam lidos corretamente, use o nosso modelo ou um arquivo com as colunas necessárias.
+                        <br/>
+                        <strong className="text-yellow-400/80">Dica: Salve sua planilha como "CSV UTF-8".</strong>
                     </p>
                     <button onClick={handleDownloadTemplate} className="text-xs text-primary-400 hover:underline mt-1 flex items-center gap-1">
                       <Download size={12}/> Baixar modelo CSV
