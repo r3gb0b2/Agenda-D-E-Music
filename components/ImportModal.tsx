@@ -90,9 +90,26 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
         else if (!band) errors.push(`Artista "${bandName}" não encontrado no sistema.`);
         else data.bandId = band.id;
 
-        // 2. Validate Event Name (using Título or fallback)
-        data.name = rowData['Título'] || rowData['Evento'] || `Show ${bandName}`;
-        if (!data.name) errors.push('Nome do Evento (coluna "Título" ou "Evento") é obrigatório.');
+        // 2. Validate Event Name (using Título or fallback) and append salesperson
+        let eventName = rowData['Título'];
+        if (!eventName || eventName.trim() === '-') {
+            eventName = rowData['Evento'];
+        }
+        if (!eventName || eventName.trim() === '-') {
+            eventName = `Show ${bandName}`;
+        }
+        data.name = eventName.trim();
+
+        if (!data.name) {
+            errors.push('Nome do Evento (coluna "Título" ou "Evento") é obrigatório.');
+        }
+
+        // Append salesperson ("Vendendor") to the title
+        const vendedor = rowData['Vendendor']?.trim();
+        if (vendedor) {
+            data.name = `${data.name} - ${vendedor}`;
+        }
+
 
         // 3. Validate Date (DD-MM-YYYY)
         const dateStr = rowData['Data'];
@@ -210,7 +227,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
   };
   
   const handleDownloadTemplate = () => {
-    const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPÃO","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","-","-","-","20.000,00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
+    const csvContent = `"ID","Artista","Data","Cidade","Estado","País","Status","Tipo de Lançamento","Título","Info. Adicionais","Contratante","Local","Evento","Vendendor","Comissão","Tipo de Negociação","Cachê","Bilheteria","Garantia","Resultado bilheteria","Valor Nota","Total Imposto","Criado por","Criado em"\n"E233277","FELIPÃO","14-02-2026","CASCAVEL - CAPONGA","CE","","CONFIRMADO","SHOW","-","20/6","-","-","-","Rafael ","-","-","20.000,00","-","-","-","-","-","Rafael ","30-09-2025 16:07"`;
     // Add BOM for Excel compatibility
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -291,7 +308,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
                                     <tr key={row.lineNumber} className={row.errors.length > 0 ? 'bg-red-900/20' : ''}>
                                         <td className="p-2 text-slate-500">{row.lineNumber}</td>
                                         <td className="p-2">{row.original['Artista']}</td>
-                                        <td className="p-2 text-white">{row.data?.name || row.original['Título']}</td>
+                                        <td className="p-2 text-white">{row.data?.name}</td>
                                         <td className="p-2">{row.original['Data']}</td>
                                         <td className="p-2">{row.data?.city}</td>
                                         <td className="p-2 text-right">{row.data?.financials?.grossValue ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(row.data.financials.grossValue) : '-'}</td>
