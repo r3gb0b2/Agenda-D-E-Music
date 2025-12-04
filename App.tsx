@@ -1798,21 +1798,41 @@ const AppContent: React.FC = () => {
                </div>
 
                {viewMode === 'calendar' && (
-                <div className="flex items-center gap-1 bg-slate-900 rounded-lg p-1 border border-slate-800">
-                  <button onClick={prevMonth} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"><ChevronLeft size={18} /></button>
-                  <div className="relative">
-                     <button onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)} className="px-3 py-1 font-semibold text-white w-32 text-center">
-                        {monthNames[month]} {year}
+                <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 ml-0 md:ml-2 relative">
+                  <button onClick={prevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={18}/></button>
+                  
+                  <div className="relative z-30">
+                     <button 
+                       onClick={() => setIsMonthPickerOpen(!isMonthPickerOpen)}
+                       className="flex items-center justify-center gap-2 font-semibold text-white min-w-[160px] text-center uppercase tracking-wide hover:bg-slate-800 py-1 px-2 rounded transition-colors"
+                     >
+                       {monthNames[month]} {year}
+                       <ChevronDown size={14} className={`transition-transform ${isMonthPickerOpen ? 'rotate-180' : ''}`} />
                      </button>
+                     
                      {isMonthPickerOpen && (
-                        <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-slate-950 border border-slate-700 rounded-lg shadow-xl z-10 p-2 grid grid-cols-3 gap-1">
-                           {monthNames.map((mName, idx) => (
-                              <button key={mName} onClick={() => { setCurrentMonth(new Date(year, idx, 1)); setIsMonthPickerOpen(false); }} className={`px-2 py-1 text-sm rounded ${idx === month ? 'bg-primary-600' : 'hover:bg-slate-800'}`}>{mName.substring(0,3)}</button>
-                           ))}
-                        </div>
+                       <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-4 animate-fade-in z-50">
+                          <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-800">
+                             <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year - 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronLeft size={16}/></button>
+                             <span className="font-bold text-white text-lg">{year}</span>
+                             <button onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year + 1, month, 1)); }} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={16}/></button>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                             {monthNames.map((mName, idx) => (
+                               <button
+                                 key={mName}
+                                 onClick={(e) => { e.stopPropagation(); setCurrentMonth(new Date(year, idx, 1)); setIsMonthPickerOpen(false); }}
+                                 className={`text-xs py-2 rounded font-medium transition-colors ${idx === month ? 'bg-primary-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}
+                               >
+                                 {mName.substring(0, 3)}
+                               </button>
+                             ))}
+                          </div>
+                       </div>
                      )}
                   </div>
-                  <button onClick={nextMonth} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded"><ChevronRight size={18} /></button>
+
+                  <button onClick={nextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white"><ChevronRight size={18}/></button>
                 </div>
                )}
             </div>
@@ -2189,29 +2209,57 @@ const AppContent: React.FC = () => {
     return null; // The preloader is handled by the initial HTML
   }
 
-  // --- RENDER LOGIC ---
+  // --- TOP LEVEL RENDER LOGIC ---
+  if (publicView) {
+    if (publicView.type === 'register') {
+      return <RegistrationView onRegister={handleRegistrationSubmit} />;
+    }
+    if (publicView.type === 'prospect' && publicView.token) {
+      return <PublicProspectingFormView token={publicView.token} dbService={db} />;
+    }
+  }
+
+  const registrationSuccess = window.location.search.includes('registration=success');
+  
+  if (!currentUser) {
+    return (
+      <div>
+        {registrationSuccess && (
+          <div className="bg-green-600 text-white text-center p-2 fixed top-0 w-full z-50">
+            Solicitação de registro enviada com sucesso! Aguarde a aprovação.
+          </div>
+        )}
+        <LoginView onLogin={handleLoginSubmit} onRegisterClick={() => setPublicView({ type: 'register' })} />
+      </div>
+    );
+  }
+
+  let viewToRender = null;
+  switch (currentView) {
+    case 'dashboard':
+      viewToRender = <DashboardView />;
+      break;
+    case 'pipeline':
+      viewToRender = <PipelineView />;
+      break;
+    case 'agenda':
+      viewToRender = renderAgendaView();
+      break;
+    case 'contractors':
+      viewToRender = <ContractorsView />;
+      break;
+    case 'contracts_library':
+      viewToRender = <ContractsLibraryView />;
+      break;
+    case 'bands':
+      viewToRender = <BandsAndUsersView />;
+      break;
+    default:
+      viewToRender = <DashboardView />;
+  }
 
   return (
     <div className="bg-slate-950 text-white min-h-screen font-sans">
-      <div id="initial-loader" className="fixed inset-0 bg-slate-950 z-[100] flex flex-col items-center justify-center transition-opacity duration-500">
-          <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-white shadow-md">
-                <Mic2 size={20} />
-              </div>
-              <h1 className="text-xl font-bold text-white leading-tight">
-                Agenda D&E MUSIC
-              </h1>
-          </div>
-          <Loader2 size={24} className="animate-spin text-primary-500"/>
-      </div>
-
-      {!isLoading && !currentUser && publicView?.type === 'prospect' && publicView.token && <PublicProspectingFormView token={publicView.token} dbService={db} />}
-      {!isLoading && !currentUser && publicView?.type === 'register' && <RegistrationView onRegister={handleRegistrationSubmit} />}
-      {!isLoading && !currentUser && !publicView && (
-        window.location.search.includes('registration=success')
-          ? <RegistrationSuccessView />
-          : <LoginView onLogin={handleLoginSubmit} onRegisterClick={() => setPublicView({ type: 'register' })} />
-      )}
       {!isLoading && currentUser && (
         <Layout user={currentUser} currentView={currentView} onChangeView={setCurrentView} onLogout={handleLogout}>
           {/* Main content based on view */}
@@ -2283,5 +2331,4 @@ const App: React.FC = () => {
   )
 }
 
-// FIX: Added default export for the App component
 export default App;
