@@ -168,14 +168,31 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
   const handleFile = (selectedFile: File) => {
     if (selectedFile && (selectedFile.type === 'text/csv' || selectedFile.name.endsWith('.csv'))) {
       setFile(selectedFile);
-      const reader = new FileReader();
-      reader.onload = (e) => parseAndValidate(e.target?.result as string);
-      // Explicitly read the file as UTF-8 to correctly handle special characters like 'ã'.
-      reader.readAsText(selectedFile, 'UTF-8');
+
+      // --- AUTO ENCODING DETECTION ---
+      const readerUtf8 = new FileReader();
+      
+      readerUtf8.onload = (e) => {
+        const text = e.target?.result as string;
+        // Check for the Unicode Replacement Character, which indicates a decoding error
+        if (text.includes('�')) {
+          console.warn("UTF-8 decoding failed, trying ISO-8859-1...");
+          const readerIso = new FileReader();
+          readerIso.onload = (e2) => parseAndValidate(e2.target?.result as string);
+          readerIso.readAsText(selectedFile, 'ISO-8859-1');
+        } else {
+          parseAndValidate(text);
+        }
+      };
+
+      // First, try reading as UTF-8 (the web standard)
+      readerUtf8.readAsText(selectedFile, 'UTF-8');
+      
     } else {
       alert('Por favor, selecione um arquivo CSV.');
     }
   };
+
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -238,9 +255,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ba
                         Selecionar Arquivo
                     </label>
                     <p className="text-xs text-slate-600 mt-6 max-w-sm">
-                        Para garantir que os dados sejam lidos corretamente, use o nosso modelo ou um arquivo com as colunas necessárias.
-                        <br/>
-                        <strong className="text-yellow-400/80">Dica: Salve sua planilha como "CSV UTF-8".</strong>
+                        O sistema detectará automaticamente a codificação do seu arquivo (UTF-8, ISO, etc).
                     </p>
                     <button onClick={handleDownloadTemplate} className="text-xs text-primary-400 hover:underline mt-1 flex items-center gap-1">
                       <Download size={12}/> Baixar modelo CSV
