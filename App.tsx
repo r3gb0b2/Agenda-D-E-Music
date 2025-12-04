@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, ReactNode, ErrorInfo, Component } from 'react';
 import { db } from './services/databaseService';
 import { Event, Band, User, EventStatus, UserRole, Contractor, ContractorType, ContractFile, PipelineStage } from './types';
@@ -1634,14 +1635,22 @@ const AppContent: React.FC = () => {
   const DayDetailsModal = () => {
     if (!selectedDateDetails) return null;
     
-    // Parse date safely
     const [y, m, d] = selectedDateDetails.split('-');
     const dateObj = new Date(Number(y), Number(m)-1, Number(d));
     
-    const dayEvents = getVisibleEvents().filter(e => {
+    // Start with all visible events for the selected day
+    let dayEvents = getVisibleEvents().filter(e => {
        if (!e.date) return false;
        return e.date.split('T')[0] === selectedDateDetails;
-    }).sort((a, b) => a.time.localeCompare(b.time));
+    });
+
+    // If a band filter is active, apply it to the day's events
+    if (selectedBandFilter) {
+        dayEvents = dayEvents.filter(event => event.bandId === selectedBandFilter);
+    }
+
+    // Sort the final list
+    dayEvents.sort((a, b) => a.time.localeCompare(b.time));
 
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setSelectedDateDetails(null)}>
@@ -2483,9 +2492,9 @@ const AppContent: React.FC = () => {
   );
 };
 
-// FIX: This wrapper component is necessary because AppContent uses hooks,
+// This wrapper component is necessary because AppContent uses hooks,
 // and ErrorBoundary is a class component.
-const AppWrapper: React.FC = () => {
+const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <AppContent />
@@ -2494,4 +2503,4 @@ const AppWrapper: React.FC = () => {
 };
 
 // FIX: Export the wrapper as the default export.
-export default AppWrapper;
+export default App;
